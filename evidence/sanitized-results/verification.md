@@ -38,3 +38,16 @@ fixtures as completion of every scenario in the specification.
 The first Linux CI run found a test-clock assumption: assigning monotonic zero
 did not expire a five-minute cache on a newly booted runner. The regression now
 ages the recorded load time by 301 seconds. Application behavior is unchanged.
+
+## Independent Linux CI
+
+[GitHub Actions run 39479498970](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39479498970)
+passed on commit `207d8d24e459de6ff138a9718cec4d41012f10b9`:
+
+- Ubuntu 24.04, Python 3.14.8 and PostgreSQL 17.11.
+- 81 tests passed in 7.22 seconds, with no skips; 76% statement coverage.
+- Frozen install, Ruff lint/format and dependency advisory audit passed.
+- The nonroot Docker image built successfully as `canvas-bridge:ci`.
+
+Image construction is verified. A hosted deployment, containerized service
+operation with real credentials, and live integration remain unverified.
