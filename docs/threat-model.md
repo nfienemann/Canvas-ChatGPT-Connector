@@ -17,6 +17,7 @@ journal. No course text is an instruction source.
 | Parser exploits | Size/member/expanded-size/ratio limits, defused XML, no macros/embedded object execution | Synthetic PDF/DOCX/PPTX only; live binary parser not enabled without OS/network isolation |
 | Cached access after revocation | Current course checks, at most five-minute entitlement lease; fresh page check before fetch/search | Permission-loss fixtures; no stale cache offered after known denial |
 | Disconnect versus in-flight job | Connection row locks, deletion epochs, no job resurrection | Queue and token-refresh race fixtures; PostgreSQL worker owner checks |
+| Account deletion versus OAuth completion | Principal generation, ordered principal/connection locks, one-use state and separate durable owner fence | Token-exchange/profile-read cancellation, PostgreSQL link/delete race, pre-deletion restore fixtures |
 | Restore resurrects deleted records | HMAC journal flushed before removal; empty-target restore; later fences applied before import | Encrypted backup/restore fixtures; offsite journal durability is an operator gate |
 | Browser forgery / XSS | HttpOnly sessions, CSRF token, origin/Fetch Metadata validation, HTML escaping, CSP | HTTP and actual browser keyboard checks; full accessibility audit pending |
 

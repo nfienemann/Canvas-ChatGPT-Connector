@@ -9,7 +9,7 @@
 | C05 actual student read | No OAuth key, identity provider or deployment available | Blocked; owner requested local-first |
 | C06 coursework | Student courses, assignment pagination, effective dates/statuses and coverage | Verified subset; broader inventory pending |
 | C07 planning | Effort ranges, priorities, bounded review, dependency ordering, busy times, pinned replanning and shortfall | Verified local; real student usefulness pending |
-| C08 lifecycle | Disconnect/queue fences, encrypted backup, restore journal, SSRF and parser fixtures | Verified subset; hosted operations/sandbox pending |
+| C08 lifecycle | Disconnect, account-wide deletion, OAuth/queue fences, export, encrypted backup, restore journal, SSRF and parser fixtures | Verified local; hosted operations/sandbox pending |
 | C09 live UX | Local settings keyboard/visual check and HTTP CSRF tests | Actual ChatGPT/mobile/native Calendar not tested |
 | C10 knowledge/math | Modules/pages, scoped page search, text continuation, parser and simple-points primitives | Partial; full materials/policy subsets gated |
 | C11 optional Calendar | No live grants/actions/receipts or notifications exposed | Deferred until independent authorization and approval proof |

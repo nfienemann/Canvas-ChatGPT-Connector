@@ -48,8 +48,9 @@ Disconnect removes pending jobs and blocks in-flight writes.
 
 `uv run canvas-bridge purge` runs independently. Snapshot retention defaults to
 30 days. Scope removal denies access and purges course-derived active records,
-as described in the retention guide. Aggregate telemetry, full account deletion
-and deployment-specific backup expiry still need pilot review.
+as described in the retention guide. Account-wide deletion additionally fences
+pending authorizations and browser sessions across every linked institution.
+Aggregate telemetry and deployment-specific backup expiry still need pilot review.
 No background notifications are delivered.
 
 ## Backup and restore
@@ -62,6 +63,12 @@ Maintain `BRIDGE_DELETION_JOURNAL` independently of database rollback.
 Disconnect flushes an authenticated fence before local removal. Copy the journal
 to independently protected storage under a tested procedure. A same-disk journal
 is not offsite protection.
+
+Account-wide deletion writes a `principal:` fence and increments the minimal
+principal generation under a database lock. Preserve these journal entries with
+connection fences. The restore procedure excludes pre-deletion connections and
+raises restored principal generations before serving data. Never hand-edit or
+truncate the journal to bypass a restore error.
 
 Restore only into an **empty, migrated database**:
 

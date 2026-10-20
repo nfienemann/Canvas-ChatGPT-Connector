@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import DateTime, select
 
 from canvas_bridge.domain import utcnow
-from canvas_bridge.storage import Base, BrowserSession, OAuthState, Tombstone
+from canvas_bridge.storage import Base, BrowserSession, OAuthState, PrincipalState, Tombstone, aware
 
 
 @contextmanager
@@ -94,6 +94,21 @@ def restore(bridge, source: Path, journal: Path) -> dict:
     payload = bridge.vault.open(source.read_text(encoding="utf-8"), "operator", "backup")
     if payload.get("format") != "bridge-backup-1":
         raise ValueError("Unsupported backup format.")
+    principal_fences = {
+        ref.removeprefix("principal:"): record
+        for ref, record in fences.items()
+        if ref.startswith("principal:")
+    }
+    connection_fences = {
+        ref: record for ref, record in fences.items() if not ref.startswith("principal:")
+    }
+    excluded = set(connection_fences)
+    for row in payload["tables"].get("connections", []):
+        fence = principal_fences.get(row["owner"])
+        if fence and aware(datetime.fromisoformat(row["created_at"])) <= datetime.fromisoformat(
+            fence["deleted_at"]
+        ):
+            excluded.add(row["id"])
     with bridge.store.transaction() as session:
         for table in Base.metadata.sorted_tables:
             if session.execute(select(table).limit(1)).first():
@@ -104,7 +119,7 @@ def restore(bridge, source: Path, journal: Path) -> dict:
                 ref = row.get(
                     "connection_id", row.get("id") if table.name == "connections" else None
                 )
-                if ref in fences:
+                if ref in excluded:
                     continue
                 for column in table.columns:
                     if isinstance(column.type, DateTime) and row.get(column.name):
@@ -114,7 +129,7 @@ def restore(bridge, source: Path, journal: Path) -> dict:
                     row["state"] = "cancelled"
                     row["lease_until"] = None
                 session.execute(table.insert().values(**row))
-        for ref, record in fences.items():
+        for ref, record in connection_fences.items():
             session.add(
                 Tombstone(
                     connection_id=ref,
@@ -122,4 +137,10 @@ def restore(bridge, source: Path, journal: Path) -> dict:
                     deleted_at=datetime.fromisoformat(record["deleted_at"]),
                 )
             )
+        for owner, record in principal_fences.items():
+            principal = session.get(PrincipalState, owner)
+            if principal is None:
+                session.add(PrincipalState(owner=owner, generation=record["epoch"]))
+            else:
+                principal.generation = max(principal.generation, record["epoch"])
     return {"restored": True, "deletion_fences_applied": len(fences), "jobs_resumed": False}

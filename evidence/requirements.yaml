@@ -64,12 +64,21 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
@@ -110,6 +119,7 @@
         "T46"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
@@ -185,6 +195,7 @@
         "T07"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_domain_planning.py::test_T06_submission_states_zero_and_excused",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
@@ -420,10 +431,14 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_retrieval_lifecycle.py::test_T23_archive_expansion_bomb_rejected",
         "tests/test_retrieval_lifecycle.py::test_T23_office_archives_reject_unsafe_members",
         "tests/test_retrieval_lifecycle.py::test_T23_xml_entities_not_expanded",
@@ -592,9 +607,20 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
+        "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
         "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
         "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",
@@ -636,6 +662,7 @@
       ],
       "automated_test_functions": [
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks"
       ],
@@ -729,6 +756,8 @@
         "T40"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
+        "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
@@ -849,6 +878,7 @@
         "T46"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
@@ -948,8 +978,15 @@
         "T32"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
@@ -990,9 +1027,18 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
@@ -1075,6 +1121,7 @@
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
         "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
         "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
@@ -1378,6 +1425,7 @@
       ],
       "automated_test_functions": [
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect"
       ],
       "test_results": [
@@ -1601,9 +1649,20 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
+        "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
         "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
         "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",

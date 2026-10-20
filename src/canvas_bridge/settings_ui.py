@@ -13,10 +13,10 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from canvas_bridge.auth import SETTINGS_SCOPE, principal_id
 from canvas_bridge.domain import DomainError, utcnow
-from canvas_bridge.linking import begin_link, digest, disconnect, finish_link
+from canvas_bridge.linking import begin_link, delete_account, digest, disconnect, finish_link
 from canvas_bridge.network import public_client
 from canvas_bridge.policy import validate_https
-from canvas_bridge.storage import BrowserSession, OAuthState, aware
+from canvas_bridge.storage import BrowserSession, OAuthState, PrincipalState, aware
 
 CSS = """
 :root{font-family:system-ui,sans-serif;color:#182e32;background:#f3f7f6;color-scheme:light}
@@ -99,6 +99,11 @@ def add_settings_routes(mcp, bridge, verifier):
             raise DomainError("permission_denied", "Session expired. Sign in again.")
         if write and SETTINGS_SCOPE not in token.scopes:
             raise DomainError("permission_denied", "Settings permission is required.")
+        with bridge.store.transaction() as database:
+            current = database.get(BrowserSession, row.digest)
+            principal = database.get(PrincipalState, row.owner)
+            if not current or (principal and current.generation != principal.generation):
+                raise DomainError("permission_denied", "This settings session was revoked.")
         return row
 
     async def form(request, session):
@@ -127,6 +132,7 @@ def add_settings_routes(mcp, bridge, verifier):
         owner = principal_id(token.claims["iss"], token.subject)
         handle = secrets.token_urlsafe(32)
         with bridge.store.transaction() as session:
+            principal = bridge.store.principal(session, owner)
             session.add(
                 BrowserSession(
                     digest=digest(handle),
@@ -134,6 +140,7 @@ def add_settings_routes(mcp, bridge, verifier):
                     credential=bridge.vault.seal({"token": raw_token}, owner, "browser-session"),
                     csrf=secrets.token_urlsafe(32),
                     expires_at=utcnow() + timedelta(hours=1),
+                    generation=principal.generation,
                 )
             )
         response = RedirectResponse("/settings", status_code=303)
@@ -225,6 +232,16 @@ def add_settings_routes(mcp, bridge, verifier):
         else:
             body += "<p>No live institution is currently advertised as supported. "
             body += "An institution administrator must enable an approved OAuth access path.</p>"
+        body += '<section class="card"><h2>Delete all local account data</h2>'
+        body += "<p>Disconnect every institution, delete retained coursework and plans, cancel pending linking and queued work, and sign out.</p>"
+        body += "<p>Minimal deletion fences remain. Existing ChatGPT conversations, institution records and downloaded copies are controlled separately.</p>"
+        body += '<form method="post" action="/settings/delete-account">' + hidden(
+            "csrf", session.csrf
+        )
+        body += '<label><input type="checkbox" name="confirm" value="delete" required> Delete all my local account data</label>'
+        body += (
+            '<button class="danger">Delete all local data and sign out</button></form></section>'
+        )
         return page("Connection settings", body)
 
     @route("/settings/demo", ["POST"])
@@ -365,7 +382,10 @@ def add_settings_routes(mcp, bridge, verifier):
         values = await form(request, session)
         nonce = secrets.token_urlsafe(32)
         response = RedirectResponse(
-            begin_link(bridge, session.owner, str(values["institution"]), nonce), 303
+            begin_link(
+                bridge, session.owner, str(values["institution"]), nonce, session.generation
+            ),
+            303,
         )
         response.set_cookie(
             "bridge_canvas", nonce, httponly=True, secure=secure, samesite="lax", max_age=600
@@ -407,6 +427,27 @@ def add_settings_routes(mcp, bridge, verifier):
             },
         )
 
+    @route("/settings/delete-account", ["POST"])
+    async def remove_account(request):
+        session = await identity(request, True)
+        values = await form(request, session)
+        if values.get("confirm") != "delete":
+            raise DomainError("needs_input", "Select the deletion confirmation before continuing.")
+        result = await delete_account(bridge, session.owner, session.generation)
+        unconfirmed = sum(
+            outcome["remote_revocation"] == "not_confirmed"
+            for outcome in result.data["remote_revocations"]
+        )
+        response = page(
+            "Local account data deleted",
+            f"<p>{html.escape(result.summary)}</p>"
+            f"<p>Unconfirmed remote revocations: {unconfirmed}.</p>"
+            "<p>Minimal deletion fences remain. Existing conversations, institution records and downloaded copies are controlled separately.</p>",
+        )
+        for name in ("bridge_session", "bridge_canvas", "bridge_oauth", "bridge_start"):
+            response.delete_cookie(name, secure=secure, httponly=True, samesite="lax")
+        return response
+
     @route("/settings/privacy", ["GET"])
     async def privacy(request):
         return page(
@@ -422,6 +463,8 @@ def add_settings_routes(mcp, bridge, verifier):
         <h2>Retention and deletion</h2><p>Current normalized records remain while selected and authorized.
         Observation history is purged after 30 days when the worker or purge command runs.
         Disconnect removes active connection records and credentials and stops queued work.
+        Delete all local account data applies this to every linked institution and cancels
+        pending Canvas authorization and browser sessions.
         A minimal deletion fence remains for safe restore. Backup expiry is an operator responsibility,
         with a proposed maximum of 30 days before a real-data pilot.</p>
         <p>Deleting here cannot delete prior ChatGPT conversations, downloaded exports,

@@ -155,7 +155,11 @@ class Bridge:
                 staff = any(
                     e.get("type") not in {"student", "StudentEnrollment"} for e in enrollments
                 )
-                if not student or staff:
+                if (
+                    not student
+                    or staff
+                    or raw.get("workflow_state") in {"completed", "deleted", "unpublished"}
+                ):
                     continue
                 upstream = source_id(raw["id"])
                 seen.add(upstream)

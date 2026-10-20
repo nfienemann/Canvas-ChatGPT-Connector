@@ -53,7 +53,7 @@ live profiles require PostgreSQL.
 | Course knowledge | Modules and Canvas pages, access-rechecked search of fetched pages, version-bound text continuation |
 | Grades | Own visible reported fields; unknown policy stays unknown. Simple-points arithmetic is tested internally, not advertised as exact Canvas reconstruction |
 | Local writes | Explicit version-checked preferences, personal progress and saved plans; no Canvas mutation |
-| Lifecycle | Encrypted credential records, OAuth state binding and refresh leases, disconnect, JSON export, leased refresh jobs, retention, encrypted logical backup and deletion-fenced restore |
+| Lifecycle | Encrypted credentials, OAuth binding/refresh leases, disconnect and account-wide deletion, JSON export, leased jobs, retention, encrypted backup and deletion-fenced restore |
 | Settings | Server-rendered authentication, course selection, timezone and privacy controls with CSRF protection |
 
 Binary PDF/DOCX/PPTX parsers are bounded **synthetic-development primitives**.

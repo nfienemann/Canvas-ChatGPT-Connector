@@ -30,6 +30,12 @@ class Base(DeclarativeBase):
     pass
 
 
+class PrincipalState(Base):
+    __tablename__ = "principal_states"
+    owner: Mapped[str] = mapped_column(String(64), primary_key=True)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class Connection(Base):
     __tablename__ = "connections"
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=opaque_id)
@@ -122,6 +128,7 @@ class OAuthState(Base):
     browser_digest: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     payload: Mapped[str | None] = mapped_column(Text)
+    generation: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class BrowserSession(Base):
@@ -131,6 +138,7 @@ class BrowserSession(Base):
     credential: Mapped[str] = mapped_column(Text)
     csrf: Mapped[str] = mapped_column(String(100))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    generation: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class Tombstone(Base):
@@ -147,6 +155,8 @@ def aware(value: datetime) -> datetime:
 class Store:
     def __init__(self, url: str):
         options: dict[str, Any] = {"pool_pre_ping": True}
+        if url.startswith("postgresql"):
+            options.update({"connect_args": {"connect_timeout": 5}, "pool_timeout": 5})
         if url.startswith("sqlite"):
             options["connect_args"] = {"check_same_thread": False}
             if ":memory:" in url:
@@ -163,6 +173,20 @@ class Store:
     def transaction(self):
         with self.sessions.begin() as session:
             yield session
+
+    @staticmethod
+    def principal(session: Session, owner: str) -> PrincipalState:
+        # Always acquire this lock before any connection/authorization-state lock.
+        if session.get_bind().dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert
+        else:
+            from sqlalchemy.dialects.sqlite import insert
+        session.execute(
+            insert(PrincipalState).values(owner=owner, generation=0).on_conflict_do_nothing()
+        )
+        return session.scalar(
+            select(PrincipalState).where(PrincipalState.owner == owner).with_for_update()
+        )
 
     @staticmethod
     def connection(session: Session, owner: str, ref: str, *, lock: bool = False) -> Connection:
@@ -196,20 +220,23 @@ class Store:
             )
             if row is None:
                 raise DomainError("permission_denied", "Connection unavailable.")
-            credential = row.credential
-            institution = row.institution
-            if row.state == "active":
-                row.epoch += 1
-            row.state = "disconnected"
-            row.credential = None
-            row.canvas_user = ""
-            row.entitlement_at = None
-            row.last_success = None
-            tombstone = session.get(Tombstone, ref)
-            if tombstone is None:
-                session.add(Tombstone(connection_id=ref, epoch=row.epoch))
-            for cls in (Job, Material, LocalRecord, Snapshot, Work, Course):
-                session.execute(delete(cls).where(cls.owner == owner, cls.connection_id == ref))
+            return self.disconnect_in_session(session, row)
+
+    @staticmethod
+    def disconnect_in_session(session: Session, row: Connection) -> dict:
+        credential, institution = row.credential, row.institution
+        if row.state == "active":
+            row.epoch += 1
+        row.state = "disconnected"
+        row.credential = None
+        row.canvas_user = ""
+        row.entitlement_at = None
+        row.last_success = None
+        tombstone = session.get(Tombstone, row.id)
+        if tombstone is None:
+            session.add(Tombstone(connection_id=row.id, epoch=row.epoch))
+        for cls in (Job, Material, LocalRecord, Snapshot, Work, Course):
+            session.execute(delete(cls).where(cls.owner == row.owner, cls.connection_id == row.id))
         # Return the credential only to the private lifecycle caller, never a tool result.
         return {"credential": credential, "institution": institution, "epoch": row.epoch}
 

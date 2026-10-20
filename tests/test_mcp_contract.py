@@ -126,3 +126,34 @@ async def test_T19_T43_settings_flow_csrf_and_disconnect(running, bridge, token_
         )
         assert result.status_code == 200
         assert "Local access disabled" in result.text
+
+
+@pytest.mark.contract
+async def test_T18_T19_delete_account_requires_confirmation_and_revokes_session(
+    running, bridge, token_factory, seeded
+):
+    bridge.settings.local_jwks_file.with_name("demo-token").write_text(token_factory())
+    async with httpx.AsyncClient(base_url=running, follow_redirects=True) as client:
+        home = await client.get("/settings")
+        csrf = re.search(r'name="csrf" value="([^"]+)"', home.text)[1]
+        login = await client.post(
+            "/settings/demo", data={"csrf": csrf}, headers={"Origin": running}
+        )
+        csrf = re.search(r'name="csrf" value="([^"]+)"', login.text)[1]
+        unconfirmed = await client.post(
+            "/settings/delete-account", data={"csrf": csrf}, headers={"Origin": running}
+        )
+        assert unconfirmed.status_code == 403
+        result = await client.post(
+            "/settings/delete-account",
+            data={"csrf": csrf, "confirm": "delete"},
+            headers={"Origin": running},
+        )
+        assert result.status_code == 200 and "All local account records deleted" in result.text
+        assert "bridge_session" not in client.cookies
+        replay = await client.post(
+            "/settings/delete-account",
+            data={"csrf": csrf, "confirm": "delete"},
+            headers={"Origin": running},
+        )
+        assert replay.status_code == 403

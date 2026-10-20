@@ -12,7 +12,7 @@
 | OAuth/browser session state | Authentication | Expiring, scoped, server-side; no tokens in browser storage | Deployed IdP/browser flow proof |
 | Logs | Diagnostics | No API access log; sanitized tool-error class | Proxy redaction, 7-day policy and log review |
 | Backups | Recovery | Encrypted logical backup, separate deletion fences | Independent storage, <=30-day expiry and restore exercise |
-| Deletion journal | Prevent resurrection | Authenticated minimal connection-ID/epoch/time record | Separate durable retention policy |
+| Deletion journal / principal generation | Prevent resurrection | Authenticated minimal connection or principal hash, generation and time | Separate durable retention policy |
 | Calendar / notifications | None in this release | No grants, writes or deliveries | Independent opt-in provider and approval/delivery gates |
 
 Disconnect disables access and purges connection coursework, local records,
@@ -22,8 +22,17 @@ Course deselection or detected access loss removes its work and materials,
 related progress, and connection-wide snapshots, queued jobs and saved plans.
 A conservative restore fence excludes that connection from older backups;
 the student must reconnect after such a restore. Remaining selected courses
-continue working in the active database. Full account-wide deletion, deployed
-backup expiry and independent-copy controls need further live-release work.
+continue working in the active database.
+
+“Delete all local account data” removes all of the authenticated owner's linked
+connections and derived records in one transaction, cancels pending Canvas OAuth
+and browser sessions, and signs out. A principal generation fences OAuth exchanges
+already in flight; a returned grant cannot create a connection after deletion.
+Local removal completes before bounded remote revocation attempts. Unconfirmed
+revocation is reported explicitly. Only minimal deletion/generation fences remain.
+Restore rejects pre-deletion connections, while a new explicit post-deletion
+connection can be restored. Deployed backup expiry and independent-copy controls
+still require the actual operator/privacy arrangement.
 
 The protected JSON export contains retained connection metadata, courses, work,
 snapshots, materials with citations, local records and jobs. It excludes

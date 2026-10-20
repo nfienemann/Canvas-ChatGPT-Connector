@@ -34,6 +34,13 @@ connection records. The response distinguishes remote token revocation from loca
 removal. Prior ChatGPT conversations and independent downloads require their own
 deletion controls.
 
+To remove all linked institutions at once, use **Delete all local account data**
+in settings and select its confirmation checkbox. This also cancels pending
+Canvas linking, deletes saved plans and signs you out. Remote revocation failures
+are reported separately; revoke the app in your institution's Canvas account
+settings if necessary. Signing in and explicitly linking again starts a new
+connection. Minimal deletion fences remain to prevent old backups restoring data.
+
 Use fetched sources for quotes. Text extraction does not establish what a figure
 shows. Locked or unfetched readings remain unresolved. Visible grades and
 hypothetical calculations are different.

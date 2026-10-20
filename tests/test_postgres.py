@@ -10,9 +10,11 @@ from sqlalchemy.engine import make_url
 
 from canvas_bridge.domain import DomainError
 from canvas_bridge.jobs import claim
+from canvas_bridge.linking import begin_link, delete_account
 from canvas_bridge.service import Bridge
-from canvas_bridge.storage import Connection, Job, Store
+from canvas_bridge.storage import Connection, Job, OAuthState, PrincipalState, Store
 from tests.conftest import seed
+from tests.test_oauth import configure
 
 pytestmark = pytest.mark.postgres
 
@@ -98,3 +100,28 @@ async def test_T39_worker_admin_connection_checks_job_ownership(pg_bridge, owner
     assert claim(pg_bridge) is None
     with pg_bridge.store.transaction() as session:
         assert session.scalar(select(Job)).state == "cancelled"
+
+
+async def test_T18_T43_postgres_account_deletion_and_link_race(pg_bridge, owner, monkeypatch):
+    import asyncio
+
+    await seed(pg_bridge, owner)
+    configure(pg_bridge, monkeypatch)
+
+    def deleting():
+        return asyncio.run(delete_account(pg_bridge, owner, 0))
+
+    def linking():
+        try:
+            return begin_link(pg_bridge, owner, "synthetic", "browser", 0)
+        except DomainError:
+            return "revoked"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        deletion, authorization = pool.submit(deleting), pool.submit(linking)
+        assert deletion.result(timeout=10).data["active_store"] == "purged"
+        assert authorization.result(timeout=10)
+    with pg_bridge.store.transaction() as session:
+        assert not session.scalar(select(Connection).where(Connection.owner == owner))
+        assert not session.scalar(select(OAuthState).where(OAuthState.owner == owner))
+        assert session.get(PrincipalState, owner).generation == 1

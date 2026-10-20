@@ -18,7 +18,7 @@ but cannot be advertised as delivered. Binary parsing is limited to synthetic
 primitives until a credential-free, network-isolated worker is verified.
 
 Additional gaps: comprehensive non-assignment obligations, advanced grade
-policies, full account-wide deletion, fleet quotas,
+policies, fleet quotas,
 production key rotation, real mobile/screen-reader tests and license adoption.
 The requirement ledger records these separately from code/test existence.
 

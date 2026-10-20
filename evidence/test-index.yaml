@@ -73,6 +73,7 @@
       "scenario": "Planner completion conflicts with actual coursework",
       "required_outcome": "Keep personal completion separate; deduplicate source representations.",
       "fixture_functions": [
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
@@ -200,8 +201,15 @@
       "scenario": "Disconnect/delete while parser, sync, or action jobs are queued",
       "required_outcome": "Epoch/authorization checks prevent resurrection; pending outcome resolved safely.",
       "fixture_functions": [
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
+        "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
+        "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
@@ -216,7 +224,8 @@
       "scenario": "Keyboard/screen reader, small screens, locale variations",
       "required_outcome": "Core journeys usable; no color/hover-only status or unannounced focus loss.",
       "fixture_functions": [
-        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect"
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -389,6 +398,8 @@
       "scenario": "Retention expiry and restore from pre-deletion backup",
       "required_outcome": "Tombstones applied before serving; no deleted content reappearance.",
       "fixture_functions": [
+        "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
+        "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
         "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
         "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",
@@ -495,7 +506,11 @@
       "scenario": "Disconnect with provider down and uncertain action in progress",
       "required_outcome": "Local access stops; remote revoke/outcome reported separately; no silent calendar purge.",
       "fixture_functions": [
+        "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
+        "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
+        "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
       "coverage": "partial_fixture_coverage",

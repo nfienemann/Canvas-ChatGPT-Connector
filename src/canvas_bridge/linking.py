@@ -1,5 +1,6 @@
 """Canvas authorization lifecycle; never used to authorize academic writes."""
 
+import asyncio
 import hashlib
 import os
 import secrets
@@ -7,13 +8,13 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from canvas_bridge.canvas import CanvasClient
 from canvas_bridge.domain import DomainError, Result, opaque_id, utcnow
 from canvas_bridge.network import public_client
 from canvas_bridge.policy import Endpoint
-from canvas_bridge.storage import Connection, OAuthState, aware
+from canvas_bridge.storage import BrowserSession, Connection, OAuthState, aware
 
 
 def digest(value: str) -> str:
@@ -30,7 +31,13 @@ def credentials(institution) -> tuple[str, str]:
     return client_id, client_secret
 
 
-def begin_link(bridge, owner: str, institution_id: str, browser_nonce: str) -> str:
+def begin_link(
+    bridge,
+    owner: str,
+    institution_id: str,
+    browser_nonce: str,
+    expected_generation: int | None = None,
+) -> str:
     institution = bridge.registry.require(institution_id)
     if bridge.settings.profile == "synthetic":
         raise DomainError("unsupported_feature", "Live linking is disabled in synthetic mode.")
@@ -42,6 +49,9 @@ def begin_link(bridge, owner: str, institution_id: str, browser_nonce: str) -> s
     state = secrets.token_urlsafe(32)
     callback = bridge.settings.resource_url.rstrip("/") + "/settings/canvas/callback"
     with bridge.store.transaction() as session:
+        principal = bridge.store.principal(session, owner)
+        if expected_generation is not None and principal.generation != expected_generation:
+            raise DomainError("permission_denied", "Sign in again before linking an account.")
         session.add(
             OAuthState(
                 digest=digest(state),
@@ -50,6 +60,7 @@ def begin_link(bridge, owner: str, institution_id: str, browser_nonce: str) -> s
                 redirect=callback,
                 browser_digest=digest(browser_nonce),
                 expires_at=utcnow() + timedelta(minutes=10),
+                generation=principal.generation,
             )
         )
     return (
@@ -107,6 +118,10 @@ async def exchange(institution, data: dict, http: httpx.AsyncClient | None = Non
 
 async def finish_link(bridge, state: str, browser_nonce: str, code: str | None) -> Result:
     with bridge.store.transaction() as session:
+        hint = session.get(OAuthState, digest(state))
+        if hint is None or hint.institution == "__identity__":
+            raise DomainError("permission_denied", "Authorization session expired or is invalid.")
+        principal = bridge.store.principal(session, hint.owner)
         record = session.scalar(
             select(OAuthState).where(OAuthState.digest == digest(state)).with_for_update()
         )
@@ -114,9 +129,11 @@ async def finish_link(bridge, state: str, browser_nonce: str, code: str | None) 
             record is None
             or aware(record.expires_at) < utcnow()
             or not secrets.compare_digest(record.browser_digest, digest(browser_nonce))
+            or record.generation != principal.generation
         ):
             raise DomainError("permission_denied", "Authorization session expired or is invalid.")
         owner, institution_id, redirect = record.owner, record.institution, record.redirect
+        generation = record.generation
         session.delete(record)
     if not code:
         return Result(
@@ -131,6 +148,16 @@ async def finish_link(bridge, state: str, browser_nonce: str, code: str | None) 
             "redirect_uri": redirect,
         },
     )
+    with bridge.store.transaction() as session:
+        principal = bridge.store.principal(session, owner)
+        cancelled = principal.generation != generation
+    if cancelled:
+        remote = await revoke_token(bridge, institution_id, token)
+        return Result(
+            status="permission_denied",
+            summary="Authorization was cancelled by account deletion.",
+            data={"connection_created": False, "remote_revocation": remote},
+        )
     client = CanvasClient(institution, token["access_token"], bridge.settings)
     try:
         profile = await client.one(Endpoint.PROFILE)
@@ -142,16 +169,28 @@ async def finish_link(bridge, state: str, browser_nonce: str, code: str | None) 
     connection_id = opaque_id()
     # Reconnect creates a new connection/epoch; old tombstones remain effective.
     with bridge.store.transaction() as session:
-        session.add(
-            Connection(
-                id=connection_id,
-                owner=owner,
-                institution=institution_id,
-                canvas_user=canvas_user,
-                credential=bridge.vault.seal(token, owner, connection_id),
-                token_expires_at=utcnow()
-                + timedelta(seconds=max(0, int(token.get("expires_in", 3600)))),
+        principal = bridge.store.principal(session, owner)
+        cancelled = principal.generation != generation
+        if not cancelled:
+            session.add(
+                Connection(
+                    id=connection_id,
+                    owner=owner,
+                    institution=institution_id,
+                    canvas_user=canvas_user,
+                    credential=bridge.vault.seal(token, owner, connection_id),
+                    token_expires_at=utcnow()
+                    + timedelta(seconds=max(0, int(token.get("expires_in", 3600)))),
+                )
             )
+    if cancelled:
+        # Do not retain a newly returned grant after deletion. Revoke separately
+        # and report uncertainty instead of resurrecting the local connection.
+        remote = await revoke_token(bridge, institution_id, token)
+        return Result(
+            status="permission_denied",
+            summary="Authorization was cancelled by account deletion.",
+            data={"connection_created": False, "remote_revocation": remote},
         )
     return Result(
         summary="Canvas authorization completed. Select courses before retrieving work.",
@@ -206,6 +245,23 @@ async def refresh_credential(bridge, owner: str, ref: str) -> str:
         raise
 
 
+async def revoke_token(bridge, institution_id: str, secret: dict) -> str:
+    if bridge.synthetic:
+        return "not_applicable"
+    try:
+        institution = bridge.registry.require(institution_id)
+        async with public_client() as client:
+            async with client.stream(
+                "DELETE",
+                institution.origin + "/login/oauth2/token",
+                headers={"Authorization": f"Bearer {secret['access_token']}"},
+                follow_redirects=False,
+            ) as response:
+                return "confirmed" if response.status_code in {200, 204} else "not_confirmed"
+    except (DomainError, httpx.HTTPError, ValueError):
+        return "not_confirmed"
+
+
 async def disconnect(bridge, owner: str, ref: str) -> Result:
     from canvas_bridge.lifecycle import journal_delete
 
@@ -227,15 +283,9 @@ async def disconnect(bridge, owner: str, ref: str) -> Result:
     remote = "not_applicable" if bridge.synthetic else "not_confirmed"
     if not bridge.synthetic and outcome["credential"]:
         try:
-            institution = bridge.registry.require(outcome["institution"])
             secret = bridge.vault.open(outcome["credential"], owner, ref)
-            async with public_client() as client:
-                response = await client.delete(
-                    institution.origin + "/login/oauth2/token",
-                    headers={"Authorization": f"Bearer {secret['access_token']}"},
-                )
-                remote = "confirmed" if response.status_code in {200, 204} else "not_confirmed"
-        except (DomainError, httpx.HTTPError, ValueError):
+            remote = await revoke_token(bridge, outcome["institution"], secret)
+        except Exception:
             remote = "not_confirmed"
     return Result(
         summary="Local access disabled and active connection data removed.",
@@ -246,5 +296,64 @@ async def disconnect(bridge, owner: str, ref: str) -> Result:
             "remote_revocation": remote,
             "calendar_events": "unchanged",
             "independent_copies": "ChatGPT conversations, prior exports and provider records are controlled separately.",
+        },
+    )
+
+
+async def delete_account(bridge, owner: str, expected_generation: int | None = None) -> Result:
+    from canvas_bridge.lifecycle import journal_delete
+
+    grants = []
+    with bridge.store.transaction() as session:
+        principal = bridge.store.principal(session, owner)
+        if expected_generation is not None and principal.generation != expected_generation:
+            raise DomainError("permission_denied", "This settings session is no longer valid.")
+        connections = list(
+            session.scalars(
+                select(Connection)
+                .where(Connection.owner == owner)
+                .order_by(Connection.id)
+                .with_for_update()
+            )
+        )
+        # One owner-level journal fence also covers pending grants with no connection yet.
+        journal_delete(
+            bridge.settings.deletion_journal,
+            bridge.settings.vault_key_file.read_bytes(),
+            "principal:" + owner,
+            principal.generation + 1,
+        )
+        principal.generation += 1
+        for row in connections:
+            outcome = bridge.store.disconnect_in_session(session, row)
+            if outcome["credential"]:
+                grants.append((row.id, outcome))
+            session.delete(row)
+        session.execute(delete(OAuthState).where(OAuthState.owner == owner))
+        session.execute(delete(BrowserSession).where(BrowserSession.owner == owner))
+    # Local removal commits for every institution before attempting any network operation.
+    outcomes = []
+    deadline = asyncio.get_running_loop().time() + bridge.settings.refresh_budget_seconds
+    for ref, grant in grants:
+        try:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                status = "not_confirmed"
+            else:
+                async with asyncio.timeout(remaining):
+                    token = bridge.vault.open(grant["credential"], owner, ref)
+                    status = await revoke_token(bridge, grant["institution"], token)
+        except Exception:
+            status = "not_confirmed"
+        outcomes.append({"institution": grant["institution"], "remote_revocation": status})
+    return Result(
+        summary="All local account records deleted; access and pending linking sessions stopped.",
+        data={
+            "local_access": "disabled",
+            "active_store": "purged",
+            "connection_count": len(connections),
+            "remote_revocations": outcomes,
+            "retained": "Minimal principal-generation and deletion fences needed to prevent restoration.",
+            "independent_copies": "ChatGPT conversations, institution records and downloaded copies are controlled separately.",
         },
     )
