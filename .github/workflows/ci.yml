@@ -2,6 +2,12 @@ name: Synthetic checks
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      desktop_preview:
+        description: Build and publish a verified unsigned local-demo preview
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -36,3 +42,64 @@ jobs:
       - run: uv run pytest --cov=canvas_bridge --cov-report=term-missing
       - run: uv run pip-audit --local
       - run: docker build -t canvas-bridge:ci .
+  desktop:
+    needs: test
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'push' && contains(github.event.head_commit.message, '[desktop-preview]')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.desktop_preview))
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+          - os: macos-14
+            name: macos-arm64
+          - os: macos-15-intel
+            name: macos-x64
+          - os: ubuntu-22.04
+            name: linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        with:
+          version: '0.13.4'
+      - run: uv sync --frozen --group packaging
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libxft2
+      - run: uv run --group packaging python scripts/build_desktop.py
+      - if: runner.os != 'Linux'
+        run: uv run --group packaging python scripts/smoke_desktop.py --report dist/installers/verification-${{ matrix.name }}.json
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a uv run --group packaging python scripts/smoke_desktop.py --report dist/installers/verification-${{ matrix.name }}.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-${{ matrix.name }}
+          path: dist/installers/*
+          if-no-files-found: error
+          retention-days: 30
+  publish-preview:
+    needs: [test, desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: desktop-*
+          path: release-assets
+      - name: Publish local demo downloads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/publish_desktop.py

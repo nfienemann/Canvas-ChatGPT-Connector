@@ -4,6 +4,13 @@ This release is a fictional local demonstration. No institution or ChatGPT clien
 is yet advertised as supported. A student should not install a server or paste a
 Canvas token to use a future hosted release.
 
+To try fictional data now, choose your computer's package on the
+[download page](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases),
+open **Canvas Bridge Demo**, and follow its short setup wizard. You do not need
+Python or terminal commands. The **Check study tools** button verifies the local
+demo. These unsigned previews may be blocked by your operating system; trusted
+publisher signing remains unfinished. They do not connect to ChatGPT or Canvas.
+
 For an operator-provided supported release, the intended journey is:
 
 1. Add the approved connector using the connection method documented for your

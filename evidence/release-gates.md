@@ -20,6 +20,9 @@ primitives until a credential-free, network-isolated worker is verified.
 Additional gaps: comprehensive non-assignment obligations, advanced grade
 policies, fleet quotas,
 production key rotation, real mobile/screen-reader tests and license adoption.
+Desktop previews also require Windows publisher signing, Apple Developer ID
+notarization and fresh consumer-OS accessibility/trust checks before general
+student distribution. Native package tests do not establish those approvals.
 The requirement ledger records these separately from code/test existence.
 
 No purchase, institutional application, public service deployment, message,

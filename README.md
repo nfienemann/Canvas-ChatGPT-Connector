@@ -10,7 +10,25 @@ working authenticated MCP service, not a live university integration or approved
 ChatGPT Directory listing. The owner requested local construction and testing
 first. No real Canvas account has been accessed.
 
-## Run the local demonstration
+## Try the local demonstration
+
+The desktop preview bundles everything it needs. Use the **Windows setup wizard**,
+**macOS disk image**, or **Linux software-installer package** from
+[Downloads](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases).
+No Python, Git, terminal commands or model API keys are needed.
+
+Open **Canvas Bridge Demo → Set up local demo → Start local demo**. The launcher
+opens the local settings page and includes a **Check study tools** button. It picks
+an available port, keeps data in your user account, and stops when you close it.
+Upgrades and uninstall preserve your separate data folder.
+
+These packages are unsigned development previews; Windows/macOS may show publisher
+warnings or block them. Signed Windows builds and Apple notarization remain gates
+before general student distribution. No real institution or ChatGPT connection is
+included. The future hosted student experience is intended to need **no install**:
+connect in ChatGPT, sign in, and choose courses.
+
+## Run from source (contributors only)
 
 Install Python 3.14 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 From the repository root:

@@ -120,6 +120,7 @@
       ],
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
@@ -484,6 +485,8 @@
         "T35"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
@@ -569,6 +572,7 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
@@ -705,6 +709,7 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
         "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
         "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
@@ -758,6 +763,8 @@
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
@@ -1159,6 +1166,8 @@
         "T40"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
@@ -1193,6 +1202,8 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
       ],
       "test_results": [
@@ -1225,6 +1236,8 @@
         "T38"
       ],
       "automated_test_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",

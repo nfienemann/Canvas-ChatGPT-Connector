@@ -6,6 +6,7 @@
       "scenario": "Multiple course/assignment pages; middle page fails",
       "required_outcome": "Complete results only when all required pages succeed; otherwise partial coverage; no false removals.",
       "fixture_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage"
       ],
       "coverage": "partial_fixture_coverage",
@@ -415,6 +416,8 @@
       "scenario": "Clean container/operator deployment, migration, restore, rollback",
       "required_outcome": "Documented reproducible operation; no manual undisclosed source edits.",
       "fixture_functions": [
+        "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
       ],
       "coverage": "partial_fixture_coverage",

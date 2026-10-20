@@ -32,12 +32,23 @@ dev = [
   "ruff>=0.14",
   "pip-audit>=2.9",
 ]
+packaging = [
+    "pillow>=12,<13",
+    "pyinstaller==6.22.0",
+]
 
 [project.scripts]
 canvas-bridge = "canvas_bridge.cli:main"
 
+[project.gui-scripts]
+canvas-bridge-demo = "canvas_bridge.desktop:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/canvas_bridge"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"institutions.json" = "canvas_bridge/resources/institutions.json"
+"migrations" = "canvas_bridge/resources/migrations"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

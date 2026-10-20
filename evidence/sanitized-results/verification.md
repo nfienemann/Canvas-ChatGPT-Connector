@@ -6,12 +6,14 @@ The source manifest identifies the tested Python files with LF-normalized hashes
 
 | Check | Observed result |
 |---|---|
-| Full pytest suite with disposable PostgreSQL | **92 passed**, 0 failed, 0 skipped; 11.04 seconds |
-| Statement coverage | **78%** (1,851 / 2,366 statements); not proof of full acceptance |
+| Full pytest suite with disposable PostgreSQL | **97 passed**, 0 failed, 0 skipped; 19.75 seconds |
+| Statement coverage | **77%** (2,102 / 2,738 statements); not proof of full acceptance |
 | Ruff lint and format | Passed |
 | Frozen dependency sync | Passed |
-| Source distribution and wheel build | Passed |
-| Dependency advisory audit | 73 third-party distributions audited; no known vulnerabilities reported. This unpublished local project was skipped by the advisory service |
+| Source distribution and wheel build | Passed; migrations and institution fixtures included |
+| Desktop runtime fixtures | 5 passed: independent working directory, poisoned operator environment, port collision, OS lock, restart preservation and folder preferences |
+| Windows packaged demo | Native wizard and real MCP passed without Python on PATH; install, in-place upgrade and uninstall preserved data in an isolated test |
+| Dependency advisory audit | 80 third-party distributions in the local build environment audited; no known vulnerabilities reported. This unpublished local project was skipped by the advisory service |
 | PostgreSQL migrations | Upgrade, read/write, downgrade to base, upgrade again passed in random isolated test schemas |
 | PostgreSQL concurrency | One of two conflicting local writes rejected; pooled connections did not cross owner scope |
 | MCP HTTP client | Protocol 2025-11-25, 14 tools, 5 fictional obligations; workload and planning succeeded |

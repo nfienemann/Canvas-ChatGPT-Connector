@@ -7,8 +7,6 @@ from pathlib import Path
 
 import jwt
 import uvicorn
-from alembic import command
-from alembic.config import Config
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from mcp import ClientSession
@@ -19,16 +17,20 @@ from canvas_bridge.app import create_app, create_bridge
 from canvas_bridge.auth import principal_id
 from canvas_bridge.config import Settings
 from canvas_bridge.domain import opaque_id, utcnow
+from canvas_bridge.resources import migrate
 from canvas_bridge.storage import Connection
 
 
-def initialize_demo():
-    if Path(".env").exists():
+def initialize_demo(settings: Settings | None = None, folder: Path | None = None, *, verbose=True):
+    desktop = settings is not None
+    if settings is not None and settings.profile != "synthetic":
+        raise RuntimeError("Demo initialization is restricted to synthetic records.")
+    if not desktop and Path(".env").exists():
         current = Settings()
         if current.profile != "synthetic":
             raise RuntimeError("A live configuration exists; refusing to replace it.")
-    folder = Path(".local").resolve()
-    folder.mkdir(exist_ok=True)
+    folder = (folder or Path(".local")).resolve()
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     private_file = folder / "issuer-private.pem"
     if not private_file.exists():
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -39,6 +41,7 @@ def initialize_demo():
                 serialization.NoEncryption(),
             )
         )
+        private_file.chmod(0o600)
     else:
         private_key = serialization.load_pem_private_key(private_file.read_bytes(), password=None)
     jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(private_key.public_key()))
@@ -46,9 +49,10 @@ def initialize_demo():
     (folder / "jwks.json").write_text(json.dumps({"keys": [jwk]}), encoding="utf-8")
     if not (folder / "vault.key").exists():
         (folder / "vault.key").write_bytes(os.urandom(32))
+        (folder / "vault.key").chmod(0o600)
     if not (folder / "deletions.jsonl").exists():
         (folder / "deletions.jsonl").touch()
-    if not Path(".env").exists():
+    if not desktop and not Path(".env").exists():
         Path(".env").write_text(
             "BRIDGE_PROFILE=synthetic\n"
             f"BRIDGE_DATABASE_URL={os.environ.get('BRIDGE_DATABASE_URL', 'sqlite:///.local/bridge.db')}\n"
@@ -59,7 +63,7 @@ def initialize_demo():
             f"BRIDGE_DELETION_JOURNAL={folder.as_posix()}/deletions.jsonl\n",
             encoding="utf-8",
         )
-    settings = Settings()
+    settings = settings or Settings()
     token = jwt.encode(
         {
             "iss": settings.issuer_url,
@@ -74,7 +78,8 @@ def initialize_demo():
         headers={"kid": "local-synthetic"},
     )
     (folder / "demo-token").write_text(token, encoding="utf-8")
-    command.upgrade(Config("alembic.ini"), "head")
+    (folder / "demo-token").chmod(0o600)
+    migrate(settings.database_url)
     bridge = create_bridge(settings)
     owner = principal_id(settings.issuer_url, "synthetic-student")
     with bridge.store.transaction() as session:
@@ -84,7 +89,8 @@ def initialize_demo():
                 Connection.state == "active",
             )
         )
-        if not conn:
+        created = conn is None
+        if created:
             ref = opaque_id()
             conn = Connection(
                 id=ref,
@@ -101,12 +107,14 @@ def initialize_demo():
         result = await bridge.list_courses(owner, ref)
         bridge.select_courses(owner, ref, [c["id"] for c in result.data["courses"]], "UTC")
 
-    asyncio.run(seed_courses())
+    if created:
+        asyncio.run(seed_courses())
     bridge.store.close()
-    print("Synthetic environment initialized. Credentials are private under .local/.")
-    print("Start: uv run canvas-bridge serve")
-    print("Settings: http://127.0.0.1:8000/settings")
-    print("Protocol check: uv run canvas-bridge verify-read")
+    if verbose:
+        print("Synthetic environment initialized. Credentials are private under .local/.")
+        print("Start: uv run canvas-bridge serve")
+        print("Settings: http://127.0.0.1:8000/settings")
+        print("Protocol check: uv run canvas-bridge verify-read")
 
 
 async def verify_read(settings: Settings):
@@ -115,7 +123,9 @@ async def verify_read(settings: Settings):
     import httpx
 
     token = settings.local_jwks_file.with_name("demo-token").read_text(encoding="utf-8").strip()
-    async with httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}) as http:
+    async with httpx.AsyncClient(
+        headers={"Authorization": f"Bearer {token}"}, trust_env=False
+    ) as http:
         async with streamable_http_client(
             settings.resource_url.rstrip("/") + "/mcp", http_client=http
         ) as streams:
