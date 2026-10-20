@@ -20,9 +20,13 @@ import pypdf
 from canvas_bridge.domain import DomainError
 
 
-def ensure_runtime(root: Path) -> Path:
+def private_root(root: Path) -> Path:
     if sys.platform != "linux":
         raise DomainError("unsupported_feature", "Linux kernel isolation is unavailable.")
+    if os.geteuid() == 0:
+        raise DomainError(
+            "unsupported_feature", "Run Linux document extraction as a dedicated unprivileged user."
+        )
     root = root.resolve()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.stat().st_uid != os.getuid() or stat.S_IMODE(root.stat().st_mode) & 0o077:
@@ -30,6 +34,11 @@ def ensure_runtime(root: Path) -> Path:
             "unsupported_feature",
             "The Linux parser requires an owner-only dedicated directory (mode 0700).",
         )
+    return root
+
+
+def ensure_runtime(root: Path) -> Path:
+    root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
     library = Path(sysconfig.get_path("stdlib"))

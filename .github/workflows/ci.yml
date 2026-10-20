@@ -45,10 +45,11 @@ jobs:
       - name: Verify isolated extraction in the unprivileged Linux image
         run: >-
           docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges
-          --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m,mode=1777
+          --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
           canvas-bridge:ci .venv/bin/python -c
           "from pathlib import Path; from canvas_bridge.parser_sandbox import extract_isolated;
-          result=extract_isolated(b'Synthetic container extraction proof', 'txt', Path('/tmp/parser'));
+          from canvas_bridge.config import Settings;
+          result=extract_isolated(b'Synthetic container extraction proof', 'txt', Path('/tmp/parser'), runtime_root=Settings(_env_file=None).parser_runtime_root);
           assert result['pages'][0]['text']=='Synthetic container extraction proof';
           print('Linux container extraction verified without privileged mode or relaxed seccomp')"
   desktop:

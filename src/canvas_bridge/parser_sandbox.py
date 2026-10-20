@@ -128,17 +128,23 @@ def validate_result(result: dict, data: bytes) -> dict:
     return parsed
 
 
-def extract_isolated(data: bytes, kind: str, root: Path) -> dict:
+def extract_isolated(
+    data: bytes, kind: str, root: Path, *, runtime_root: Path | None = None
+) -> dict:
     if len(data) > 10_000_000:
         raise DomainError("unsupported_feature", "File exceeds the extraction size limit.")
     if not _slot.acquire(blocking=False):
         raise DomainError("retry_later", "Another document is being extracted. Retry shortly.")
     try:
-        runtime = ensure_runtime(root)
         if sys.platform == "linux":
-            from canvas_bridge.linux_sandbox import run
+            from canvas_bridge.linux_sandbox import private_root, run
+
+            private_root(root)
+            runtime = ensure_runtime(runtime_root or root)
         else:
             from canvas_bridge.windows_sandbox import run
+
+            runtime = ensure_runtime(root)
 
         jobs = root.resolve() / "jobs"
         jobs.mkdir(exist_ok=True)
@@ -176,4 +182,10 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
         )
     # Each OS worker always has its own wall/CPU limit, even if this awaiting
     # task is cancelled. It cannot survive the bounded job cleanup.
-    return await asyncio.to_thread(extract_isolated, data, kind, settings.parser_root)
+    return await asyncio.to_thread(
+        extract_isolated,
+        data,
+        kind,
+        settings.parser_root,
+        runtime_root=settings.parser_runtime_root,
+    )

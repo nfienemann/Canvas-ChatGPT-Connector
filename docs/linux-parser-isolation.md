@@ -42,13 +42,18 @@ needed. No change is made to authorized download, cache isolation or citation ru
 
 ## Deployment and verification plan
 
+Run as a dedicated unprivileged user; extraction refuses effective UID zero.
 Use a dedicated owner-only parser root (mode 0700) outside the repository and any
 secret mount. Linux requires enabled Landlock ABI 3+ and `libseccomp.so.2`. The
-service image installs Debian's libseccomp runtime dependency. Continue to enable
+service image installs Debian's libseccomp runtime dependency and prebuilds the
+trusted runtime under `/opt/canvas-parser`. Its `BRIDGE_PARSER_RUNTIME_ROOT`
+setting separates this read-only executable code from the private
+`BRIDGE_PARSER_ROOT` job directories. Scratch storage can remain non-executable.
+Continue to enable
 file reading explicitly using the existing operator configuration; failure to
 establish isolation must not be worked around with privileged containers or an
 unconfined seccomp profile. Runtime native libraries need an executable filesystem
-mapping; raw documents are never executed.
+mapping in the read-only runtime location; raw documents are never executed.
 
 Required proof includes real Linux PDF/TXT/Markdown/DOCX/PPTX extraction, page
 attribution, corruption/cleanup, private file/environment/descriptor denial,

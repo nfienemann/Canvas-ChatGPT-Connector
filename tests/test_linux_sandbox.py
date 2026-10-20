@@ -181,6 +181,7 @@ def test_T23_linux_no_unrestricted_fallback(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sandbox.sys, "platform", "linux")
     monkeypatch.setattr(sandbox, "ensure_runtime", lambda root: tmp_path)
+    monkeypatch.setattr("canvas_bridge.linux_sandbox.private_root", lambda root: root)
 
     def unavailable(*args, **kwargs):
         raise DomainError("unsupported_feature", "Kernel isolation unavailable.")
@@ -189,3 +190,27 @@ def test_T23_linux_no_unrestricted_fallback(tmp_path, monkeypatch):
     with pytest.raises(DomainError, match="Kernel isolation unavailable"):
         sandbox.extract_isolated(b"private document canary", "txt", tmp_path)
     assert not list((tmp_path / "jobs").iterdir())
+
+
+@linux
+def test_T23_linux_readonly_runtime_separate_from_document_jobs(linux_root, tmp_path):
+    runtime = ensure_runtime(linux_root)
+    runtime.chmod(0o500)
+    linux_root.chmod(0o500)
+    try:
+        for n in range(2):
+            root = tmp_path / str(n)
+            result = extract_isolated(b"Separate private job", "txt", root, runtime_root=linux_root)
+            assert result["pages"][0]["text"] == "Separate private job"
+            assert not list((root / "jobs").iterdir())
+    finally:
+        linux_root.chmod(0o700)
+        runtime.chmod(0o700)
+
+
+@linux
+def test_T23_linux_rejects_root_execution(tmp_path, monkeypatch):
+    monkeypatch.setattr("canvas_bridge.linux_sandbox.os.geteuid", lambda: 0)
+    with pytest.raises(DomainError, match="unprivileged"):
+        ensure_runtime(tmp_path / "never-created")
+    assert not (tmp_path / "never-created").exists()
