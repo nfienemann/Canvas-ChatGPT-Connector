@@ -3,7 +3,7 @@
 | Institution | Registry status | Access proof | Student claims |
 |---|---|---|---|
 | Synthetic University | unsupported (fictional fixture) | Mock provider only | Local demonstration only |
-| Rowan University | candidate | Canvas origin verified from its official site; no credential or API read tested | No live support claimed |
+| Rowan University | candidate | Owner-only personal token, course selection and live workload read verified in a private operator instance | Personal proof only; no general student support or institutional OAuth approval |
 | Other institutions | unregistered | None | Unsupported until reviewed |
 
 Identical numeric IDs are separated by connection and course. That implementation

@@ -53,7 +53,8 @@ scopes. The settings client needs `academic:read preferences:write settings:writ
 the initial read-only MCP client needs `academic:read`. Dynamically registered
 WorkOS clients do not receive these custom scopes by default. Do not bypass
 scope validation or treat `openid` as coursework permission. This configuration
-guidance is not a completed WorkOS or ChatGPT integration test.
+guidance describes configuration requirements; the separate private first-read
+proof is recorded in the platform compatibility matrix.
 
 Keep operator files and secret mounts outside public artifacts. Reverse-proxy
 logs must omit authorization headers and callback query strings.
@@ -115,7 +116,11 @@ buying hosting. [Secure MCP Tunnel](https://developers.openai.com/api/docs/guide
 can keep the service private, but requires separate Platform tunnel permissions,
 a restricted runtime credential and the correct ChatGPT workspace association.
 It does not replace application OAuth or automatically expose its authorization
-server. Neither a tunnel nor an external identity provider has been configured.
+server. A private owner-only proof uses WorkOS staging and an ngrok HTTPS tunnel
+with local request inspection disabled. The installed ChatGPT Pro plugin has
+completed a live coursework read. This PC-based service must be running and the
+computer awake; it is not an always-on hosted student service. Operator secrets,
+runtime configuration and private screenshots remain outside the repository.
 
 ## Worker and retention
 

@@ -5,17 +5,21 @@ ChatGPT handles conversation; this service supplies authorized facts, provenance
 coverage and deterministic planning. No model API key, second chatbot, academic
 dashboard or student subscription is required.
 
-**Current release: local synthetic development.** This repository contains a
-working authenticated MCP service, not a live university integration or approved
-ChatGPT Directory listing. The owner requested local construction and testing
-first. No real Canvas account has been accessed.
+**Current status: private personal integration verified.** The owner connected
+their own Rowan account and completed a live coursework read in ChatGPT Pro using
+the installed Canvas Bridge plugin. Public downloads remain synthetic desktop
+previews. Institutional OAuth onboarding, general student distribution and a
+ChatGPT Directory listing are not approved or delivered.
 
-An operator-only personal testing path is implemented and fixture-tested. It
+An operator-only personal testing path is implemented and tested. It
 restricts access to one configured identity and verifies the expected Canvas
 user before storing an encrypted credential. It is separate from the desktop
 demo and from student OAuth onboarding. See the private developer proof section
-of the [operator guide](docs/operator-guide.md); actual ChatGPT/Canvas acceptance
-is still pending.
+of the [operator guide](docs/operator-guide.md) and the
+[platform evidence](docs/platform-compatibility-matrix.md). The private proof
+covers selected-course assignment reads; it does not establish complete Canvas
+coverage or general availability. Credentials and academic records stay outside
+the repository.
 
 ## Try the local demonstration
 

@@ -129,9 +129,9 @@ of changed identity-provider configuration before code exchange.
 
 The default callback still requires RFC 9207 `iss`. An explicit compatibility
 mode uses issuer-specific redirect URIs under RFC 9700 section 4.4.2.2. WorkOS
-configuration is documented, but a live provider login and an actual ChatGPT
-coursework read have not yet passed. No personal token or academic records were
-used in these tests. Native demo packages are unchanged.
+configuration was documented at this checkpoint, but a live provider login and
+an actual ChatGPT coursework read had not yet passed. No personal token or
+academic records were used in these tests. Native demo packages are unchanged.
 
 ## Exact OAuth metadata identifiers
 
@@ -144,5 +144,49 @@ CORS discovery and the unauthenticated challenge URL. The real HTTP MCP contract
 also checks exact identifiers. This does not relax JWT issuer or audience checks.
 
 The private HTTPS endpoint is reachable and rejects unauthenticated MCP requests.
-Actual provider sign-in, a personal Canvas connection and ChatGPT coursework
-retrieval remain unverified. No personal token or coursework appears in evidence.
+At this checkpoint, provider sign-in, a personal Canvas connection and ChatGPT
+coursework retrieval remained unverified. Subsequent evidence is recorded below.
+No personal token or coursework appears in repository evidence.
+
+## Subsequent private operator integration proof
+
+The exact-identifier increment passed [Linux CI run 39495918923](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39495918923)
+on commit `4fe8ac1230d13387b1bb857aa9515635cac48eb8`: **132 tests passed in
+13.31 seconds**, 79% statement coverage, successful lint/format, no known
+dependency vulnerabilities and a successful Docker build.
+
+A separate, private Windows instance subsequently completed real WorkOS sign-in
+and owner binding, encrypted operator-token storage, explicit course selection
+and a nonempty Rowan workload read over public HTTPS using the official MCP
+client. The service advertised eleven read-only tools, returned no tool error
+and reported successful assignment-source coverage. Unauthenticated calls were
+rejected with HTTP 401 and exact discovery identifiers. This is an operator-only
+proof, not an institutional OAuth approval, an ordinary ChatGPT conversation,
+complete obligation coverage or a public-support claim.
+
+The initial console paste failed. A local operator window then verified masked
+paste, empty-input rejection without a request, retry after rejection, explicit
+account confirmation, invalidation after editing the token and clearing the
+field after encrypted storage. Those UI checks used a synthetic backend and did
+not read the system clipboard. The owner completed the actual private entry.
+Credentials, identity IDs, academic records and private configuration remain
+outside the repository and its evidence artifacts.
+
+## Actual ChatGPT private first read
+
+On 2026-10-20 the owner explicitly authorized installation and a read-only test
+in their ChatGPT Pro account. A static public OAuth client used the exact callback
+shown by ChatGPT, PKCE and the `academic:read` scope. The installed Canvas Bridge
+plugin completed a real conversation. ChatGPT's execution panel identified
+connection-status, course-list and workload calls; its response returned the
+selected courses, upcoming deadlines, submission states, Canvas links and local
+time-zone conversions. It reported complete selected assignment collections and
+explicitly warned that syllabus-only or other obligations may be missing.
+
+This proof requested no grades or writes. It does not verify every tool, mobile
+clients, native Calendar composition, institutional OAuth or public eligibility.
+The authenticated session, screenshots, endpoint configuration and coursework
+remain in restricted private storage. Only this sanitized outcome is published.
+No application code changed during the live setup. The existing 132-test local
+and Linux CI results remain the applicable automated checks; the unchanged full
+suite was not redundantly rerun for these documentation updates.
