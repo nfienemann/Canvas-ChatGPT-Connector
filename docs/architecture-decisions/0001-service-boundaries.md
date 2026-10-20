@@ -30,7 +30,13 @@ for controlling this key. Synthetic keys are generated locally and ignored by Gi
 The HTTP transport validates DNS addresses and connects to the validated numeric
 IP while preserving the original TLS hostname. Pagination cannot alter route,
 origin or immutable query parameters. API redirects are rejected. No generic
-file/URL fetch or credential forwarding exists.
+file/URL tool or cross-origin credential forwarding exists. An internal file
+transport accepts only a course ID and file ID, obtains fresh course-qualified
+metadata, and validates every redirect against exact operator-reviewed HTTPS
+origins. It uses a separate HTTP session, sends a bearer only on the first
+reviewed Canvas download route, and bounds transfer size and total elapsed time.
+This transport does not parse documents and is not yet called by MCP retrieval;
+binary parsing remains disabled pending OS isolation proof.
 
 Canvas reported dates are used in the authenticated context. Broader override
 arrays are not interpreted. Staff/mixed-role courses are excluded until a safe

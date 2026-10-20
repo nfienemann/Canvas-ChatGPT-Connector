@@ -21,6 +21,9 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
+        "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
+        "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
         "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
@@ -364,6 +367,7 @@
         "T45"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T11_file_fetch_is_explicitly_gated_and_never_parsed",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
         "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read"
       ],
@@ -451,6 +455,17 @@
         "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_course_files.py::test_T23_direct_storage_url_never_receives_bearer",
+        "tests/test_course_files.py::test_T23_download_cancellation_is_propagated_and_closed",
+        "tests/test_course_files.py::test_T23_download_origins_require_exact_operator_configuration",
+        "tests/test_course_files.py::test_T23_download_requires_supported_current_metadata",
+        "tests/test_course_files.py::test_T23_download_strips_all_ambient_auth_and_never_restores_bearer",
+        "tests/test_course_files.py::test_T23_mismatched_file_metadata_never_downloads",
+        "tests/test_course_files.py::test_T23_origin_normalization_preserves_exact_host_policy",
+        "tests/test_course_files.py::test_T23_redirect_count_and_cycle_are_bounded",
+        "tests/test_course_files.py::test_T23_stream_size_type_and_signature_fail_closed",
+        "tests/test_course_files.py::test_T23_stream_timeout_closes_body_and_hides_signed_url",
+        "tests/test_course_files.py::test_T23_unapproved_redirect_is_not_requested",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
@@ -512,6 +527,7 @@
         "tests/test_personal.py::test_T21_personal_identity_allowlist_still_checks_signature_and_claims",
         "tests/test_personal.py::test_T21_personal_settings_require_an_owner_and_live_prerequisites",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
@@ -543,6 +559,7 @@
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
         "src/canvas_bridge/network.py",
+        "src/canvas_bridge/file_download.py",
         "src/canvas_bridge/retrieval.py"
       ],
       "test_refs": [
@@ -551,6 +568,18 @@
         "T24"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
+        "tests/test_course_files.py::test_T23_direct_storage_url_never_receives_bearer",
+        "tests/test_course_files.py::test_T23_download_cancellation_is_propagated_and_closed",
+        "tests/test_course_files.py::test_T23_download_origins_require_exact_operator_configuration",
+        "tests/test_course_files.py::test_T23_download_requires_supported_current_metadata",
+        "tests/test_course_files.py::test_T23_download_strips_all_ambient_auth_and_never_restores_bearer",
+        "tests/test_course_files.py::test_T23_mismatched_file_metadata_never_downloads",
+        "tests/test_course_files.py::test_T23_origin_normalization_preserves_exact_host_policy",
+        "tests/test_course_files.py::test_T23_redirect_count_and_cycle_are_bounded",
+        "tests/test_course_files.py::test_T23_stream_size_type_and_signature_fail_closed",
+        "tests/test_course_files.py::test_T23_stream_timeout_closes_body_and_hides_signed_url",
+        "tests/test_course_files.py::test_T23_unapproved_redirect_is_not_requested",
         "tests/test_domain_planning.py::test_T12_html_is_data_and_scripts_removed",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
@@ -649,6 +678,7 @@
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
@@ -744,6 +774,9 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
+        "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
+        "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
         "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
@@ -806,9 +839,11 @@
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
+        "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
@@ -883,7 +918,8 @@
       "verification_state": "VERIFIED",
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
-        "src/canvas_bridge/retrieval.py"
+        "src/canvas_bridge/retrieval.py",
+        "src/canvas_bridge/file_download.py"
       ],
       "test_refs": [
         "T11",
@@ -891,6 +927,7 @@
         "T45"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T11_file_fetch_is_explicitly_gated_and_never_parsed",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
         "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read",
         "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version"
@@ -1033,6 +1070,8 @@
         "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
         "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
         "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_course_files.py::test_T27_missing_file_collection_is_partial_not_empty_success",
+        "tests/test_course_files.py::test_T27_outline_uses_one_budget_for_module_requests",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
@@ -1178,6 +1217,9 @@
         "T42"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
+        "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
+        "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
         "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
         "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
@@ -1228,6 +1270,7 @@
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
@@ -1263,6 +1306,7 @@
       "automated_test_functions": [
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
+        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
       ],
       "test_results": [
@@ -1301,6 +1345,7 @@
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles",
+        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",
@@ -1396,6 +1441,9 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
+        "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
+        "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
         "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
@@ -1754,6 +1802,7 @@
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",

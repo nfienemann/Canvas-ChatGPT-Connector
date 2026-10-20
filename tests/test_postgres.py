@@ -55,6 +55,27 @@ async def test_T35_postgresql_migration_read_roundtrip_and_rollback(pg_bridge, o
     assert "connections" in inspect(pg_bridge.store.engine).get_table_names()
 
 
+async def test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files(
+    pg_bridge, owner
+):
+    from canvas_bridge.retrieval import outline
+    from canvas_bridge.storage import Material
+    from tests.test_course_files import file_record
+
+    ref = await seed(pg_bridge, owner)
+    pg_bridge.synthetic.data["files"] = {"11": [file_record()]}
+    _, courses = pg_bridge.selected(owner, ref)
+    await outline(pg_bridge, owner, ref, courses[0].id)
+    with pg_bridge.store.transaction() as session:
+        assert sorted(m.kind for m in session.scalars(select(Material))) == ["file", "page"]
+    command.downgrade(Config("alembic.ini"), "9b2a41e5021c")
+    with pg_bridge.store.engine.connect() as connection:
+        assert connection.execute(text("SELECT source_id FROM materials")).scalars().all() == ["41"]
+    command.upgrade(Config("alembic.ini"), "head")
+    with pg_bridge.store.transaction() as session:
+        assert session.scalar(select(Material)).kind == "page"
+
+
 async def test_T13_T21_pool_reuse_never_reuses_another_owner(pg_bridge, owner):
     first = await seed(pg_bridge, owner)
     second = await seed(pg_bridge, "other-owner", "connection-two")

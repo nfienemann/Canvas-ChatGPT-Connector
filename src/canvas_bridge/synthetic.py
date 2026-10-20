@@ -145,6 +145,13 @@ class SyntheticProvider:
         parts = path.split("/")
         if len(parts) >= 6 and parts[3] == "courses":
             course = parts[4]
+            if parts[5] == "files":
+                items = self.data.get("files", {}).get(course, [])
+                if len(parts) == 6:
+                    return httpx.Response(200, json=items)
+                if len(parts) == 7:
+                    item = next((a for a in items if str(a["id"]) == parts[6]), None)
+                    return httpx.Response(200, json=item) if item else httpx.Response(404)
             if parts[5] == "assignments":
                 items = self.data["assignments"].get(course, [])
                 if len(parts) == 7:
@@ -163,29 +170,35 @@ class SyntheticProvider:
                 if len(parts) == 6:
                     return httpx.Response(
                         200,
-                        json=[
-                            {
-                                "id": 21,
-                                "name": "Foundations",
-                                "position": 1,
-                                "items_count": 1,
-                                "state": "unlocked",
-                                "prerequisite_module_ids": [],
-                            }
-                        ],
+                        json=self.data.get("modules", {}).get(
+                            course,
+                            [
+                                {
+                                    "id": 21,
+                                    "name": "Foundations",
+                                    "position": 1,
+                                    "items_count": 1,
+                                    "state": "unlocked",
+                                    "prerequisite_module_ids": [],
+                                }
+                            ],
+                        ),
                     )
                 if len(parts) == 8 and parts[7] == "items":
                     return httpx.Response(
                         200,
-                        json=[
-                            {
-                                "id": 31,
-                                "title": "Course syllabus",
-                                "position": 1,
-                                "type": "Page",
-                                "page_url": "syllabus",
-                            }
-                        ],
+                        json=self.data.get("module_items", {}).get(
+                            course,
+                            [
+                                {
+                                    "id": 31,
+                                    "title": "Course syllabus",
+                                    "position": 1,
+                                    "type": "Page",
+                                    "page_url": "syllabus",
+                                }
+                            ],
+                        ),
                     )
             if parts[5] == "pages":
                 if len(parts) == 6:

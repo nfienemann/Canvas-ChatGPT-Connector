@@ -29,6 +29,8 @@ class Institution(Model):
     evidence: list[str] = Field(default_factory=list)
     client_id_env: str | None = None
     client_secret_env: str | None = None
+    # Exact operator-reviewed storage origins. Never inferred from a redirect.
+    download_origins: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def canonical_origin(self):
@@ -43,9 +45,33 @@ class Institution(Model):
                 or u.path not in {"", "/"}
                 or u.query
                 or u.fragment
+                or "\\" in self.origin
+                or "%" in u.netloc
+                or "*" in u.netloc
+                or any(ord(c) < 33 for c in self.origin)
             ):
                 raise ValueError("Institution origins must be canonical HTTPS origins.")
-            self.origin = self.origin.rstrip("/")
+            self.origin = f"https://{u.hostname}"
+        normalized = []
+        for origin in self.download_origins:
+            u = urlsplit(origin)
+            if (
+                u.scheme != "https"
+                or not u.hostname
+                or u.username
+                or u.password
+                or u.port not in {None, 443}
+                or u.path
+                or u.query
+                or u.fragment
+                or "*" in origin
+                or "\\" in origin
+                or "%" in u.netloc
+                or any(ord(c) < 33 for c in origin)
+            ):
+                raise ValueError("Download origins must be exact canonical HTTPS origins.")
+            normalized.append(f"https://{u.hostname}")
+        self.download_origins = list(dict.fromkeys(normalized))
         return self
 
 
@@ -86,6 +112,7 @@ class Endpoint(StrEnum):
     PAGE = "/api/v1/courses/{course}/pages/page_id:{page}"
     ANNOUNCEMENTS = "/api/v1/announcements"
     FILE = "/api/v1/courses/{course}/files/{file}"
+    FILES = "/api/v1/courses/{course}/files"
 
 
 def source_id(value: str | int) -> str:

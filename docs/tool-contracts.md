@@ -18,8 +18,8 @@ response size is 250 KB; callers must narrow excessive requests.
 | get_assignment_details | Fresh accessible requirements/rubric; no locked material |
 | get_changes | Complete matching-scope baselines only; first observed is not newly published |
 | get_gradebook | Own visible Canvas fields; no unposted fields or exact-policy assumptions |
-| get_course_outline | Bounded modules/items/pages; external/binary material limitations |
-| fetch_course_material | Fresh authorized page text; version-bound continuation and explicit extraction coverage |
+| get_course_outline | Bounded modules/items/pages/files with one overall time budget; course-bound material references join visible module items; listing never proves a reading was accessed |
+| fetch_course_material | Fresh authorized page text with version-bound continuation; files recheck current access and return an explicit unsupported extraction result with a stable Canvas link until parser isolation is enabled |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; no calendar access or saved side effect |
 | get_saved_study_state | Local record versions for explicit later changes |
@@ -46,3 +46,10 @@ silently saves a correction.
 No calendar/action/notification or generic standard `search`/`fetch` compatibility
 tool is advertised. Standard research-surface adapters require separate actual
 client verification before being added.
+
+The file inventory requires explicit current-user visibility and excludes hidden
+or locked files. A module label can remain visible without a usable material
+reference when its resource is absent from the accessible bounded inventory.
+Module inclusion does not establish whether a reading is assigned or optional.
+File bodies are not yet searched. Signed download URLs are never returned or
+persisted as sources.

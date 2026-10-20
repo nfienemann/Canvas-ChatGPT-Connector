@@ -1,5 +1,29 @@
 # Operator guide
 
+## Course file inventory and download policy
+
+The current source build inventories accessible course files and links module
+entries to their material references. It does not yet extract live file text.
+`fetch_course_material` rechecks file access and returns a stable Canvas link
+with an explicit unsupported-extraction result. No download is attempted from
+that tool until a credential-free, network-isolated parser is implemented and
+verified.
+
+The internal download transport uses fresh course-qualified metadata. Optional
+institution `download_origins` entries must be exact HTTPS origins reviewed by
+the operator; the default is empty. Do not infer trust from a returned redirect
+or use wildcard suffixes. A signed storage URL is transient and never a citation,
+database field or exported source. Every hop uses public-IP DNS pinning, a maximum
+of three redirects, at most 10 MB, matching metadata/type/signature checks and
+the overall refresh time budget. Canvas credentials are sent only to the initial
+approved Canvas download route; cookies and ambient client authentication are
+excluded from all file requests.
+
+Schema revision `1c8d7b420ad1` adds the page/file discriminator. Apply migrations
+before starting this source version. Existing rows default to pages. An explicit
+downgrade removes derived file records before dropping that discriminator, so
+older code cannot confuse a file ID with a page ID. Back up before migration.
+
 ## Local development
 
 Use the README commands. `init-demo` creates a private `.env`, key files, a

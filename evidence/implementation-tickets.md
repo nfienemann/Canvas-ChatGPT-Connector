@@ -6,11 +6,11 @@
 | C02 feasibility | Current official MCP/auth/Canvas/distribution contracts reviewed | Implemented review; external gates unresolved |
 | C03 boundaries | Typed principal/connection model, endpoint policy, vault, threat/data-flow ADR | Implemented local; independent review pending |
 | C04 authenticated slice | Running official-SDK HTTP tools, scoped synthetic provider and negative tests | Verified synthetic |
-| C05 actual student read | No OAuth key, identity provider or deployment available | Blocked; owner requested local-first |
+| C05 actual student read | Private owner-only Rowan read through WorkOS, HTTPS tunnel and actual ChatGPT Pro | First read and short renewal proof passed; institutional OAuth and broader pilot remain pending |
 | C06 coursework | Student courses, assignment pagination, effective dates/statuses and coverage | Verified subset; broader inventory pending |
 | C07 planning | Effort ranges, priorities, bounded review, dependency ordering, busy times, pinned replanning and shortfall | Verified local; real student usefulness pending |
 | C08 lifecycle | Disconnect, account-wide deletion, OAuth/queue fences, export, encrypted backup, restore journal, SSRF and parser fixtures | Verified local; hosted operations/sandbox pending |
-| C09 live UX | Local settings keyboard/visual check and HTTP CSRF tests | Actual ChatGPT/mobile/native Calendar not tested |
-| C10 knowledge/math | Modules/pages, scoped page search, text continuation, parser and simple-points primitives | Partial; full materials/policy subsets gated |
+| C09 live UX | Local settings keyboard/visual check, HTTP CSRF tests and private ChatGPT read | Broader ChatGPT workflows, mobile and native Calendar remain untested |
+| C10 knowledge/math | Modules/pages/files, course-bound module references, scoped page search, text continuation, bounded file transport and simple-points primitives | Partial; binary extraction requires verified OS isolation; full policy subsets remain gated |
 | C11 optional Calendar | No live grants/actions/receipts or notifications exposed | Deferred until independent authorization and approval proof |
 | C12 distribution | Reproducible dependencies, guides, CI template, truthful claims | Source upload authorized; listing/license/live cost gates unresolved |

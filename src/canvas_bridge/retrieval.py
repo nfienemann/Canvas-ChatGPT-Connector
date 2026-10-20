@@ -4,6 +4,7 @@ Binary parsing is a local synthetic-development capability only until a
 network-isolated parser container has been deployed and verified.
 """
 
+import asyncio
 import hashlib
 import io
 import re
@@ -15,7 +16,9 @@ from defusedxml import ElementTree
 from pypdf import PdfReader
 from sqlalchemy import select
 
+from canvas_bridge.canvas import Collection
 from canvas_bridge.domain import DomainError, Model, Result, Source, utcnow
+from canvas_bridge.file_download import file_metadata, file_visible
 from canvas_bridge.normalize import canonical_id, plain_text
 from canvas_bridge.policy import Endpoint, source_id
 from canvas_bridge.storage import Material
@@ -146,63 +149,107 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
     _, courses = bridge.selected(owner, ref, [course_ref])
     course = courses[0]
     modules, resources, warnings = [], [], []
+    collection, pages, files = (Collection(failure="request_budget") for _ in range(3))
+    raw_modules = []
     async with bridge.client(owner, ref) as client:
-        collection = await client.collection(Endpoint.MODULES, course=course.source_id)
-        for module in collection.items[:30]:
-            module_id = source_id(module["id"])
-            items = await client.collection(
-                Endpoint.MODULE_ITEMS,
-                course=course.source_id,
-                module=module_id,
-            )
+        # One budget covers the entire outline, not a fresh budget per module.
+        try:
+            async with asyncio.timeout(bridge.settings.refresh_budget_seconds):
+                pages = await client.collection(Endpoint.PAGES, course=course.source_id)
+                files = await client.collection(Endpoint.FILES, course=course.source_id)
+                collection = await client.collection(Endpoint.MODULES, course=course.source_id)
+                for module in collection.items[:30]:
+                    if module.get("published") is False or module.get("state") == "locked":
+                        continue
+                    module_id = source_id(module["id"])
+                    items = await client.collection(
+                        Endpoint.MODULE_ITEMS, course=course.source_id, module=module_id
+                    )
+                    raw_modules.append((module_id, module, items))
+        except TimeoutError:
+            warnings.append("The course outline reached its overall request time limit.")
+
+        references = {}
+        with bridge.store.transaction() as session:
+            bridge.store.connection(session, owner, ref, lock=True)
+            selected = bridge.store.owned(session, type(course), owner, ref, course_ref)
+            if not selected.selected or not selected.accessible:
+                raise DomainError("permission_denied", "Course is no longer selected.")
+            for kind, entries in (("page", pages.items), ("file", files.items)):
+                for entry in entries[:100]:
+                    if kind == "file":
+                        if not file_visible(entry):
+                            continue
+                        upstream = source_id(entry["id"])
+                        title = plain_text(str(entry.get("display_name", "Untitled file")), 1000)
+                        path = f"files/{upstream}"
+                        lookup = ("File", upstream)
+                    else:
+                        if entry.get("published") is False or entry.get("locked_for_user") is True:
+                            continue
+                        upstream = source_id(entry["page_id"])
+                        title = plain_text(str(entry.get("title", "Untitled page")), 1000)
+                        path = f"pages/page_id:{upstream}"
+                        lookup = ("Page", str(entry.get("url", "")))
+                    material_id = canonical_id(owner, ref, kind, f"{course.source_id}:{upstream}")
+                    if material_id in {r["id"] for r in resources}:
+                        continue
+                    url = f"{client.institution.origin}/courses/{course.source_id}/{path}"
+                    material = session.get(Material, material_id)
+                    if material is None:
+                        session.add(
+                            Material(
+                                id=material_id,
+                                owner=owner,
+                                connection_id=ref,
+                                course_id=course_ref,
+                                source_id=upstream,
+                                kind=kind,
+                                title=title,
+                                url=url,
+                                version_hash="",
+                                text="",
+                                locators=[],
+                                limitations=["Not fetched."],
+                            )
+                        )
+                    else:
+                        material.title, material.url = title, url
+                    references[lookup] = material_id
+                    resources.append(
+                        {
+                            "id": material_id,
+                            "title": title,
+                            "url": url,
+                            "kind": kind,
+                            "reading_status": "not_established",
+                        }
+                    )
+        for module_id, module, items in raw_modules:
+            visible_items = []
+            for item in items.items[:100]:
+                if item.get("published") is False or item.get("locked_for_user") is True:
+                    continue
+                visible = {
+                    k: item[k] for k in ("type", "position", "completion_requirement") if k in item
+                }
+                visible["title"] = plain_text(str(item.get("title", "")), 1000)
+                lookup = (item.get("type"), str(item.get("content_id") or item.get("page_url", "")))
+                if material_ref := references.get(lookup):
+                    visible["material_ref"] = material_ref
+                elif item.get("type") in {"File", "Page"}:
+                    visible["material_availability"] = "not_in_accessible_inventory"
+                visible_items.append(visible)
             modules.append(
                 {
                     "id": canonical_id(owner, ref, "module", f"{course.source_id}:{module_id}"),
                     "title": plain_text(str(module.get("name", "")), 1000),
                     "position": module.get("position"),
                     "state": module.get("state", "unknown"),
-                    "items": [
-                        {
-                            k: item[k]
-                            for k in ("title", "type", "position", "completion_requirement")
-                            if k in item
-                        }
-                        for item in items.items[:100]
-                    ],
+                    "items": visible_items,
                     "items_complete": items.complete and len(items.items) <= 100,
                 }
             )
-        pages = await client.collection(Endpoint.PAGES, course=course.source_id)
-        with bridge.store.transaction() as session:
-            bridge.store.connection(session, owner, ref, lock=True)
-            selected = bridge.store.owned(session, type(course), owner, ref, course_ref)
-            if not selected.selected or not selected.accessible:
-                raise DomainError("permission_denied", "Course is no longer selected.")
-            for page in pages.items[:100]:
-                if page.get("published") is False or page.get("locked_for_user") is True:
-                    continue
-                upstream = source_id(page["page_id"])
-                material_id = canonical_id(owner, ref, "page", f"{course.source_id}:{upstream}")
-                title = plain_text(str(page.get("title", "Untitled page")), 1000)
-                url = f"{client.institution.origin}/courses/{course.source_id}/pages/page_id:{upstream}"
-                material = session.get(Material, material_id)
-                if material is None:
-                    session.add(
-                        Material(
-                            id=material_id,
-                            owner=owner,
-                            connection_id=ref,
-                            course_id=course_ref,
-                            source_id=upstream,
-                            title=title,
-                            url=url,
-                            version_hash="",
-                            text="",
-                            locators=[],
-                            limitations=["Not fetched."],
-                        )
-                    )
-                resources.append({"id": material_id, "title": title, "url": url, "kind": "page"})
         source = Source(
             id=course.id,
             title=f"{course.name}: modules",
@@ -212,9 +259,12 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
     complete = (
         collection.complete
         and pages.complete
+        and files.complete
         and len(collection.items) <= 30
         and len(pages.items) <= 100
+        and len(files.items) <= 100
         and all(m["items_complete"] for m in modules)
+        and not warnings
     )
     if not complete:
         warnings.append(
@@ -222,11 +272,22 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
         )
     return Result(
         status="ok" if complete else "partial_data",
-        summary="Authorized course outline and available page references.",
+        summary="Authorized course outline with page and file references; listing is not evidence of reading.",
         data={
             "modules": modules,
             "materials": resources,
-            "limitations": ["Binary files and external/LTI readings are not fetched by this tool."],
+            "inventory_coverage": {
+                name: "complete" if c.complete and len(c.items) <= limit else "partial"
+                for name, c, limit in (
+                    ("pages", pages, 100),
+                    ("files", files, 100),
+                    ("modules", collection, 30),
+                )
+            },
+            "limitations": [
+                "File text requires an isolated parser and is not yet available.",
+                "External/LTI readings are not fetched. Module inclusion alone does not establish assigned versus optional status.",
+            ],
         },
         sources=[source],
         meta=bridge.meta(warnings=warnings),
@@ -253,14 +314,46 @@ async def fetch_material(
             raise DomainError("permission_denied", "Material unavailable.")
     async with bridge.client(owner, ref) as client:
         try:
+            if material.kind == "file":
+                metadata = await file_metadata(client, course.source_id, material.source_id)
+                # No binary bytes enter the API process's extraction code. Until
+                # OS isolation is verified, return the stable source explicitly.
+                with bridge.store.transaction() as session:
+                    bridge.store.connection(session, owner, ref, lock=True)
+                    selected = bridge.store.owned(session, type(course), owner, ref, course.id)
+                    if not selected.selected or not selected.accessible:
+                        raise DomainError("permission_denied", "Material is no longer selected.")
+                    row = bridge.store.owned(session, Material, owner, ref, material_ref)
+                    row.title = plain_text(str(metadata.get("display_name", "Untitled file")), 1000)
+                    row.text, row.locators, row.version_hash = "", [], ""
+                    row.limitations = ["Isolated file extraction is not yet enabled."]
+                    title = row.title
+                return Result(
+                    status="unsupported_feature",
+                    summary="This file is accessible in Canvas; its contents have not been read.",
+                    data={
+                        "id": material_ref,
+                        "kind": "file",
+                        "coverage": "unsupported",
+                        "text": "",
+                    },
+                    sources=[
+                        Source(
+                            id=material_ref, title=title, url=material.url, retrieved_at=utcnow()
+                        )
+                    ],
+                    meta=bridge.meta(warnings=["Isolated file extraction is not yet enabled."]),
+                )
+            if material.kind != "page":
+                raise DomainError("unsupported_feature", "Unknown material format.")
             page = await client.one(Endpoint.PAGE, course=course.source_id, page=material.source_id)
+            if page.get("published") is False or page.get("locked_for_user") is True:
+                raise DomainError("permission_denied", "Material is currently restricted.")
         except DomainError:
             with bridge.store.transaction() as session:
                 row = bridge.store.owned(session, Material, owner, ref, material_ref)
                 row.text, row.locators, row.version_hash = "", [], ""
             raise
-    if page.get("published") is False or page.get("locked_for_user") is True:
-        raise DomainError("permission_denied", "Material is currently restricted.")
     raw = str(page.get("body") or "")
     parsed = extract_synthetic(raw.encode(), "html")
     if offset and (not expected_hash or expected_hash != parsed.content_hash):
@@ -313,6 +406,7 @@ async def search_materials(bridge, owner: str, ref: str, query: str, limit: int 
             .where(
                 Material.owner == owner,
                 Material.connection_id == ref,
+                Material.kind == "page",
                 Material.course_id.in_([c.id for c in courses]),
                 (
                     Material.text.icontains(query, autoescape=True)

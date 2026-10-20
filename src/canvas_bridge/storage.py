@@ -99,6 +99,7 @@ class Material(Owned, Base):
     __tablename__ = "materials"
     course_id: Mapped[str] = mapped_column(ForeignKey("courses.id"), index=True)
     source_id: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(20), default="page", server_default="page")
     title: Mapped[str] = mapped_column(String(1000))
     url: Mapped[str] = mapped_column(Text)
     version_hash: Mapped[str] = mapped_column(String(64))

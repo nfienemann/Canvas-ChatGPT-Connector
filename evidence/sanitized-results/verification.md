@@ -217,3 +217,39 @@ are not part of the downloadable synthetic demo packages.
 The preceding documentation commit passed [Linux CI run 39498991158](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39498991158).
 These follow-up repository changes are documentation only; no unchanged full
 suite was manually repeated.
+
+## Course file inventory and bounded transport
+
+The next source increment adds accessible file inventory, course-qualified
+material identities, links from module entries to file/page references, and one
+overall outline request budget. Hidden or locked file metadata is excluded;
+unavailable collections remain explicitly partial. A fresh denied file fetch
+clears any previously derived text. Page-only search excludes files until file
+extraction is available.
+
+An internal downloader now validates current course-file metadata, each exact
+HTTPS destination, redirects, transfer type, length and signature. It uses the
+existing public-IP DNS-pinned transport with a separate HTTP session. Tests
+exercise hostile redirect destinations, stripping cookies and ambient HTTP
+authentication, never restoring a bearer after a redirect, truncated/oversized
+bodies, timeout and cancellation cleanup. Signed URLs stay out of persisted
+materials, tool responses and backups. This transport is not yet used by MCP
+file retrieval, and these checks do not establish live storage-host behavior.
+
+Local Windows Python 3.14.5 verification: **191 tests passed in 21.08 seconds**,
+including disposable PostgreSQL 17.11 migrations and restore tests, with no
+skipped tests. Statement coverage was **80%**. Ruff lint and formatting checks
+passed for 77 files. Migration rollback retained existing page records and
+removed only derived file records; restoring older page records without a kind
+field retained their page semantics.
+
+Live binary extraction remains disabled. An accessible file returns an explicit
+unsupported extraction result and stable Canvas link, never a claim that its
+PDF/DOCX/PPTX contents were read. No actual course document was downloaded for
+these synthetic tests, and this increment is not full R20/R21 acceptance.
+
+The additive migration was also applied to the private owner database after an
+encrypted pre-migration PostgreSQL archive was created and its decrypted bytes
+verified. The existing service remained running, public metadata stayed available,
+and unauthenticated MCP requests remained rejected. The running service was not
+restarted to load the new file-inventory code during the owner's ongoing use.
