@@ -21,10 +21,14 @@ _slot = threading.Lock()
 
 
 def ensure_runtime(root: Path) -> Path:
+    if sys.platform == "linux":
+        from canvas_bridge.linux_sandbox import ensure_runtime as linux_runtime
+
+        return linux_runtime(root)
     if os.name != "nt":
         raise DomainError(
             "unsupported_feature",
-            "Isolated file extraction is currently available on Windows only.",
+            "Isolated file extraction requires a supported Windows or Linux sandbox.",
         )
     from canvas_bridge.windows_sandbox import acl
 
@@ -131,7 +135,10 @@ def extract_isolated(data: bytes, kind: str, root: Path) -> dict:
         raise DomainError("retry_later", "Another document is being extracted. Retry shortly.")
     try:
         runtime = ensure_runtime(root)
-        from canvas_bridge.windows_sandbox import run
+        if sys.platform == "linux":
+            from canvas_bridge.linux_sandbox import run
+        else:
+            from canvas_bridge.windows_sandbox import run
 
         jobs = root.resolve() / "jobs"
         jobs.mkdir(exist_ok=True)
@@ -167,6 +174,6 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
         raise DomainError(
             "unsupported_feature", "Isolated file extraction is not enabled on this server."
         )
-    # The Windows worker always has its own wall/CPU limit, even if this awaiting
+    # Each OS worker always has its own wall/CPU limit, even if this awaiting
     # task is cancelled. It cannot survive the bounded job cleanup.
     return await asyncio.to_thread(extract_isolated, data, kind, settings.parser_root)
