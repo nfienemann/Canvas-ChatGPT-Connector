@@ -8,7 +8,9 @@
 | Resource JWT checks | Valid/invalid issuer, audience, expiry, scope and key-cache tests | Verified fixture boundary |
 | Settings in Codex in-app browser | Keyboard sign-in, labels and narrow viewport visually inspected | Partial browser usability evidence |
 | Actual ChatGPT Pro conversation with installed private plugin | Connection status, course listing and workload calls completed; response included Canvas links, local deadlines, submission states and coverage limits | Verified owner-only first read on 2026-10-20; broader workflows and other client surfaces remain untested |
-| Private first-read catalog | Eleven reading/planning tools; three saved-state writes omitted by configuration | Catalog verified with official MCP client; three read tools exercised by actual ChatGPT |
+| Private first-read catalog | Eleven reading/planning tools; three saved-state writes omitted by configuration | Catalog verified with official MCP client and ChatGPT's app details; three read tools exercised by actual ChatGPT |
+| Private Windows Start/Stop controls | Full stop/start tested under the Windows PowerShell 5.1 host used by the Start menu shortcuts; public discovery recovered and unauthenticated MCP calls still rejected | Verified on the owner's PC; separate from public demo installers |
+| Private sign-in renewal | Corrected client requests `offline_access`; actual ChatGPT connection-status and workload calls passed after more than six minutes and a full local-service restart, without another interactive sign-in | Short lifecycle check passed; multi-day sessions and provider revocation are not established by this proof |
 | ChatGPT + native Calendar composition | No live configuration | Not verified |
 | iOS / Android ChatGPT | Not exercised | Not supported claim |
 | Public Directory install | Policy/authorization unresolved | Blocked |

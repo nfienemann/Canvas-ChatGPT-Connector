@@ -7,8 +7,8 @@ dashboard or student subscription is required.
 
 **Current status: private personal integration verified.** The owner connected
 their own Rowan account and completed a live coursework read in ChatGPT Pro using
-the installed Canvas Bridge plugin. Public downloads remain synthetic desktop
-previews. Institutional OAuth onboarding, general student distribution and a
+the installed Canvas Bridge Personal plugin. Public downloads remain synthetic
+desktop previews. Institutional OAuth onboarding, general student distribution and a
 ChatGPT Directory listing are not approved or delivered.
 
 An operator-only personal testing path is implemented and tested. It

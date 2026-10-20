@@ -56,6 +56,15 @@ scope validation or treat `openid` as coursework permission. This configuration
 guidance describes configuration requirements; the separate private first-read
 proof is recorded in the platform compatibility matrix.
 
+For a persistent ChatGPT connection, also request `offline_access` as a base
+OAuth scope. WorkOS only supplies a refresh token when the authorization grant
+permits it; an initially successful read without renewal can fail minutes later.
+This scope renews the existing authorization and does not grant additional
+academic operations. Keep coursework access at `academic:read`. Test a new call
+after the initial access token expires, not just immediately after sign-in. See
+the [WorkOS refresh-token contract](https://workos.com/docs/reference/workos-connect/token)
+and [ChatGPT authentication setup](https://help.openai.com/en/articles/12584461-connecting-custom-mcp-servers-in-chatgpt).
+
 Keep operator files and secret mounts outside public artifacts. Reverse-proxy
 logs must omit authorization headers and callback query strings.
 

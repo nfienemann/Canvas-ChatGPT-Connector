@@ -190,3 +190,30 @@ remain in restricted private storage. Only this sanitized outcome is published.
 No application code changed during the live setup. The existing 132-test local
 and Linux CI results remain the applicable automated checks; the unchanged full
 suite was not redundantly rerun for these documentation updates.
+
+## Private connection lifecycle follow-up
+
+The initial client omitted `offline_access`. Its first read passed, but a later
+call required reauthentication because no refresh token was available. With the
+owner's explicit approval, the corrected **Canvas Bridge Personal** plugin
+requests this base scope alongside `academic:read`. The original temporary plugin
+was uninstalled after the replacement successfully read the selected courses.
+No additional academic operation was enabled.
+
+A subsequent actual ChatGPT conversation completed connection-status and workload
+calls more than six minutes after the replacement sign-in, following a full local
+service restart, without another interactive login. It returned active connection
+state and a nonempty workload, retaining the assignment-only coverage warning.
+This is a short lifecycle proof, not a multi-day session or revocation guarantee.
+
+The private Start menu launcher also passed full stop/start under Windows
+PowerShell 5.1, the actual shortcut host. Two Windows process-wait behaviors were
+corrected in that private launcher: waiting for all database descendants, and an
+unset process exit code after waiting only for the launcher. The resulting checks
+use the specific database cluster's status, recover public discovery and retain
+HTTP 401 for unauthenticated MCP calls. These operator files remain private and
+are not part of the downloadable synthetic demo packages.
+
+The preceding documentation commit passed [Linux CI run 39498991158](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39498991158).
+These follow-up repository changes are documentation only; no unchanged full
+suite was manually repeated.
