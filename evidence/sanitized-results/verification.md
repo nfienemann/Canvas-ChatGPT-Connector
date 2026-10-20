@@ -595,3 +595,29 @@ bounds, all-day event preparation and DST. It does not establish institution-wid
 availability, New Quizzes, group-child participation, persisted new-activity
 progress or new-activity Calendar writes. See
 [activity study planning](../../docs/activity-study-planning.md).
+
+Linux [CI run 39517914326](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39517914326)
+at `cc158f4` passed **399 tests with four Windows-only skips in 53.91 seconds**,
+with **81% total statement coverage** and **97% new activity-planning coverage**.
+Lint, formatting, dependency auditing and the image build passed. Dependency
+auditing reported no known vulnerabilities. The restricted image independently
+extracted PDF, TXT, Markdown, DOCX and PPTX fixtures and cleaned every job.
+
+The private service was restarted using its scoped launcher. The installed
+ChatGPT plugin catalog was refreshed and visibly contained **26 read-only tools**,
+including the new activity planner. A native ChatGPT conversation then read the
+selected Stem Cell Engineering inventory and called the new tool with a returned
+assignment ID/version as `suggested_review`, no windows and no effort estimates.
+It reported `needs_input`, `selection_needs_review`, one review entry, zero
+selected activities and zero blocks. A separate authorized private service check
+asserted the same response shape and preserved source/coverage evidence.
+
+The actual course read enumerated 11 assignments, completed both calendar
+collections, received a classic-quiz permission denial and withheld one discussion
+with unavailable posting-time evidence. These limitations survived planning.
+Standalone quiz/discussion/event allocation acceptance remains synthetic; this
+live test proves the review behavior and native integration, not availability of
+those resource types at Rowan. No grades were read, no Canvas content was changed,
+and no plan or Calendar event was saved. Screenshots and aggregate proof remain
+in the private operator directory outside Git. The final proof-record update
+changes documentation only, so the unchanged full source suite is not rerun.

@@ -78,3 +78,9 @@ No schema migration, new OAuth flow or new Canvas API endpoint is required.
 See the [verification ledger](../evidence/sanitized-results/verification.md) for
 executed tests and private integration proof; synthetic success is not proof that
 every institution exposes standalone activities through the same routes.
+
+The deployed private ChatGPT integration was verified on 2026-10-20: the new tool
+returned a review entry and no blocks for an unconfirmed assignment suggestion,
+while retaining Rowan's denied quiz access and incomplete discussion coverage.
+Mixed standalone activity allocation is covered by synthetic acceptance tests;
+no such live resource was established by that private check.
