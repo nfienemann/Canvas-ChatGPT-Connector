@@ -93,11 +93,18 @@ class WorkItem(Model):
     title: str = Field(max_length=1000)
     kind: str = "assignment"
     effective_due: FactDate = Field(default_factory=FactDate)
+    due_date_status: Literal["reported", "no_canvas_due_date", "unavailable"] = "unavailable"
+    schedule_status: Literal["dated", "unknown"] = "unknown"
+    schedule_basis: str = "Assessment timing has not been established."
     available_from: FactDate = Field(default_factory=FactDate)
     closes_at: FactDate = Field(default_factory=FactDate)
     submission_state: Literal[
         "not_submitted", "submitted", "resubmitted", "not_applicable", "unknown"
     ] = "unknown"
+    submission_evidence: Literal[
+        "returned", "not_returned", "invalid", "identity_mismatch", "conflicting", "not_applicable"
+    ] = "not_returned"
+    submission_state_basis: str = "No verified current-user submission evidence."
     assessment_state: Literal["graded", "pending", "excused", "unknown"] = "unknown"
     timeliness_state: Literal["on_time", "late", "missing", "not_applicable", "unknown"] = "unknown"
     availability_state: Literal[
@@ -115,6 +122,28 @@ class WorkItem(Model):
     source: Source
     prerequisites: list[str] = Field(default_factory=list, max_length=100)
     prerequisite_coverage: Literal["unknown", "known"] = "unknown"
+
+    @model_validator(mode="after")
+    def date_coverage(self):
+        # Also derive these fields for old cached snapshots. A null Canvas date
+        # is not evidence that an assessment is unscheduled or still upcoming.
+        known = self.effective_due.kind in {"timestamp", "local_date"}
+        self.due_date_status = (
+            "reported"
+            if known
+            else "no_canvas_due_date"
+            if self.effective_due.kind == "known_none"
+            else "unavailable"
+        )
+        self.schedule_status = "dated" if known else "unknown"
+        self.schedule_basis = (
+            "Canvas reported a due date in the authenticated student's context."
+            if known
+            else "Canvas explicitly returned no due date; past/upcoming/unscheduled is unknown."
+            if self.effective_due.kind == "known_none"
+            else "A usable Canvas due date was not returned; scheduling remains unknown."
+        )
+        return self
 
 
 class Coverage(Model):

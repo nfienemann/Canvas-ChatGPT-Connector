@@ -30,6 +30,8 @@
       "required_outcome": "Distinct states and no invented timestamp.",
       "fixture_functions": [
         "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
+        "tests/test_integration_findings.py::test_T03_T06_eleven_undated_assessments_are_not_upcoming",
+        "tests/test_integration_findings.py::test_T03_T20_undated_records_need_relevance_before_automatic_allocation",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
       "coverage": "partial_fixture_coverage",
@@ -52,8 +54,12 @@
       "test_id": "T05",
       "scenario": "Instructor changes extension after calendar preview",
       "required_outcome": "Commit rejects stale operation or requires reauthorized revised plan; no old-date write.",
-      "fixture_functions": [],
-      "coverage": "not_run_or_disabled",
+      "fixture_functions": [
+        "tests/test_integration_findings.py::test_T05_requirements_empty_is_not_failed_or_omitted",
+        "tests/test_integration_findings.py::test_T05_failed_requirements_fetch_is_never_empty_success",
+        "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states"
+      ],
+      "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -63,6 +69,10 @@
       "required_outcome": "Accurate orthogonal states; no generic “unsubmitted” inference from missing upload.",
       "fixture_functions": [
         "tests/test_domain_planning.py::test_T06_submission_states_zero_and_excused",
+        "tests/test_integration_findings.py::test_T06_same_submission_contract_for_list_and_details",
+        "tests/test_integration_findings.py::test_T06_omitted_submission_is_not_filled_from_stale_workload",
+        "tests/test_integration_findings.py::test_T03_T06_eleven_undated_assessments_are_not_upcoming",
+        "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
       "coverage": "partial_fixture_coverage",
@@ -126,6 +136,8 @@
         "tests/test_file_reading.py::test_T11_scanned_pdf_has_no_invented_content",
         "tests/test_file_reading.py::test_T11_markdown_unicode_and_text_limit",
         "tests/test_file_reading_contract.py::test_T11_T12_actual_mcp_file_tools_return_pdf_content",
+        "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
+        "tests/test_integration_findings.py::test_T11_narrow_module_resolves_pdf_outside_first_100_inventory_files",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
         "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read"
       ],
@@ -165,6 +177,7 @@
         "tests/test_file_reading.py::test_T13_T26_search_is_current_scoped_and_distinguishes_unindexed",
         "tests/test_file_reading.py::test_T13_unicode_search_offsets_use_original_text",
         "tests/test_file_reading.py::test_T13_duplicate_names_and_other_owner_cannot_share_cache",
+        "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
@@ -272,6 +285,7 @@
         "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
         "tests/test_domain_planning.py::test_T20_capacity_conservation",
         "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
+        "tests/test_integration_findings.py::test_T03_T20_undated_records_need_relevance_before_automatic_allocation",
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
         "tests/test_scope_planning_lifecycle.py::test_T20_dependencies_respect_finish_time_and_reverse_input_order",
         "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
@@ -393,6 +407,7 @@
       "fixture_functions": [
         "tests/test_course_files.py::test_T27_missing_file_collection_is_partial_not_empty_success",
         "tests/test_course_files.py::test_T27_outline_uses_one_budget_for_module_requests",
+        "tests/test_integration_findings.py::test_T27_history_reports_baseline_scope_and_incomplete_observations",
         "tests/test_service_security.py::test_T27_first_observed_is_not_invented_history"
       ],
       "coverage": "partial_fixture_coverage",

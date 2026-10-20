@@ -8,6 +8,13 @@ Scanned pages and figures cannot yet be visually interpreted. See
 [file-reading limits](file-reading.md). The private service must remain running.
 The public installer previews described below still use fictional courses.
 
+“Not submitted” describes the online Canvas record only. An assessment may have
+been completed in class or outside Canvas. Records without a Canvas due date
+are listed as undated with unknown scheduling; they are not automatically called
+upcoming. An empty assignment description is labeled explicitly and does not
+mean the instructor has provided no requirements elsewhere. Change tracking
+starts with complete observed snapshots and cannot reconstruct older history.
+
 The downloadable preview is a fictional local demonstration; general student
 onboarding is not available. A student should not install a server or paste a
 Canvas token to use a future hosted release.

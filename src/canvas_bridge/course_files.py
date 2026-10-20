@@ -38,7 +38,13 @@ async def authorized(bridge, owner, ref, material_id):
     _, courses = bridge.selected(owner, ref)
     with bridge.store.transaction() as session:
         conn = bridge.store.connection(session, owner, ref)
-        row = bridge.store.owned(session, Material, owner, ref, material_id)
+        try:
+            row = bridge.store.owned(session, Material, owner, ref, material_id)
+        except DomainError as exc:
+            raise DomainError(
+                "permission_denied",
+                "File reference unavailable. Use a file_id from list_course_files or a File item's material_ref from get_course_outline; a parent module ID cannot identify one document.",
+            ) from exc
         course = next((c for c in courses if c.id == row.course_id), None)
         if not course or row.kind != "file":
             raise DomainError("permission_denied", "File is outside the selected course scope.")
@@ -137,6 +143,8 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
             "files": files,
             "modules": [{"id": m["id"], "title": m["title"]} for m in modules],
             "coverage": result.data["inventory_coverage"],
+            "inventory_failures": result.data["inventory_failures"],
+            "document_content_included": False,
         },
         sources=result.sources,
         meta=result.meta,
@@ -425,6 +433,10 @@ async def search_files(bridge, owner, ref, course_id, query, limit=10):
             "limit_reached": len(results) == limit,
             "unavailable_documents": unavailable,
             "request_budget_exhausted": budget_exhausted,
+            "inventory_coverage": inventory.data["coverage"],
+            "inventory_failures": inventory.data["inventory_failures"],
+            "unread_documents_searched": False,
+            "next_step": "Read likely unindexed files with read_course_file, then search again. No match is not evidence that unread documents lack the topic.",
         },
         sources=sources,
         meta=bridge.meta(

@@ -77,18 +77,26 @@ def prioritize(items: list[WorkItem], now: datetime, opportunity: int) -> list[d
         closes = item.closes_at.timestamp
         hard_limit = min(t for t in (due, closes) if t) if due or closes else None
         hours = (hard_limit - now).total_seconds() / 3600 if hard_limit else None
-        if item.prerequisites:
+        undated = item.effective_due.kind not in {"timestamp", "local_date"}
+        if undated and not closes:
+            tier, reason = (
+                3,
+                "Timing is unknown; confirm whether this assessment is still relevant.",
+            )
+        elif item.prerequisites:
             tier, reason = 3, "Known prerequisite work needs to be completed first."
         elif hours is not None and hours <= 24:
             tier, reason = 0, "Due or closing within a day, or overdue; check recoverability."
         elif hours is not None and hours <= 72:
             tier, reason = 1, "Limited time remains before the source deadline."
         else:
-            tier, reason = 2, "Keep longer or undated work in view before urgency increases."
+            tier, reason = 2, "A reported date leaves more time; review the remaining work."
         effort = item.effort_remaining
         minutes = min(opportunity, effort.maximum_minutes) if effort else min(opportunity, 15)
         action = (
-            f"Work on {item.title} for up to {minutes} minutes."
+            f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
+            if undated and not closes
+            else f"Work on {item.title} for up to {minutes} minutes."
             if effort
             else f"Spend up to {minutes} minutes reviewing the requirements for {item.title} "
             "and estimating the remaining work."
@@ -230,6 +238,17 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
         visit(ref)
     for ref in ordered:
         item = by_id[ref]
+        if (
+            item.effective_due.kind not in {"timestamp", "local_date"}
+            and not item.closes_at.timestamp
+            and ref not in request.effort_overrides
+            and ref not in pinned_minutes
+            and item.personal_progress != "in_progress"
+        ):
+            unmet.append(
+                {"work_id": item.id, "reason": "schedule_and_relevance_unknown", "minutes": None}
+            )
+            continue
         effort = item.effort_remaining
         if not effort:
             unmet.append({"work_id": item.id, "reason": "effort_unknown", "minutes": None})
@@ -296,7 +315,7 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
     unknown_constraints = any(
         by_id[row["work_id"]].prerequisite_coverage == "unknown"
         or by_id[row["work_id"]].availability_state != "available"
-        or by_id[row["work_id"]].effective_due.kind not in {"timestamp", "known_none"}
+        or by_id[row["work_id"]].effective_due.kind != "timestamp"
         for row in ranked
     )
     return {

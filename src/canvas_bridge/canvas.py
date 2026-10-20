@@ -97,7 +97,10 @@ class CanvasClient:
         raise DomainError("retry_later", "Canvas request budget exhausted.")
 
     async def one(self, endpoint: Endpoint, **ids: str) -> dict:
-        payload, _ = await self._get(self.url(endpoint, **ids))
+        # Match assignment-list semantics. Canvas omits the current user's
+        # submission from a single assignment unless explicitly requested.
+        params = [("include[]", "submission")] if endpoint == Endpoint.ASSIGNMENT else []
+        payload, _ = await self._get(str(httpx.URL(self.url(endpoint, **ids), params=params)))
         if not isinstance(payload, dict):
             raise DomainError("partial_data", "Canvas returned an unexpected object.")
         return payload

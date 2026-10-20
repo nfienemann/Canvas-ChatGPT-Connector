@@ -297,3 +297,35 @@ The proof is limited to this authorized personal connection and Windows host.
 It is not institutional OAuth approval, other-university verification, Linux/macOS
 parser support, Phase 2/3 delivery or public release acceptance. See
 `docs/file-reading.md` and the remaining release gates.
+
+## Live integration hardening
+
+The following increment addresses the owner's seven reported findings. A private
+read-only diagnostic confirmed the actual query-contract discrepancy: the list
+included the owner's submission, the original single-assignment request omitted
+it, and adding the documented submission inclusion returned the same workflow.
+The diagnostic also distinguished an actual empty string description from an
+omitted field. No raw academic records or credentials were committed.
+
+`tests/test_integration_findings.py` adds **26 regression cases** covering all
+findings, including metadata-only outlines, wrong module IDs, file resolution
+beyond the first 100 inventory entries, unread-file search boundaries, complete
+history baselines, undated scheduling and missing/contradictory submission data.
+The synthetic provider now honors Canvas's submission-inclusion parameter so
+future single-object/list query drift cannot silently pass fixture tests.
+
+Final local Windows Python 3.14.5 run: **244 tests passed in 27.70 seconds**, no
+failures or skips, **81% statement coverage**. Disposable PostgreSQL migrations,
+rollback, privacy/lifecycle tests, real Windows sandbox checks and official HTTP
+MCP contract tests were included. Ruff lint/format and diff checks passed. An
+initial oversized pytest parameter name caused Windows test-setup errors; concise
+test IDs fixed that harness issue before the successful full run.
+
+After restarting the existing private launcher, actual installed-connector calls
+confirmed matching workload/detail submission states, explicit empty-description
+coverage, eleven null due dates with unknown scheduling, a precise pre-baseline
+history limitation with cached freshness, and working PDF text/page attribution.
+The outline reported denied Pages/Files collections explicitly while resolving
+the authorized module files. All academic requests remained GET-only; no Canvas
+content or grades were changed. New additive JSON response fields need no schema
+migration. See `docs/live-integration-findings.md` for classification and root causes.

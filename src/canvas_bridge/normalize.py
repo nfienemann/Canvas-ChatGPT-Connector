@@ -59,6 +59,35 @@ def canonical_id(owner: str, connection: str, kind: str, upstream: str) -> str:
     return hashlib.sha256(f"{owner}\0{connection}\0{kind}\0{upstream}".encode()).hexdigest()[:40]
 
 
+def assignment_requirements(raw: dict) -> dict:
+    """Describe the fetched assignment-description field, not all course requirements."""
+    html = raw.get("description")
+    text, truncated = "", False
+    if "description" not in raw:
+        state = "not_returned"
+    elif html is None or isinstance(html, str) and not html.strip():
+        state = "empty_in_canvas"
+    elif not isinstance(html, str):
+        state = "invalid"
+    else:
+        text = plain_text(html, 50_001)
+        truncated = len(text) > 50_000 or len(html) > 200_004
+        text = text[:50_000]
+        state = "truncated" if truncated else "present" if text else "no_extractable_text"
+    return {
+        "text": text,
+        "state": state,
+        "retrieval": "succeeded",
+        "field_returned": "description" in raw,
+        "truncated": truncated,
+        "scope": "canvas_assignment_description_only",
+        "limitations": [
+            "An empty assignment description does not mean there are no requirements.",
+            "Quiz questions, external tools, linked files and other course instructions were not retrieved by this endpoint.",
+        ],
+    }
+
+
 def normalize_assignment(
     raw: dict,
     *,
@@ -74,18 +103,40 @@ def normalize_assignment(
     now = now or utcnow()
     upstream = source_id(raw["id"])
     ref = canonical_id(owner, connection, "assignment", f"{canvas_course}:{upstream}")
-    sub = raw.get("submission") or {}
-    if str(sub.get("user_id", "")) != canvas_user:
+    supplied = raw.get("submission")
+    evidence = "not_returned" if supplied is None else "returned"
+    sub = supplied if isinstance(supplied, dict) else {}
+    if supplied is not None and not isinstance(supplied, dict):
+        evidence = "invalid"
+    elif sub and str(sub.get("user_id", "")) != canvas_user:
+        evidence = "identity_mismatch"
         sub = {}
+    elif not sub:
+        evidence = "not_returned"
     types = raw.get("submission_types", [])
+    if not isinstance(types, list) or any(not isinstance(t, str) for t in types):
+        types = []
     submission, assessment, timeliness = "unknown", "unknown", "unknown"
+    basis = "No verified current-user submission evidence; absence does not mean not submitted."
     state = sub.get("workflow_state")
+    submitted_at = fact_date(sub, "submitted_at").timestamp
     if types and set(types) <= {"on_paper", "none", "not_graded"}:
         submission = "not_applicable"
-    elif state in {"submitted", "pending_review", "graded"} and sub.get("submitted_at"):
-        submission = "resubmitted" if (sub.get("attempt") or 1) > 1 else "submitted"
+        evidence = "not_applicable"
+        basis = "This assignment does not require an online Canvas submission; completion is not established."
+    elif state in {"submitted", "pending_review", "graded"} and submitted_at:
+        attempt = sub.get("attempt")
+        submission = "resubmitted" if type(attempt) is int and attempt > 1 else "submitted"
+        basis = "Verified own Canvas submission workflow and submission timestamp."
     elif state == "unsubmitted":
-        submission = "not_submitted"
+        if sub.get("submitted_at"):
+            evidence = "conflicting"
+            basis = "Canvas returned unsubmitted workflow with a submission timestamp; status is unresolved."
+        else:
+            submission = "not_submitted"
+            basis = "Canvas explicitly reports unsubmitted for this student's online record; offline completion is unknown."
+    elif sub:
+        basis = "Canvas returned own submission data, but it does not establish whether work was submitted."
     if sub.get("excused") is True:
         assessment = "excused"
     elif state == "graded" and sub.get("posted_at"):
@@ -96,7 +147,7 @@ def normalize_assignment(
         timeliness = "missing"
     elif sub.get("late") is True:
         timeliness = "late"
-    elif sub.get("late") is False and sub.get("submitted_at"):
+    elif sub.get("late") is False and submitted_at and evidence != "conflicting":
         timeliness = "on_time"
     due, opens, closes = (fact_date(raw, field) for field in ("due_at", "unlock_at", "lock_at"))
     availability = "unknown"
@@ -137,6 +188,8 @@ def normalize_assignment(
         available_from=opens,
         closes_at=closes,
         submission_state=submission,
+        submission_evidence=evidence,
+        submission_state_basis=basis,
         assessment_state=assessment,
         timeliness_state=timeliness,
         availability_state=availability,

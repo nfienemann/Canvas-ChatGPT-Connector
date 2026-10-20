@@ -169,10 +169,16 @@ class SyntheticProvider:
                     return httpx.Response(200, json=item) if item else httpx.Response(404)
             if parts[5] == "assignments":
                 items = self.data["assignments"].get(course, [])
+                query = parse_qs(request.url.query.decode())
+                # Reproduce Canvas's optional inclusion instead of returning
+                # submissions unconditionally and hiding query-contract bugs.
+                items = [dict(item) for item in items]
+                if "submission" not in query.get("include[]", []):
+                    for item in items:
+                        item.pop("submission", None)
                 if len(parts) == 7:
                     item = next((a for a in items if str(a["id"]) == parts[6]), None)
                     return httpx.Response(200, json=item) if item else httpx.Response(404)
-                query = parse_qs(request.url.query.decode())
                 page = int(query.get("page", ["1"])[0])
                 size = 2
                 subset = items[(page - 1) * size : page * size]

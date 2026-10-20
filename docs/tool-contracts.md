@@ -51,6 +51,23 @@ No calendar/action/notification or generic standard `search`/`fetch` compatibili
 tool is advertised. Standard research-surface adapters require separate actual
 client verification before being added.
 
+Workload and assignment details request the same current-user submission
+inclusion and return `submission_evidence` and `submission_state_basis`. An
+unknown submission is never replaced with stale cached certainty. `not_submitted`
+means Canvas's online record, not proof of offline completion or future relevance.
+Undated records expose `due_date_status` and `schedule_status`; null Canvas dates
+do not establish unscheduled or upcoming assessments. Unconfirmed undated work
+does not become an automatic study allocation without current student input.
+
+Assignment details preserve `requirements_text` and add `requirements_coverage`
+with explicit empty/missing/invalid/non-text/truncated states and description-only
+scope. A successfully fetched empty description does not mean no requirements
+exist. Retrieval failures remain errors. `get_changes` exposes its actual stored
+comparison interval, missing-baseline reason and incomplete-observation coverage;
+it cannot reconstruct pre-baseline history or exact change times.
+
+See [live findings and root causes](live-integration-findings.md).
+
 The file inventory requires explicit current-user visibility and excludes hidden
 or locked files. A module label can remain visible without a usable material
 reference when its resource is absent from the accessible bounded inventory.

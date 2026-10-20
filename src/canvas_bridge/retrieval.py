@@ -158,7 +158,11 @@ async def outline(
         try:
             async with asyncio.timeout(bridge.settings.refresh_budget_seconds):
                 pages = await client.collection(Endpoint.PAGES, course=course.source_id)
-                files = await client.collection(Endpoint.FILES, course=course.source_id)
+                files = (
+                    Collection(failure="module_filtered_inventory")
+                    if module_filter
+                    else await client.collection(Endpoint.FILES, course=course.source_id)
+                )
                 collection = await client.collection(Endpoint.MODULES, course=course.source_id)
                 for module in collection.items[:30]:
                     if module.get("published") is False or module.get("state") == "locked":
@@ -325,6 +329,14 @@ async def outline(
         data={
             "modules": modules,
             "materials": resources,
+            "document_content_included": False,
+            "file_reading": {
+                "enabled": bridge.settings.file_reading_enabled,
+                "read_tool": "read_course_file",
+                "search_tool": "search_course_files",
+                "reference": "Use the File item's material_ref as file_id, never the parent module ID.",
+                "formats": ["pdf", "txt", "md"],
+            },
             "inventory_coverage": {
                 name: "complete" if c.complete and len(c.items) <= limit else "partial"
                 for name, c, limit in (
@@ -332,6 +344,11 @@ async def outline(
                     ("files", files, 100),
                     ("modules", collection, 30),
                 )
+            },
+            "inventory_failures": {
+                name: c.failure
+                for name, c in (("pages", pages), ("files", files), ("modules", collection))
+                if c.failure
             },
             "limitations": [
                 "Use read_course_file or fetch_course_material to read file text when isolated extraction is enabled.",
@@ -355,7 +372,13 @@ async def fetch_material(
     if offset < 0 or not 1 <= length <= 16_000 or offset > MAX_TEXT:
         raise DomainError("needs_input", "Invalid text window.")
     with bridge.store.transaction() as session:
-        entry = bridge.store.owned(session, Material, owner, ref, material_ref)
+        try:
+            entry = bridge.store.owned(session, Material, owner, ref, material_ref)
+        except DomainError as exc:
+            raise DomainError(
+                "permission_denied",
+                "Material reference unavailable. Resolve a File or Page item's material_ref with get_course_outline; parent module IDs are not document IDs.",
+            ) from exc
         is_file = entry.kind == "file"
     if is_file:
         from canvas_bridge.course_files import read_file
@@ -471,6 +494,9 @@ async def search_materials(bridge, owner: str, ref: str, query: str, limit: int 
         data={
             "results": results,
             "search_scope": "previously_fetched_pages",
+            "file_text_searched": False,
+            "unfetched_content_searched": False,
+            "next_step": "Use list_course_files to discover PDFs, read_course_file to extract likely documents, then search_course_files for indexed file passages.",
             "truncated": len(rows) > limit,
         },
         sources=sources,
