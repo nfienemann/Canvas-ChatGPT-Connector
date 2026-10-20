@@ -82,6 +82,12 @@ class Source(Model):
         "unknown",
     ] = "source_fact"
     untrusted_content: bool = True
+    source_type: str = "unknown"
+    course_id: str | None = None
+    resource_id: str | None = None
+    content_hash: str | None = None
+    extraction_status: str = "not_recorded"
+    uncertainty: list[str] = Field(default_factory=list)
 
 
 class WorkItem(Model):
@@ -117,6 +123,8 @@ class WorkItem(Model):
         "unknown"
     )
     submission_requirement: str = "unknown"
+    instruction_hash: str | None = None
+    instruction_state: str = "not_recorded"
     points_possible: Decimal | None = None
     effort_remaining: Effort | None = None
     source: Source
@@ -185,6 +193,7 @@ class Result(Model):
     summary: str
     data: dict[str, Any] = Field(default_factory=dict)
     sources: list[Source] = Field(default_factory=list)
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
     meta: Meta = Field(default_factory=Meta)
 
 

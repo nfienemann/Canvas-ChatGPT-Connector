@@ -10,13 +10,15 @@ first. The local build is not the specification's live pilot acceptance.
 | G1 institutional access | BLOCKED external access | Candidate registry only; institution-approved key/scopes and student comparison needed |
 | G2 public eligibility | UNRESOLVED | Current unofficial-connector restriction reviewed; documented acceptable path needed |
 | G3 security/privacy suitability | PARTIAL synthetic | Isolation/network/lifecycle fixtures pass; independent review and actual privacy arrangement needed |
-| G4 native Calendar interoperability | NOT TESTED | Separate Calendar capability and actual ChatGPT composition required |
+| G4 native Calendar interoperability | PASS actual read/proposal composition; writes untested | Actual ChatGPT used native Google Calendar reads plus a fresh Canvas workload and the deduplicated proposal tool; no create/update/delete executed |
 | G5 operational ownership | PARTIAL local | PostgreSQL, migrations and logical recovery tested; hosting, budget, owner, offsite recovery and monitoring undecided |
 
 Calendar writes and notifications are disabled. They do not block local reads,
 but cannot be advertised as delivered. PDF/TXT/Markdown reading now has a verified
-Windows AppContainer worker and a private actual-course PDF proof. Office, OCR,
-visual interpretation and Linux/macOS parser workers remain unimplemented live.
+Windows AppContainer worker and a private actual-course PDF proof. DOCX/PPTX text extraction now shares that sandbox and passes synthetic OS-isolated
+acceptance. OCR, visual interpretation and Linux/macOS parser workers remain
+unimplemented live. Calendar proposals now compose with the existing native
+connection; actual writes still require explicit event approval and read-back.
 
 Additional gaps: comprehensive non-assignment obligations, advanced grade
 policies, fleet quotas,
@@ -40,6 +42,6 @@ MCP client. The installed private plugin also completed a live ChatGPT Pro
 conversation using connection status, course listing and workload tools. The
 response distinguished submitted work, converted deadlines to the selected time
 zone, linked to Canvas and stated assignment-only coverage limits. No grades or
-writes were requested in this proof. Mobile, Calendar composition and broader
-study workflows remain unverified in actual ChatGPT.
+writes were requested in this proof. Mobile and broader study workflows remain unverified. Calendar read/proposal
+composition was subsequently verified; see the current validation record.
 This does not change the hosted-pilot or public-distribution gates above.

@@ -17,6 +17,7 @@ Configure only the enabled capabilities. The registry contains no live grant.
 | Outline | `/api/v1/courses/{course}/modules` | `url:GET\|/api/v1/courses/:course_id/modules` | Selected course; bounded pagination |
 | Outline items | `/api/v1/courses/{course}/modules/{module}/items` | `url:GET\|/api/v1/courses/:course_id/modules/:module_id/items` | Module obtained from selected course; metadata only |
 | Page discovery | `/api/v1/courses/{course}/pages` | `url:GET\|/api/v1/courses/:course_id/pages` | Selected course; no revision history or group-wide reads |
+| Course announcements | `/api/v1/announcements` | `url:GET\|/api/v1/announcements` | Fixed selected-course context; last 180 days; visible posted entries only |
 | Current page text | `/api/v1/courses/{course}/pages/page_id:{page}` | `url:GET\|/api/v1/courses/:course_id/pages/:url_or_id` | Numeric page ID; fresh access check; content is untrusted data |
 
 Sources: [users](https://developerdocs.instructure.com/services/canvas/resources/users),
@@ -37,12 +38,14 @@ credential lifecycle operations. They do not authorize academic mutations.
 See [Canvas OAuth](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth)
 and [developer keys](https://developerdocs.instructure.com/services/canvas/oauth2/file.developer_keys).
 
-`SUBMISSION` and `ANNOUNCEMENTS` enum entries are reserved and
-have no current public tool path. Do not grant their additional scopes simply
+`SUBMISSION` remains reserved and has no current public tool path.
+`ANNOUNCEMENTS` now supports the bounded academic comparison tools. Do not grant their additional scopes simply
 because the constants exist. Discussion replies, rosters, submissions, grades,
 module completion and other academic writes are outside the application.
-PDF/TXT/Markdown file text is opt-in on the verified Windows worker. Office/OCR,
-visual interpretation, Calendar and notifications remain disabled.
+PDF/DOCX/PPTX/TXT/Markdown text is opt-in on the verified Windows worker. OCR and
+visual interpretation remain unavailable. Calendar proposals compose with the
+existing native connection; this service executes no Calendar writes. Notifications
+remain disabled. See [academic intelligence](academic-intelligence.md).
 
 MCP uses separate service scopes: `academic:read`, `preferences:write` and
 `settings:write`. They are not Canvas OAuth scopes. The identity provider must

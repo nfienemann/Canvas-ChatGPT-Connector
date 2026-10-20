@@ -1,7 +1,7 @@
 """Deterministic prioritization and conservative allocation; no inference service."""
 
 from datetime import datetime, timedelta
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
@@ -23,11 +23,21 @@ class PinnedBlock(Window):
     work_id: str = Field(min_length=1, max_length=100)
 
 
+class Importance(Model):
+    grade_weight_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
+    basis: Literal["student_provided"] = "student_provided"
+    explanation: str = Field(min_length=1, max_length=500)
+
+
 class PlanRequest(Model):
     windows: list[Window] = Field(default_factory=list, max_length=100)
     busy_times: list[Window] = Field(default_factory=list, max_length=100)
     pinned_blocks: list[PinnedBlock] = Field(default_factory=list, max_length=100)
     effort_overrides: dict[str, Effort] = Field(default_factory=dict, max_length=100)
+    priority_overrides: dict[str, Annotated[int, Field(ge=0, le=10)]] = Field(
+        default_factory=dict, max_length=100
+    )
+    importance: dict[str, Importance] = Field(default_factory=dict, max_length=100)
     opportunity_minutes: int = Field(default=45, ge=5, le=720)
     break_minutes: int = Field(default=10, ge=0, le=60)
     buffer_minutes: int = Field(default=10, ge=0, le=120)
@@ -53,7 +63,9 @@ class PlanRequest(Model):
 
 
 def is_actionable(item: WorkItem) -> bool:
-    if item.assessment_state == "excused":
+    if item.assessment_state == "excused" or (
+        item.assessment_state == "graded" and item.revision_state in {"none_known", "unknown"}
+    ):
         return False
     if item.availability_state in {"closed", "inaccessible", "future_locked"}:
         return False
@@ -68,7 +80,10 @@ def is_actionable(item: WorkItem) -> bool:
     )
 
 
-def prioritize(items: list[WorkItem], now: datetime, opportunity: int) -> list[dict]:
+def prioritize(
+    items: list[WorkItem], now: datetime, opportunity: int, overrides=None, importance=None
+) -> list[dict]:
+    overrides, importance = overrides or {}, importance or {}
     ranked = []
     for item in items:
         if not is_actionable(item):
@@ -94,7 +109,9 @@ def prioritize(items: list[WorkItem], now: datetime, opportunity: int) -> list[d
         effort = item.effort_remaining
         minutes = min(opportunity, effort.maximum_minutes) if effort else min(opportunity, 15)
         action = (
-            f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
+            f"Verify the Canvas submission receipt for {item.title}; you marked the work done, so do not redo it based only on this status."
+            if item.personal_progress == "student_marked_done"
+            else f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
             if undated and not closes
             else f"Work on {item.title} for up to {minutes} minutes."
             if effort
@@ -106,6 +123,12 @@ def prioritize(items: list[WorkItem], now: datetime, opportunity: int) -> list[d
                 "work_id": item.id,
                 "title": item.title,
                 "priority_tier": tier,
+                "urgency": {0: "immediate", 1: "soon", 2: "later", 3: "unresolved"}[tier],
+                "importance": importance[item.id].model_dump(mode="json")
+                if item.id in importance
+                else None,
+                "student_priority": overrides.get(item.id),
+                "ranking_basis": "Student overrides first (0 highest), then urgency, then stated grade weight, then deadline. Unknown grade impact is not zero; points alone are not course weight.",
                 "reason": reason,
                 "first_action": action,
                 "action_minutes": minutes,
@@ -128,7 +151,13 @@ def prioritize(items: list[WorkItem], now: datetime, opportunity: int) -> list[d
                         else ["Current availability needs checking."]
                     ),
                 ],
-                "_sort": (tier, hard_limit or datetime.max.replace(tzinfo=now.tzinfo), item.id),
+                "_sort": (
+                    overrides.get(item.id, 11),
+                    tier,
+                    -importance[item.id].grade_weight_percent if item.id in importance else 1,
+                    hard_limit or datetime.max.replace(tzinfo=now.tzinfo),
+                    item.id,
+                ),
             }
         )
     ranked.sort(key=lambda row: row.pop("_sort"))
@@ -151,11 +180,27 @@ def subtract(windows: list[list[datetime]], start: datetime, end: datetime):
 
 def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
     by_id = {item.id: item.model_copy(deep=True) for item in items}
-    if set(request.effort_overrides) - by_id.keys():
-        raise ValueError("Effort references a task outside this workload.")
+    if (
+        set(request.effort_overrides) | set(request.priority_overrides) | set(request.importance)
+    ) - by_id.keys():
+        raise ValueError("Planning input references a task outside this workload.")
     for key, effort in request.effort_overrides.items():
         by_id[key].effort_remaining = effort
-    ranked = prioritize(list(by_id.values()), now, request.opportunity_minutes)
+    for item in by_id.values():
+        if item.personal_progress == "student_marked_done" and item.revision_state in {
+            "none_known",
+            "unknown",
+        }:
+            # Keep an online-submission verification reminder, but do not
+            # allocate work sessions for something the student says is done.
+            item.effort_remaining = None
+    ranked = prioritize(
+        list(by_id.values()),
+        now,
+        request.opportunity_minutes,
+        request.priority_overrides,
+        request.importance,
+    )
     if not request.windows:
         return {
             "feasibility": "availability_unknown",

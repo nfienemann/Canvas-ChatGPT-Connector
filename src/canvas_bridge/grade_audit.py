@@ -3,6 +3,7 @@
 import asyncio
 import re
 
+from canvas_bridge.course_files import page_label
 from canvas_bridge.domain import DomainError, Result, Source, utcnow
 from canvas_bridge.grading_engine import (
     GradeAssessment,
@@ -379,7 +380,7 @@ async def syllabus_documents(bridge, owner, ref, evidence, material_ids):
                         "complete": result.data.get("coverage") == "text_only",
                         "parts": [
                             {
-                                "locator": f"PDF/text page {p['page']}"
+                                "locator": page_label(row, p["page"])
                                 if "page" in p
                                 else p.get("locator", "document text"),
                                 "text": p["text"],

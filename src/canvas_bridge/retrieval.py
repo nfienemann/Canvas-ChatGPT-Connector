@@ -335,7 +335,7 @@ async def outline(
                 "read_tool": "read_course_file",
                 "search_tool": "search_course_files",
                 "reference": "Use the File item's material_ref as file_id, never the parent module ID.",
-                "formats": ["pdf", "txt", "md"],
+                "formats": ["pdf", "docx", "pptx", "txt", "md"],
             },
             "inventory_coverage": {
                 name: "complete" if c.complete and len(c.items) <= limit else "partial"

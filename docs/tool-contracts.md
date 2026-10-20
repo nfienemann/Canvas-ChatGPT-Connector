@@ -22,10 +22,15 @@ response size is 250 KB; callers must narrow excessive requests.
 | calculate_course_grade | Deterministic current/syllabus/projected/required-score modes; refuses unsupported or incomplete policy inputs |
 | audit_course_grade | Reported/reproduced/syllabus estimates remain distinct; neutral reconciliation and explicit insufficient evidence |
 | simulate_grade_scenario | Conditional visible-work simulations only; no Canvas What-If writes or inferred future scores |
+| reconcile_course_deadlines | Quoted dated obligations and exact-title matches; ambiguous matches, precision, timezone and source precedence remain explicit |
+| review_assignment_requirements | Instructions/rubric/related passages; deterministic numeric conflicts and ephemeral draft word count, no grade prediction |
+| prepare_for_assessment | Cited bounded reading pack; explicitly assigned versus inferred relevance; no invented next quiz or coverage |
+| propose_calendar_sync | Fresh conversation-supplied native Calendar context; deduplicated confirmation-only create/update proposals; provider-held mapping markers |
+| audit_course_consistency | One-course prioritized supported findings, impact, evidence, next action and unchecked resources |
 | get_course_outline | Bounded modules/items/pages/files with one overall time budget; course-bound material references join visible module items; listing never proves a reading was accessed |
 | fetch_course_material | Backward-compatible page or file text; fresh access checks, content-hash-bound continuation; files require enabled OS isolation |
 | list_course_files | Selected-course metadata with module associations, opaque file IDs, stable Canvas links and indexed state; resolves visible module files even when the Files collection is denied |
-| read_course_file | PDF/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
+| read_course_file | PDF/DOCX/PPTX/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
 | search_course_files | Previously extracted authorized file text only; page passages, indexed count, unindexed documents and incomplete-coverage flags |
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
@@ -51,8 +56,9 @@ Saved preference values are returned for conversation reuse. Callers should pass
 the student's saved preferences into explicit plan constraints; a read never
 silently saves a correction.
 
-No calendar/action/notification or generic standard `search`/`fetch` compatibility
-tool is advertised. Standard research-surface adapters require separate actual
+No Calendar mutation/notification or generic standard `search`/`fetch` compatibility
+tool is advertised. Calendar proposals use the native connection composition described
+in [academic intelligence](academic-intelligence.md). Standard research-surface adapters require separate actual
 client verification before being added.
 
 Workload and assignment details request the same current-user submission

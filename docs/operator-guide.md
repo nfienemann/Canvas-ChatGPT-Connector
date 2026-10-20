@@ -3,7 +3,7 @@
 ## Course file inventory and download policy
 
 The source build inventories accessible course files and resolves visible module
-files directly when the course Files collection is denied. PDF/TXT/Markdown
+files directly when the course Files collection is denied. PDF/DOCX/PPTX/TXT/Markdown
 reading can be enabled in a Windows source deployment using the verified
 AppContainer worker. Existing `fetch_course_material` supports the same file
 path as `read_course_file`; every chunk rechecks current access. See

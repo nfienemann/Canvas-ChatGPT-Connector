@@ -458,7 +458,7 @@ async def test_T08_T11_pdf_syllabus_uses_authenticated_reader_and_exact_pages(
     result = await grading_request(bridge, owner, seeded, grade_data, material_ids=[ref])
     syllabus = result.data["syllabus_policy"]
     assert [r["source_passage"] for r in syllabus["rules"]] == ["Exams: 60%", "Labs: 40%"]
-    assert syllabus["rules"][1]["source_location"]["locator"] == "PDF/text page 2"
+    assert syllabus["rules"][1]["source_location"]["locator"] == "PDF page 2"
     assert len(syllabus["rules"][0]["document_version"]) == 64
     assert sum("download" in r.url.path for r in bridge.synthetic.requests) == 1
     await grading_request(bridge, owner, seeded, grade_data, material_ids=[ref])

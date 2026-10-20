@@ -4,6 +4,7 @@ from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 
 from canvas_bridge.domain import FactDate, Source, WorkItem, utcnow
+from canvas_bridge.evidence import fingerprint
 from canvas_bridge.policy import source_id
 
 
@@ -108,7 +109,10 @@ def normalize_assignment(
     sub = supplied if isinstance(supplied, dict) else {}
     if supplied is not None and not isinstance(supplied, dict):
         evidence = "invalid"
-    elif sub and str(sub.get("user_id", "")) != canvas_user:
+    elif sub and (
+        str(sub.get("user_id", "")) != canvas_user
+        or str(sub.get("assignment_id", upstream)) != upstream
+    ):
         evidence = "identity_mismatch"
         sub = {}
     elif not sub:
@@ -176,6 +180,7 @@ def normalize_assignment(
         pass
     title = plain_text(str(raw.get("name") or "Untitled assignment"), 1000)
     updated = fact_date(raw, "updated_at").timestamp
+    requirements = assignment_requirements(raw)
     return WorkItem(
         id=ref,
         connection_id=connection,
@@ -195,11 +200,35 @@ def normalize_assignment(
         availability_state=availability,
         points_possible=points,
         submission_requirement=", ".join(types)[:500] if types else "unknown",
+        instruction_hash=fingerprint(requirements["text"])
+        if requirements["state"] in {"present", "empty_in_canvas"}
+        else None,
+        instruction_state=requirements["state"],
         source=Source(
             id=ref,
             url=f"{origin}/courses/{source_id(canvas_course)}/assignments/{upstream}",
             title=title,
             retrieved_at=now,
             source_updated_at=updated,
+            source_type="canvas_assignment",
+            course_id=course,
+            resource_id=ref,
+            extraction_status=requirements["state"],
+            content_hash=fingerprint(
+                {
+                    k: raw.get(k)
+                    for k in (
+                        "name",
+                        "description",
+                        "due_at",
+                        "unlock_at",
+                        "lock_at",
+                        "points_possible",
+                        "submission_types",
+                        "updated_at",
+                        "submission",
+                    )
+                }
+            ),
         ),
     )

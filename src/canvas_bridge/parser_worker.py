@@ -7,15 +7,100 @@ import hashlib
 import io
 import json
 import logging
+import posixpath
 import sys
+import zipfile
 from pathlib import Path
 
+from defusedxml import ElementTree as ET
 from pypdf import PdfReader
 
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-pypdf-6.21.1-v2"
+PARSER = "canvas-bridge-documents-v3"
+
+
+def office(data: bytes, kind: str):
+    """Bounded OOXML text only. Never extract files or resolve external relations."""
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        entries = archive.infolist()
+        if (
+            len(entries) > 1000
+            or sum(e.file_size for e in entries) > 20_000_000
+            or len({e.filename for e in entries}) != len(entries)
+            or any(
+                e.file_size > 10_000_000
+                or e.file_size > max(1, e.compress_size) * 200
+                or e.flag_bits & 1
+                for e in entries
+            )
+        ):
+            raise ValueError("office_resource_limit")
+        names = {e.filename for e in entries}
+        if any("vbaproject" in n.lower() or "/embeddings/" in n.lower() for n in names):
+            raise ValueError("active_office_content")
+
+        def xml(name):
+            return ET.fromstring(archive.read(name), forbid_dtd=True, forbid_entities=True)
+
+        def tag(element):
+            return element.tag.rsplit("}", 1)[-1]
+
+        metadata = {}
+        if "docProps/core.xml" in names:
+            for e in xml("docProps/core.xml"):
+                if tag(e) in {"title", "creator", "subject"}:
+                    metadata[{"creator": "author"}.get(tag(e), tag(e))] = (e.text or "")[:1000]
+        if kind == "docx":
+            root = xml("word/document.xml")
+            # Paragraph sections are stable within this document version. Word
+            # pagination depends on the renderer, fonts and printer settings.
+            texts = [
+                "".join(
+                    (e.text or "")
+                    if tag(e) == "t"
+                    else "\t"
+                    if tag(e) == "tab"
+                    else "\n"
+                    if tag(e) == "br"
+                    else ""
+                    for e in p.iter()
+                )
+                for p in root.iter()
+                if tag(p) == "p"
+            ]
+            # Bound section count while preserving complete paragraph order.
+            grouped = []
+            for text in texts:
+                if not grouped or len(grouped[-1]) + len(text) > 8000:
+                    grouped.append(text)
+                else:
+                    grouped[-1] += "\n" + text
+            return metadata, grouped, "section"
+        relationships = {
+            e.attrib["Id"]: e.attrib.get("Target", "")
+            for e in xml("ppt/_rels/presentation.xml.rels")
+            if e.attrib.get("TargetMode", "Internal") != "External"
+            and e.attrib.get("Type", "").endswith("/slide")
+        }
+        texts = []
+        for e in xml("ppt/presentation.xml").iter():
+            if tag(e) != "sldId":
+                continue
+            relation = next((v for k, v in e.attrib.items() if k.endswith("}id")), None)
+            target = relationships.get(relation, "")
+            path = posixpath.normpath("ppt/" + target)
+            if not target or not path.startswith("ppt/slides/") or path not in names:
+                raise ValueError("invalid_slide_reference")
+            texts.append(
+                "\n".join(
+                    "".join(t.text or "" for t in p.iter() if tag(t) == "t")
+                    for p in xml(path).iter()
+                    if tag(p) == "p"
+                )
+            )
+        return metadata, texts, "slide"
 
 
 def extract(data: bytes, kind: str) -> dict:
@@ -67,6 +152,32 @@ def extract(data: bytes, kind: str) -> dict:
         warnings.append(
             "Page numbers are PDF page positions, not printed journal pagination. Reading order may be imperfect in multi-column papers."
         )
+    elif kind in {"docx", "pptx"}:
+        metadata, sections, locator_kind = office(data, kind)
+        page_count = len(sections)
+        if page_count > MAX_PAGES:
+            raise ValueError("too_many_pages")
+        for index, text in enumerate(sections, 1):
+            remaining = max(0, MAX_TEXT - total - (2 if pages else 0))
+            state = "extracted" if text.strip() else "no_text"
+            if len(text) > remaining:
+                text, state, coverage = text[:remaining], "truncated", "partial"
+            if not text.strip():
+                coverage = "partial"
+            pages.append(
+                {"page": index, "text": text, "state": state, "locator_kind": locator_kind}
+            )
+            total += len(text) + (2 if index > 1 else 0)
+            if total >= MAX_TEXT:
+                break
+        warnings.append(
+            "Word references identify text sections, not rendered pages."
+            if kind == "docx"
+            else "Slide numbers follow presentation order. Speaker notes, animations and image text are not extracted."
+        )
+        warnings.append(
+            "Headers, footers, comments, tracked changes, embedded objects and layout are not interpreted; table text may lose structure."
+        )
     elif kind in {"txt", "md"}:
         raw = data.decode("utf-8-sig")
         if len(raw) > MAX_TEXT:
@@ -109,6 +220,9 @@ def main():
             "too_many_pages",
             "active_pdf_content",
             "unsupported_format",
+            "office_resource_limit",
+            "active_office_content",
+            "invalid_slide_reference",
         }
         reason = (
             str(exc)

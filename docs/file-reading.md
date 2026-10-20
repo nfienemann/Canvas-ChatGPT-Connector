@@ -1,7 +1,7 @@
-# Course document reading — Phase 1
+# Course document reading — text extraction
 
 The private Windows source deployment can read actual authorized PDF, UTF-8 text
-and Markdown files without asking the student to download/upload them. On
+Markdown, DOCX and PPTX files without asking the student to download/upload them. On
 2026-10-20 the installed connector resolved a module PDF, downloaded it through
 three approved storage redirects and returned all 15 PDF pages in five bounded
 MCP responses. The actual paper contained 74,408 extracted characters, including
@@ -29,6 +29,8 @@ and delegates file references to the same reader. Existing page search is unchan
 
 Page numbers are PDF positions, including cover/correction pages, not necessarily
 printed journal numbers. TXT/Markdown use one artificial page, stated as a limit.
+DOCX range indices refer to stable text sections, not rendered pages. PPTX indices
+follow the presentation slide order. Speaker notes and image text are not extracted.
 Text and figure captions may be extracted; figure images are not interpreted.
 All returned content is marked untrusted source data, never executable instructions.
 
@@ -62,7 +64,7 @@ private operator configuration set `BRIDGE_FILE_READING_ENABLED=true` and set
 feature disabled elsewhere. Restart the existing launcher. Refresh the installed
 custom connector's tools in ChatGPT if its catalog predates these tools.
 
-The service copies only Python standard-library/runtime and pypdf code into an
+The service copies only Python standard-library/runtime, pypdf and defusedxml code into an
 isolated runtime. Each job uses a unique Windows AppContainer SID, no network
 capabilities and write access only to its own temporary directory. The worker
 receives bytes and format only, not tokens, database access, service code or
@@ -86,7 +88,7 @@ skip there. Independent security review and fleet-wide quotas remain release gat
 
 ## Remaining phases
 
-Live DOCX/PPTX/XLSX/CSV extraction, OCR, image/figure interpretation, scientific
+Live XLSX/CSV extraction, OCR, image/figure interpretation, scientific
 chart analysis and faithful table/equation reconstruction are not implemented.
 Scanned or partly unreadable PDFs return explicit partial coverage/OCR limitations;
 unsupported/corrupt/time-limited documents return a reason instead of empty success.

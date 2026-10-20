@@ -11,6 +11,7 @@ import threading
 import zipfile
 from pathlib import Path
 
+import defusedxml
 import pypdf
 
 from canvas_bridge.domain import DomainError
@@ -31,7 +32,10 @@ def ensure_runtime(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
     digest = hashlib.sha256(
-        worker.read_bytes() + sys.version.encode() + pypdf.__version__.encode()
+        worker.read_bytes()
+        + sys.version.encode()
+        + pypdf.__version__.encode()
+        + defusedxml.__version__.encode()
     ).hexdigest()[:16]
     runtime = root / ("runtime-" + digest)
     if (runtime / "ready").is_file():
@@ -67,6 +71,12 @@ def ensure_runtime(root: Path) -> Path:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     shutil.copy2(worker, runtime / "worker.py")
+    shutil.copytree(
+        Path(defusedxml.__file__).parent,
+        runtime / "site/defusedxml",
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
     version = f"{sys.version_info.major}{sys.version_info.minor}"
     (runtime / f"python{version}._pth").write_text("stdlib.zip\nDLLs\nsite\n.\n", encoding="ascii")
     # Public interpreter/parser code only. Each job has its own separate SID.
@@ -86,6 +96,9 @@ def validate_result(result: dict, data: bytes) -> dict:
             "unsupported_format",
             "corrupt_or_unreadable",
             "output_limit",
+            "office_resource_limit",
+            "active_office_content",
+            "invalid_slide_reference",
         }
         raise DomainError(
             "unsupported_feature",

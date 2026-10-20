@@ -80,15 +80,28 @@ def checked_row(bridge, session, owner, ref, material_id, epoch):
 
 
 def source(row, locator=None):
-    return Source(id=row.id, title=row.title, url=row.url, retrieved_at=utcnow(), locator=locator)
+    return Source(
+        id=row.id,
+        title=row.title,
+        url=row.url,
+        retrieved_at=aware(row.retrieved_at),
+        locator=locator,
+        source_type="canvas_file",
+        course_id=row.course_id,
+        resource_id=row.id,
+        content_hash=row.version_hash or None,
+        extraction_status=row.file_state.get("stage", "available"),
+        uncertainty=row.limitations,
+    )
 
 
 def page_label(row, number):
-    return (
-        f"PDF page {number}"
-        if row.file_state.get("format") == "pdf"
-        else "Text page 1 (artificial)"
-    )
+    kind = row.file_state.get("format")
+    return {
+        "pdf": f"PDF page {number}",
+        "pptx": f"Slide {number}",
+        "docx": f"Section {number} (not a rendered page)",
+    }.get(kind, "Text document")
 
 
 async def list_files(bridge, owner, ref, course_id, module_id=None):
@@ -304,6 +317,7 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             passages.append(
                 {
                     "page": page["page"],
+                    "locator": page_label(row, page["page"]),
                     "page_offset": start - cursor,
                     "offset": start,
                     "text": page["text"][start - cursor : end - cursor],

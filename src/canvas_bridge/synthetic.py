@@ -157,6 +157,13 @@ class SyntheticProvider:
             return httpx.Response(200, json=self.data["courses"])
         if path == "/api/v1/users/self/enrollments":
             return httpx.Response(200, json=self.data["enrollments"])
+        if path == "/api/v1/announcements":
+            course = (
+                parse_qs(request.url.query.decode())
+                .get("context_codes[]", [""])[0]
+                .removeprefix("course_")
+            )
+            return httpx.Response(200, json=self.data.get("announcements", {}).get(course, []))
         parts = path.split("/")
         if len(parts) == 5 and parts[3] == "courses":
             item = self.data.get("course_details", {}).get(parts[4])

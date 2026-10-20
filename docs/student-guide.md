@@ -1,6 +1,6 @@
 # Student guide
 
-The owner's private Windows connection now supports PDF, text and Markdown
+The owner's private Windows connection now supports PDF, Word, PowerPoint, text and Markdown
 reading directly in ChatGPT. Ask “Summarize Bundle 2 Paper 3” or “Compare Papers
 1, 2 and 3 from Bundle 2.” ChatGPT can locate the files without asking for IDs.
 Search covers documents already read; unread documents are labeled unindexed.
@@ -44,7 +44,16 @@ from another student is not a workaround.
 For study planning, provide usable free-time windows without private meeting
 titles, and remaining-effort ranges when known. The connector does not know your
 calendar unless availability is supplied through the conversation. A proposed
-plan has not created events. Calendar writes and notifications are disabled.
+plan has not created events. Ask ChatGPT to use your existing Google Calendar
+connection to check availability and propose deadline events. It must show the
+specific events and get your confirmation before creating or updating them.
+Automatic notifications remain disabled.
+
+You can also ask “Compare my syllabus deadlines with Canvas,” “Check this
+assignment against its rubric,” “Prepare me for my next quiz,” or “Check my
+course for inconsistencies.” Unknown coverage or unsupported rules will be
+reported rather than turned into a confident answer. Word citations refer to
+text sections; PowerPoint citations refer to slides.
 
 Ask to remember a preference or progress correction only when you want it saved.
 Personal “done” does not prove a Canvas submission. Saved plans can be incomplete

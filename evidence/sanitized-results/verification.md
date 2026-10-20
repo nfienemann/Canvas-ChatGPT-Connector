@@ -372,3 +372,74 @@ exercised all four new tools; the focused 30-case suite passed again.
 The verified arithmetic subset and remaining policy/notification limitations are
 documented in `docs/grade-auditing.md`. This is not proof of all grading policies,
 instructor verification, institutional approval or a generally released service.
+
+
+## Academic intelligence: ten-feature increment
+
+Implemented the dependency-ordered increment documented in
+`docs/academic-intelligence.md`. Five additional read-only MCP tools compose the
+existing authorization, file, snapshot, grade and planning infrastructure. No
+new model service, database table, Calendar credential grant or student setup
+flow was introduced.
+
+The new synthetic acceptance suite contains **35 cases**. It verifies exact
+missing-deadline evidence, DOCX/PPTX extraction and real Windows AppContainer
+execution, earliest observed metadata changes and stable dedupe keys, the
+84-versus-91 grade example, rubric/instruction contradictions, explicit priority
+tradeoffs, assessment-associated PDF retrieval, Calendar deduplication/DST/stale
+inputs and a course with exactly five planted supported findings. Shared adapters
+continue to exercise pagination, permission loss, ownership isolation, token
+renewal and parser/network failure behavior. Native HTTP MCP tests invoke all
+five new tools, with read-only annotations and unauthorized-request checks.
+
+Full local Windows run: **309 passed in 41.35 seconds**, no failures or skips,
+**83% statement coverage**, including PostgreSQL and the Windows sandbox. Lint
+and format checks passed. Initial regression runs caught two compatibility
+issues: an omitted submission's evidence label was overwritten by a conflict
+label, and student-marked-done online work lost its submission-verification
+reminder. Both were corrected: missing evidence remains missing, contradictions
+are additive, and completed work is not allocated study sessions. The initial
+full run had 308 passes and that one planning failure; the final full run is green.
+The previous unchanged 274-test baseline was not redundantly rerun before work.
+
+Calendar's existing native connection successfully returned a read-only profile
+and busy intervals. No events were created, edited or deleted. This verifies the
+available read connection, not approved Calendar write/read-back behavior.
+
+
+The restarted private service then completed an actual selected-course audit.
+It reported available assignment evidence separately from partial announcements
+and material inventory, kept all null due dates as timing unknown, distinguished
+empty descriptions from full requirements, and reported unresolved reading
+references without labeling them required. A source syllabus was read. The
+updated v3 sandbox also reread the authorized acceptance paper: all **15 PDF
+pages / 74,408 characters in five bounded chunks**, with scientific sections
+present. Actual source text and private identifiers remain outside Git.
+
+
+A final dependency audit found eight advisories in optional packaging Pillow
+12.3.0. The packaging constraint/lock were upgraded to Pillow 13.0.0; the
+subsequent audit reported **no known vulnerabilities**. Five desktop regressions
+passed in 4.12 seconds, and PNG/ICO/ICNS generation and decoding were verified
+with the upgraded library. The service extraction dependencies did not change.
+See the [upstream security release](https://pillow.readthedocs.io/en/stable/releasenotes/13.0.0.html).
+
+
+After refreshing the installed connector, an actual ChatGPT conversation invoked
+`audit_course_consistency` and `prepare_for_assessment`. Its inspected final
+answer cited Canvas assignments/modules, kept undated quizzes from being called
+upcoming, reported missing requirements and unresolved references neutrally, and
+refused to identify a next quiz without reliable timing evidence. Grades were
+excluded. A private screenshot remains outside the repository. This proves the
+new native workflow and honest refusal, not complete coverage of the live course.
+
+
+The same actual ChatGPT conversation subsequently used Google Calendar
+availability/event searches, a fresh selected-course Canvas workload, and
+`propose_calendar_sync`. The inspected activity identified both plugins and the
+new proposal tool. Its final answer described one deadline reminder proposal,
+reported duplicate/mapping checks and an overlap with an existing commitment,
+and explicitly stated that nothing was created or changed. This establishes
+native read/proposal composition; explicit approved create/update/read-back and
+autonomous synchronization remain untested and are not claimed. Private UI
+proof is stored outside Git; no actual event titles or coursework were committed.

@@ -1,13 +1,14 @@
 import asyncio
 import random
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 import httpx
 
 from canvas_bridge.config import Settings
-from canvas_bridge.domain import DomainError
+from canvas_bridge.domain import DomainError, utcnow
 from canvas_bridge.network import public_client
-from canvas_bridge.policy import Endpoint, Institution, route, validate_continuation
+from canvas_bridge.policy import Endpoint, Institution, route, source_id, validate_continuation
 
 
 @dataclass
@@ -127,6 +128,15 @@ class CanvasClient:
                 ("type[]", "StudentEnrollment"),
                 ("state[]", "active"),
                 ("include[]", "current_points"),
+            ]
+        if endpoint == Endpoint.ANNOUNCEMENTS:
+            course = source_id(ids.get("course", ""))
+            now = utcnow()
+            params += [
+                ("context_codes[]", "course_" + course),
+                ("start_date", (now - timedelta(days=180)).isoformat()),
+                ("end_date", now.isoformat()),
+                ("active_only", "true"),
             ]
         if endpoint == Endpoint.PAGE:
             raise DomainError("permission_denied", "This route is not a collection.")

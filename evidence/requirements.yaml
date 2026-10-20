@@ -173,7 +173,10 @@
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
         "src/canvas_bridge/normalize.py",
-        "src/canvas_bridge/domain.py"
+        "src/canvas_bridge/domain.py",
+        "src/canvas_bridge/evidence.py",
+        "src/canvas_bridge/academic_rules.py",
+        "src/canvas_bridge/academic_intelligence.py"
       ],
       "test_refs": [
         "T02",
@@ -257,7 +260,8 @@
       "verification_state": "VERIFIED",
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
-        "src/canvas_bridge/planning.py"
+        "src/canvas_bridge/planning.py",
+        "src/canvas_bridge/change_tracking.py"
       ],
       "test_refs": [
         "T20",
@@ -968,7 +972,8 @@
       "verification_state": "VERIFIED",
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
-        "src/canvas_bridge/planning.py"
+        "src/canvas_bridge/planning.py",
+        "src/canvas_bridge/calendar_sync.py"
       ],
       "test_refs": [
         "T20",
