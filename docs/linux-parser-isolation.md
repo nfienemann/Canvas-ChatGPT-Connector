@@ -1,7 +1,8 @@
 # Linux document worker
 
-Implementation status: under verification on branch `codex/linux-document-isolation`.
-No Linux live-student or public-hosting claim is made by this draft.
+Implementation status: verified with synthetic documents on Linux x64 and in the
+restricted service image. No actual Linux student-read or public-hosting claim
+is made. Windows remains the owner's verified live deployment.
 
 The existing file reader has an OS-neutral dispatcher. Windows retains its tested
 AppContainer launcher. Linux uses a fresh isolated Python process with Landlock
@@ -42,7 +43,7 @@ Public runtime caches contain no student data and are keyed by parser/bootstrap,
 Python and parser-library versions. No database migration or new OAuth scope is
 needed. No change is made to authorized download, cache isolation or citation rules.
 
-## Deployment and verification plan
+## Deployment and verified scope
 
 Run as a dedicated unprivileged user; extraction refuses effective UID zero.
 Use a dedicated owner-only parser root (mode 0700) outside the repository and any
@@ -56,12 +57,23 @@ establish isolation must not be worked around with privileged containers or an
 unconfined seccomp profile. Runtime native libraries need an executable filesystem
 mapping in the read-only runtime location; raw documents are never executed.
 
-Required proof includes real Linux PDF/TXT/Markdown/DOCX/PPTX extraction, page
-attribution, corruption/cleanup, private file/environment/descriptor denial,
-network/child/runtime-write/input-write/file-creation denial, memory/output/CPU/wall-time limits, a strict
-unprivileged container smoke test and unchanged Windows AppContainer regressions.
-Kernel tests must fail, rather than skip, on the declared Linux CI runner if a
-required protection is missing. Tests are skipped only on other operating systems.
+[CI run 39515513203](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39515513203)
+verified source commit `acd3fe8`: **347 tests passed, four Windows-only cases
+skipped**, in 42.69 seconds, with 80% total statement coverage. All **13** Linux
+sandbox cases passed, including actual PDF/TXT/Markdown/DOCX/PPTX extraction,
+PDF page attribution, corrupt input cleanup, private-file/environment/descriptor
+denial, network/process/runtime-write/input-write/file-creation denial and
+memory/output/CPU/wall-time limits. Root execution is refused. Unsupported
+kernel protections fail rather than skip on the Linux runner.
+
+The built image independently extracted all five supported formats through
+`extract_document` and verified job cleanup. It ran as its unprivileged user
+with no network, all capabilities dropped, no-new-privileges, the default Docker
+seccomp profile, a read-only root and 128 MiB non-executable temporary storage.
+No privileged mode or unconfined profile was used. Ruff and dependency auditing
+also passed (no known vulnerabilities). The separate Windows focused regression
+run passed 62 tests with 12 Linux kernel skips, including actual AppContainer
+PDF and Office extraction. No redundant unchanged Windows full run was required.
 
 This does not replace an independent security review or establish resistance to
 kernel vulnerabilities. Landlock does not hide all filesystem metadata; the

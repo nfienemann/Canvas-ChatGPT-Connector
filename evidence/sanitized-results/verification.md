@@ -508,9 +508,19 @@ Office extraction. Linux canaries exercise private-file/environment/descriptor,
 network, child-process, runtime-write, CPU, memory, output and wall-time isolation;
 missing kernel protections fail rather than skip on Linux.
 
-A final hardening change limits Linux writes to one precreated output file,
-preventing input modification and arbitrary file creation. Its updated canaries
-and all five document formats in the restricted image are pending the next CI
-run at the time of this record. Actual Linux student-course reads, hosted service
+The final hardening change limits Linux writes to one precreated output file,
+preventing input modification and arbitrary file creation. Run
+[39515513203](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39515513203)
+at `acd3fe8` passed **347 tests, four Windows-only skips, in 42.69 seconds**, with
+80% total statement coverage. All 13 Linux sandbox cases passed. The built image
+separately extracted PDF, TXT, Markdown, DOCX and PPTX using the service extraction
+entry point, verified PDF page attribution and cleaned each job directory. It
+used no network, no capabilities, no-new-privileges, default Docker seccomp,
+a read-only root and a bounded non-executable tmpfs. Ruff, image build and
+dependency auditing passed; no known vulnerabilities were reported. The final
+acceptance-record update changes documentation only, so the unchanged source
+suite is not rerun for that update.
+
+Actual Linux student-course reads, hosted service
 deployment, other CPU architectures and independent security review remain
 unverified. No student data or secrets were used in these tests.
