@@ -64,3 +64,8 @@ Term retirement also purges cached course records and snapshots.
 The live local demonstration was migrated to `9b2a41e5021c`. Keyboard sign-in and
 the updated account controls were inspected in the browser; the new screenshot
 records the visible confirmation checkbox and independent-copy disclosure.
+
+The increment also passed [Linux CI run 39486541840](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39486541840)
+on commit `ac4e4e45bcb40b8245c06099ce16ea045d64dbfd`: **92 passed in 7.85
+seconds**, 78% statement coverage, successful lint/format, no known dependency
+vulnerabilities, and a successful Docker image build.
