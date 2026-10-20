@@ -5,7 +5,9 @@
 The source build inventories accessible course files and resolves visible module
 files directly when the course Files collection is denied. PDF/DOCX/PPTX/TXT/Markdown
 reading can be enabled in a Windows source deployment using the verified
-AppContainer worker. Existing `fetch_course_material` supports the same file
+AppContainer worker or a supported Linux deployment using Landlock/seccomp.
+See [Linux isolation](linux-parser-isolation.md) for kernel requirements, separate
+runtime/job directories and the unprivileged container proof. Existing `fetch_course_material` supports the same file
 path as `read_course_file`; every chunk rechecks current access. See
 [file reading](file-reading.md) for setup, sandbox budgets and cache retention.
 
@@ -55,7 +57,9 @@ data; use a reviewed maintenance procedure.
 `.env` whose database URL uses the Compose `db` hostname, private
 `.local/db-password`, and `.local/vault.key`. The vault key is exactly 32 random
 bytes. Terminate public HTTPS at an operator-managed proxy. API is published only
-on host loopback. Containers were not tested on this Windows host.
+on host loopback. Linux CI exercises isolated extraction in the restricted
+service image. The full hosted Compose deployment remains unverified; containers
+were not run on this Windows host.
 
 The external authorization server must implement the current MCP contract,
 including issuer/resource binding, discovery, S256 PKCE and exact redirects.

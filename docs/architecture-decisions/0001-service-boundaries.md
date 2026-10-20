@@ -36,10 +36,12 @@ metadata, and validates every redirect against exact operator-reviewed HTTPS
 origins. It uses a separate HTTP session, sends a bearer only on the first
 reviewed Canvas download route, and bounds transfer size and total elapsed time.
 MCP file retrieval uses this transport, then passes only document bytes and a
-format identifier into a credential-free Windows AppContainer worker. No network
-capabilities, inherited handles or service configuration enter the worker.
-Job Objects enforce memory, CPU, wall time and one-process limits. Unsupported
-platforms fail closed. See the separately verified [file boundary](../file-reading.md).
+format identifier into a credential-free OS worker: Windows AppContainer/Job
+Objects or Linux Landlock/default-deny seccomp with hard resource limits. No
+network access, inherited handles or service configuration enter the parser.
+Unsupported platforms or missing mandatory kernel protections fail closed.
+Linux runtime code is prebuilt separately from non-executable document scratch.
+See [Linux isolation](../linux-parser-isolation.md) for limits and verified scope. See the separately verified [file boundary](../file-reading.md).
 
 Canvas reported dates are used in the authenticated context. Broader override
 arrays are not interpreted. Staff/mixed-role courses are excluded until a safe
@@ -50,7 +52,7 @@ Plans are stateless proposals unless explicitly saved. Local writes require
 `preferences:write` and compare-and-set versions. Calendar writes and notifications
 are disabled, so no model-supplied approval Boolean can authorize them.
 
-Known production gaps: institution-wide/fleet quotas, hosted parser sandbox,
+Known production gaps: institution-wide/fleet quotas, actual hosted parser deployment,
 managed key rotation, comprehensive course inventory, real-client evaluations,
 reviewed retention/region/operator decisions, live browser/Canvas OAuth proof,
 and public distribution eligibility. They are tracked rather than hidden.

@@ -483,3 +483,34 @@ resource identities or text. A new regression brought the increment to **29
 cases**, all passing in **3.30 seconds** after that additive clarification. The
 337-test full run above precedes this final reason-label change; CI validates the
 final tree. Private conversation screenshots remain outside Git.
+
+
+## 2026-10-20: Linux document isolation
+
+A credential-free Linux worker adds Landlock ABI 3+ filesystem restrictions,
+default-deny seccomp, hard resource limits and fail-closed kernel prerequisites.
+The dispatcher preserves Windows AppContainer behavior. A separate public runtime
+cache supports read-only images with bounded non-executable document scratch.
+No MCP tools, Canvas routes, OAuth scopes or database migrations were added.
+
+The initial Linux branch run `39514505600` passed 345 tests (four Windows-specific
+cases skipped) and dependency auditing, but its container smoke test failed.
+Trusted native libraries were being loaded from non-executable temporary storage.
+Separating the prebuilt runtime into the read-only image corrected that failure.
+Run [39515236580](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39515236580)
+at `dba7e4d` passed **347 tests, four skipped, in 53.02 seconds**, **80% total
+statement coverage**, Ruff, dependency audit (no known vulnerabilities), image
+build and the strict unprivileged text-extraction container check.
+
+The Windows targeted regression run passed **62 tests, 12 Linux kernel cases
+skipped, in 15.46 seconds**. Tests included actual Windows AppContainer file and
+Office extraction. Linux canaries exercise private-file/environment/descriptor,
+network, child-process, runtime-write, CPU, memory, output and wall-time isolation;
+missing kernel protections fail rather than skip on Linux.
+
+A final hardening change limits Linux writes to one precreated output file,
+preventing input modification and arbitrary file creation. Its updated canaries
+and all five document formats in the restricted image are pending the next CI
+run at the time of this record. Actual Linux student-course reads, hosted service
+deployment, other CPU architectures and independent security review remain
+unverified. No student data or secrets were used in these tests.

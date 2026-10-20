@@ -96,8 +96,10 @@ PDF/TXT/Markdown reading is verified in the private Windows source deployment,
 including an actual 15-page course paper returned through the installed connector.
 It uses a network-isolated AppContainer worker and is disabled by default.
 See [file reading](docs/file-reading.md) for tools, limits and deployment details.
-DOCX sections and PPTX slides now use the same Windows isolation. OCR and visual figure interpretation remain unavailable.
-Linux/macOS extraction, Calendar writes, automatic notifications, broad quiz/LTI
+DOCX sections and PPTX slides use the same isolated extraction path. Linux now
+has a Landlock/seccomp worker and an unprivileged container verification suite;
+see [Linux isolation](docs/linux-parser-isolation.md) for supported kernels and proof.
+OCR, visual interpretation, macOS extraction, Calendar writes, automatic notifications, broad quiz/LTI
 ingestion, public onboarding and unsupported grade policies are not advertised.
 
 See [academic intelligence](docs/academic-intelligence.md) for deadline reconciliation,

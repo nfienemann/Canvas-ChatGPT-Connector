@@ -16,8 +16,9 @@ first. The local build is not the specification's live pilot acceptance.
 Calendar writes and notifications are disabled. They do not block local reads,
 but cannot be advertised as delivered. PDF/TXT/Markdown reading now has a verified
 Windows AppContainer worker and a private actual-course PDF proof. DOCX/PPTX text extraction now shares that sandbox and passes synthetic OS-isolated
-acceptance. OCR, visual interpretation and Linux/macOS parser workers remain
-unimplemented live. Calendar proposals now compose with the existing native
+acceptance. A Linux Landlock/seccomp worker now has synthetic kernel and container
+checks; actual Linux student reads and hosted deployment remain unverified.
+OCR, visual interpretation and macOS parser workers remain unimplemented. Calendar proposals now compose with the existing native
 connection; actual writes still require explicit event approval and read-back.
 
 Additional gaps: comprehensive non-assignment obligations (classic quiz/topic and

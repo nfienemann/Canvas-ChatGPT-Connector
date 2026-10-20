@@ -83,8 +83,22 @@ origins must be independently reviewed before enabling downloads there.
 Tests verify private-file/env/network/process/runtime-write isolation, memory
 limits and worker timeout on actual Windows, plus mocked Canvas transport,
 refresh, permission loss, versions, continuations, Unicode, scans and corrupt data.
-Linux CI tests contracts and pure parsing; Windows isolation tests explicitly
-skip there. Independent security review and fleet-wide quotas remain release gates.
+Linux CI runs actual Landlock/seccomp extraction and denial probes as well as
+contracts and pure parsing; Windows AppContainer cases explicitly skip there.
+Independent security review and fleet-wide quotas remain release gates.
+
+## Linux deployment
+
+The Linux worker requires an unprivileged service account, Landlock ABI 3+ and
+libseccomp. Unsupported kernels fail closed. The image prebuilds public parser
+code in `/opt/canvas-parser`, separate from non-executable temporary job storage.
+Set `BRIDGE_PARSER_ROOT=/tmp/canvas-parser` in private operator configuration when
+explicitly enabling file reading; keep the image's `BRIDGE_PARSER_RUNTIME_ROOT`.
+Do not mount secrets inside either parser root. Retain the read-only image,
+no-new-privileges, capability drop and bounded non-executable tmpfs controls in
+`compose.yaml`. See [Linux isolation](linux-parser-isolation.md) for the boundary,
+required host protections and verification evidence. This is infrastructure
+support, not a hosted-service deployment or institutional approval.
 
 ## Remaining phases
 
@@ -94,8 +108,9 @@ Scanned or partly unreadable PDFs return explicit partial coverage/OCR limitatio
 unsupported/corrupt/time-limited documents return a reason instead of empty success.
 Multi-column reading order and mathematical notation may be imperfect.
 
-Linux/macOS need equivalent verified parser isolation before live file reading
-can be enabled. Existing native installers remain fictional previews; this feature
+macOS needs equivalent verified parser isolation before live file reading
+can be enabled. Linux has synthetic kernel/container verification; actual student
+reads there remain untested. Existing native installers remain fictional previews; this feature
 is enabled in the owner's private Windows source service. This service must be
 running, with its PC awake and HTTPS connection active. No reinstall or new student
 token is needed for the already configured personal connection.

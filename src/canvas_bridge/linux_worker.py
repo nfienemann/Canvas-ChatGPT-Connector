@@ -118,9 +118,9 @@ def install(runtime, work):
     handled = C.c_uint64((1 << 15) - 1)
     rules = check(libc.syscall(create, C.byref(handled), C.c_size_t(8), C.c_uint(0)))
     read = (1 << 2) | (1 << 3)
-    write = (1 << 1) | (1 << 8) | (1 << 14)  # write file, create regular file, truncate
+    write = (1 << 1) | (1 << 14)  # write/truncate only the precreated output file
     try:
-        for path, rights in ((runtime, read), (work, read | write)):
+        for path, rights in ((runtime, read), (work, read), (work / "result.json", write)):
             fd = os.open(path, os.O_PATH | os.O_CLOEXEC)
             try:
                 rule = Beneath(rights, fd)

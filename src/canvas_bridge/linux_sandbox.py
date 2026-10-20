@@ -103,6 +103,10 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
         raise DomainError(
             "unsupported_feature", "Parser code and document directories must be separate."
         )
+    # The child cannot create files or modify input. Combined with RLIMIT_FSIZE,
+    # a single precreated output gives a total writable-document budget of 2 MB.
+    with (work / "result.json").open("xb"):
+        pass
     command = [
         sys.executable,
         "-I",

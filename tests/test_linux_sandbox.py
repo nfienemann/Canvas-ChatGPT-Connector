@@ -86,14 +86,17 @@ actions=[('private_file',lambda:Path(request['secret']).read_bytes()),
  ('fork',lambda:os.fork()),
  ('runtime_write',lambda:Path(__file__).with_name('bad.txt').write_text('bad')),
  ('memory_limit',lambda:bytearray(512*1024*1024)),
- ('output_limit',lambda:(work/'too-big').write_bytes(b'x'*3_000_000)),
+ ('output_limit',lambda:(work/'result.json').write_bytes(b'x'*3_000_000)),
+ ('file_creation',lambda:(work/'unexpected').write_bytes(b'bad')),
+ ('input_write',lambda:(work/'probe-request.json').write_text('bad')),
  ('descriptor_closed',lambda:os.read(request['fd'],100)),
  ('service_import',lambda:__import__('canvas_bridge'))]
 for name, action in actions:
  try:
   action(); result[name]=False
  except (OSError,MemoryError,ImportError): result[name]=True
-(work/'proof.json').write_text(json.dumps(result))
+result['bounded_output']=(work/'result.json').stat().st_size <= 2_000_000
+(work/'result.json').write_text(json.dumps(result))
 """,
         encoding="utf-8",
     )
@@ -103,9 +106,10 @@ for name, action in actions:
     )
     try:
         run(runtime, work, script="probe.py")
-        proof = json.loads((work / "proof.json").read_text(encoding="utf-8"))
+        proof = json.loads((work / "result.json").read_text(encoding="utf-8"))
         assert all(proof.values()), proof
-        assert (work / "too-big").stat().st_size <= 2_000_000
+        assert not (work / "unexpected").exists()
+        assert json.loads((work / "probe-request.json").read_text(encoding="utf-8"))["fd"] == fd
         assert secret.read_text(encoding="utf-8") == "synthetic-private-canary"
         listener.settimeout(0.1)
         with pytest.raises(TimeoutError):

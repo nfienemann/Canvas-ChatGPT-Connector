@@ -42,16 +42,14 @@ jobs:
       - run: uv run pytest --cov=canvas_bridge --cov-report=term-missing
       - run: uv run pip-audit --local
       - run: docker build -t canvas-bridge:ci .
+      - run: uv run python -m scripts.verify_linux_container prepare .local/linux-container-fixtures
       - name: Verify isolated extraction in the unprivileged Linux image
         run: >-
           docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges
           --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
-          canvas-bridge:ci .venv/bin/python -c
-          "from pathlib import Path; from canvas_bridge.parser_sandbox import extract_isolated;
-          from canvas_bridge.config import Settings;
-          result=extract_isolated(b'Synthetic container extraction proof', 'txt', Path('/tmp/parser'), runtime_root=Settings(_env_file=None).parser_runtime_root);
-          assert result['pages'][0]['text']=='Synthetic container extraction proof';
-          print('Linux container extraction verified without privileged mode or relaxed seccomp')"
+          --mount type=bind,src="$PWD/.local/linux-container-fixtures",dst=/fixtures,readonly
+          --mount type=bind,src="$PWD/scripts/verify_linux_container.py",dst=/proof.py,readonly
+          canvas-bridge:ci .venv/bin/python /proof.py verify /fixtures
   desktop:
     needs: test
     if: >-

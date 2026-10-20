@@ -14,7 +14,7 @@ it does not establish coverage of every natural-language policy or all universit
 | Feature | Implementation / MCP tools | Acceptance test | Limits / dependencies |
 |---|---|---|---|
 | Evidence and coverage | `domain.py`, `evidence.py`, `normalize.py`, `app.py`, `service.py`; additive `evidence` envelopes across tools and `submission_consistency` in assignment details | `test_evidence_versions_coverage_and_unknown_reconciliation`, `test_current_detail_conflict_preserves_missing_evidence` | Older sources without hashes/coverage are explicitly unknown. Missing evidence is never backfilled as a known submission. Different retrieval times can explain disagreements; neither observation establishes a missing assignment. |
-| Documents | `parser_worker.py`, `parser_sandbox.py`, `course_files.py`, `retrieval.py`; existing file readers/search/continuation | `test_authorized_office_read_search_and_isolation`, `test_office_real_appcontainer`; existing actual Paper 3 proof | PDF, DOCX, PPTX, TXT and Markdown text. PDF pages, presentation-order slides, Word text sections. OCR, visual figures, faithful equations/tables, XLSX/CSV and non-Windows isolation remain unsupported. Search only indexes successfully read files. |
+| Documents | `parser_worker.py`, `parser_sandbox.py`, `course_files.py`, `retrieval.py`; existing file readers/search/continuation | `test_authorized_office_read_search_and_isolation`, `test_office_real_appcontainer`; existing actual Paper 3 proof | PDF, DOCX, PPTX, TXT and Markdown text. PDF pages, presentation-order slides, Word text sections. OCR, visual figures, faithful equations/tables, XLSX/CSV and macOS isolation remain unsupported. Linux isolation has separate synthetic kernel/container proof. Search only indexes successfully read files. |
 | Changes | `change_tracking.py`, `normalize.py`, `service.py`; `get_changes(refresh=False)` | `test_changes_earliest_observation_and_dedupe` | Consecutive complete observations; no pre-baseline reconstruction. Disappearance is not proof of deletion. Stable notification keys prevent duplicate identities; delivery is disabled and consumers must deduplicate keys. Retention limits historical coverage. |
 | Deadlines | `academic_rules.py`, `academic_intelligence.py`, `canvas.py`; **reconcile_course_deadlines** | `test_deadline_acceptance_and_exact_source`, Office schedule integration test | Exact unique title matches; similar titles remain ambiguous. Explicit ISO/full English month dates only. No inferred year, 11:59 PM time or source precedence. A date-only versus timed comparison requires known course timezone. |
 | Grades | Existing `grade_audit.py`, `grading_engine.py`, `grading_policy.py`; existing four grade tools | `test_grade_84_vs_91_acceptance`; 30 existing grading regressions | Reuses Decimal arithmetic and source/version-bound policy review. Unsupported rules, hidden work, unclear periods, missing scores or incomplete policy prevent precise estimates. See [grade-auditing.md](grade-auditing.md). |
@@ -96,7 +96,7 @@ Boolean parameter that a model can silently submit to this service.
   hidden/future entries. No instructor-only information, grade updates, assignment
   submission or outbound instructor contact is exposed.
 - Office files use the existing authenticated downloader and credential-free
-  Windows AppContainer. ZIP members/expanded bytes/compression ratio, DTD/entity
+  Windows AppContainer or Linux Landlock/seccomp worker. ZIP members/expanded bytes/compression ratio, DTD/entity
   XML, macros and embedded objects are constrained or rejected. External OOXML
   relationships are never followed. Only standard Python, pypdf and defusedxml
   code is copied into the isolated runtime. Existing CPU/memory/time limits apply.
@@ -122,7 +122,7 @@ denial remains a coverage limitation. Other reads reuse existing scopes. This
 does not grant institutional approval or change public distribution gates.
 
 Next priorities are reviewed broader date/policy grammars, user-confirmed mapping
-of ambiguous obligations, verified Linux/macOS parser isolation, OCR/visual
+of ambiguous obligations, macOS parser isolation and actual hosted Linux deployment, OCR/visual
 extraction, qualitative rubric evaluation safeguards, and an explicitly approved
 native Calendar create/update/read-back pilot. Automatic notifications remain off.
 

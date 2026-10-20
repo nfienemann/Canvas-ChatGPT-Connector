@@ -13,7 +13,8 @@ unsupported. This is server infrastructure, not a new student application or log
 
 Only a copied public runtime (standard library, pypdf, defusedxml, trusted bootstrap
 and parser) and the current private job directory are readable. The runtime is
-read-only to the child; only the job can receive regular output files. No host
+read-only to the child. Job inputs are also read-only; the only writable file is
+a single output precreated by the launcher. Creating additional files is denied. No host
 library directory, service package, database, credential file, other job or parent
 directory is granted. Standard-library native dependencies are loaded by the
 trusted bootstrap before restriction; their handles remain in memory. Existing
@@ -28,7 +29,8 @@ protection; newer optional Landlock features are not relied upon. This is no
 best-effort or silently weakened sandbox.
 
 Hard limits: 384 MiB address space, ten seconds CPU, 15 seconds wall time, 64 open
-descriptors, no core dump, 2 MB per output file, one extraction per service process.
+descriptors, no core dump, 2 MB total writable output, one extraction per service
+process. The worker cannot overwrite input or allocate extra files.
 The existing file/page/expanded-archive/text limits remain. The launcher kills and
 reaps the worker after timeout; a parent-death signal also prevents an orphaned
 worker. Stdout/stderr go to a null device, and errors returned to MCP are generic
@@ -49,15 +51,14 @@ service image installs Debian's libseccomp runtime dependency and prebuilds the
 trusted runtime under `/opt/canvas-parser`. Its `BRIDGE_PARSER_RUNTIME_ROOT`
 setting separates this read-only executable code from the private
 `BRIDGE_PARSER_ROOT` job directories. Scratch storage can remain non-executable.
-Continue to enable
-file reading explicitly using the existing operator configuration; failure to
+Continue to enable file reading explicitly using the existing operator configuration; failure to
 establish isolation must not be worked around with privileged containers or an
 unconfined seccomp profile. Runtime native libraries need an executable filesystem
 mapping in the read-only runtime location; raw documents are never executed.
 
 Required proof includes real Linux PDF/TXT/Markdown/DOCX/PPTX extraction, page
 attribution, corruption/cleanup, private file/environment/descriptor denial,
-network/child/runtime-write denial, memory/output/CPU/wall-time limits, a strict
+network/child/runtime-write/input-write/file-creation denial, memory/output/CPU/wall-time limits, a strict
 unprivileged container smoke test and unchanged Windows AppContainer regressions.
 Kernel tests must fail, rather than skip, on the declared Linux CI runner if a
 required protection is missing. Tests are skipped only on other operating systems.
