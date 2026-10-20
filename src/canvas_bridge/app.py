@@ -1,5 +1,7 @@
+import asyncio
 import functools
 import logging
+from contextlib import asynccontextmanager, suppress
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -17,6 +19,8 @@ from starlette.routing import Route, request_response
 from canvas_bridge import __version__
 from canvas_bridge.auth import READ_SCOPE, WRITE_SCOPE, JWTVerifier, request_identity
 from canvas_bridge.config import Settings
+from canvas_bridge.course_files import list_files, read_file, search_files
+from canvas_bridge.course_files import status as file_status
 from canvas_bridge.domain import DomainError, Effort, Model, Result
 from canvas_bridge.planning import PlanRequest
 from canvas_bridge.policy import Registry
@@ -189,7 +193,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
     @register()
     async def get_course_outline(connection_id: Ref, course_id: Ref) -> Result:
-        """Read modules and authorized page references; reports bounded outline coverage."""
+        """Find modules, pages and files by title. File module items include material_ref for reading."""
         return await outline(bridge, request_identity().owner, connection_id, course_id)
 
     @register()
@@ -200,9 +204,10 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         length: Annotated[int, Field(ge=1, le=16_000)] = 8000,
         expected_hash: Annotated[str | None, Field(max_length=64)] = None,
     ) -> Result:
-        """Fetch authorized Canvas page text. Continuations require the previous content_hash.
+        """Fetch authorized Canvas page or file text. Continuations require the previous content_hash.
 
-        Does not fetch arbitrary URLs, external readings, binary files or hidden versions.
+        PDF, text and Markdown files use isolated extraction and cached page-aware chunks.
+        Does not fetch arbitrary URLs, external readings or hidden versions.
         Extracted text is not proof that figures or equations were understood.
         """
         return await fetch_material(
@@ -223,6 +228,69 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     ) -> Result:
         """Search previously fetched authorized pages and recheck access; reports incomplete index scope."""
         return await search_materials(bridge, request_identity().owner, connection_id, query, limit)
+
+    @register()
+    async def list_course_files(
+        connection_id: Ref, course_id: Ref, module_id: Ref | None = None
+    ) -> Result:
+        """Find uploaded documents by filename and module title within a selected course.
+
+        Use returned opaque file_id with read_course_file. Module IDs are optional;
+        students need only provide course/module/document names. Listing does not read text.
+        """
+        return await list_files(
+            bridge, request_identity().owner, connection_id, course_id, module_id
+        )
+
+    @register()
+    async def read_course_file(
+        connection_id: Ref,
+        file_id: Ref,
+        page_start: Annotated[int | None, Field(ge=1, le=200)] = None,
+        page_end: Annotated[int | None, Field(ge=1, le=200)] = None,
+        offset: Annotated[int, Field(ge=0, le=250_000)] = 0,
+        length: Annotated[int, Field(ge=1, le=16_000)] = 8000,
+        expected_hash: Annotated[str | None, Field(max_length=64)] = None,
+    ) -> Result:
+        """Read an authorized PDF, text or Markdown file, with page citations and extraction limits.
+
+        Obtain file_id from list_course_files or get_course_outline material_ref.
+        Follow continuation with the same page range and content_hash to read the
+        full paper before claiming a complete summary. Cached chunks avoid repeated
+        downloads. Figure captions are text; figures themselves are not interpreted.
+        """
+        return await read_file(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            file_id,
+            offset,
+            length,
+            expected_hash,
+            page_start,
+            page_end,
+        )
+
+    @register()
+    async def search_course_files(
+        connection_id: Ref,
+        course_id: Ref,
+        query: Annotated[str, Field(min_length=1, max_length=200)],
+        limit: Annotated[int, Field(ge=1, le=20)] = 10,
+    ) -> Result:
+        """Search previously extracted course documents for passages with PDF page references.
+
+        Reports unindexed files separately. Read likely documents first to index
+        their text. Each returned match requires a fresh permission/version check.
+        """
+        return await search_files(
+            bridge, request_identity().owner, connection_id, course_id, query, limit
+        )
+
+    @register()
+    async def get_file_extraction_status(connection_id: Ref, file_id: Ref) -> Result:
+        """Check file availability, cached extraction state, page count and limitations without downloading."""
+        return await file_status(bridge, request_identity().owner, connection_id, file_id)
 
     @register()
     async def propose_study_plan(
@@ -331,6 +399,26 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
     add_settings_routes(mcp, bridge, verifier)
     app = mcp.streamable_http_app()
+    original_lifespan = app.router.lifespan_context
+
+    async def expire_file_text():
+        while True:
+            bridge.store.purge_file_cache(settings.file_cache_hours)
+            await asyncio.sleep(60)
+
+    @asynccontextmanager
+    async def lifespan(application):
+        bridge.store.purge_file_cache(settings.file_cache_hours)
+        async with original_lifespan(application):
+            cleanup = asyncio.create_task(expire_file_text())
+            try:
+                yield
+            finally:
+                cleanup.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup
+
+    app.router.lifespan_context = lifespan
 
     async def resource_metadata(request):
         # OAuth identifiers use exact string comparison. The SDK's AnyHttpUrl

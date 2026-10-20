@@ -14,8 +14,9 @@ first. The local build is not the specification's live pilot acceptance.
 | G5 operational ownership | PARTIAL local | PostgreSQL, migrations and logical recovery tested; hosting, budget, owner, offsite recovery and monitoring undecided |
 
 Calendar writes and notifications are disabled. They do not block local reads,
-but cannot be advertised as delivered. Binary parsing is limited to synthetic
-primitives until a credential-free, network-isolated worker is verified.
+but cannot be advertised as delivered. PDF/TXT/Markdown reading now has a verified
+Windows AppContainer worker and a private actual-course PDF proof. Office, OCR,
+visual interpretation and Linux/macOS parser workers remain unimplemented live.
 
 Additional gaps: comprehensive non-assignment obligations, advanced grade
 policies, fleet quotas,

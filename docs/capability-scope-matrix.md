@@ -38,7 +38,8 @@ and [developer keys](https://developerdocs.instructure.com/services/canvas/oauth
 have no current public tool path. Do not grant their additional scopes simply
 because the constants exist. Discussion replies, rosters, submissions, grades,
 module completion and other academic writes are outside the application.
-Binary files, Calendar and notifications remain disabled.
+PDF/TXT/Markdown file text is opt-in on the verified Windows worker. Office/OCR,
+visual interpretation, Calendar and notifications remain disabled.
 
 MCP uses separate service scopes: `academic:read`, `preferences:write` and
 `settings:write`. They are not Canvas OAuth scopes. The identity provider must

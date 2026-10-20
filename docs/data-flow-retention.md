@@ -7,6 +7,8 @@
 | Selected courses / normalized assignments | Tool results and planning | Field allowlist; no raw response archive or peer roster | Institution and recipient/privacy review |
 | Visible grades | Requested own-grade tool | Explicit field allowlist, no unposted fields | Course-policy and visible-value comparisons |
 | Canvas page text | Source retrieval/search | Scoped index; version hash; fresh object check on fetch/search | Reviewed retention and full source coverage |
+| Downloaded course files | Temporary parser input | Private per-job folder; removed on completion/failure; no public endpoint | Operator disk encryption and host protection |
+| Extracted file text | Page-aware retrieval/search | Owner/connection/course scope; 24-hour default maximum cache age; startup and 60-second expiry sweep; fresh metadata/access check; excluded from logical backups | Host-level backup expiry and production fleet quotas |
 | Local preferences/progress/plans | Explicit student request | Versioned connector-local records; no Canvas mutation | Tested consent UX and retention choice |
 | Observation snapshots | Changes and bounded continuation | 30-day purge via worker/CLI | Guaranteed deployed scheduler |
 | OAuth/browser session state | Authentication | Expiring, scoped, server-side; no tokens in browser storage | Deployed IdP/browser flow proof |
@@ -39,7 +41,9 @@ snapshots, materials with citations, local records and jobs. It excludes
 credentials, authentication secrets and other users' data. It uses the current
 authenticated owner and an atomic database read; no public download link is created.
 
-No real student data was used for this development release. No blanket FERPA
+Automated fixtures contain no real student data. A separately authorized private
+owner-only integration test used actual coursework; no source text or credentials
+were committed. No blanket FERPA
 certification, universal “never used for training” statement or legal suitability
 claim is made. Applicable ChatGPT workspace controls, deployment region, institution
 arrangements and privacy policy must be reviewed for the actual service.

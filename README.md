@@ -86,16 +86,19 @@ live profiles require PostgreSQL.
 | MCP | Official SDK, streamable HTTP, JWT audience/issuer/expiry/scope checks, OAuth resource discovery, bounded typed responses |
 | Canvas reads | Reviewed GET routes, student-only course scope, effective assignment dates, own submission states, paginated reads, partial coverage |
 | Planning | Explained priorities, bounded next actions, effort ranges, dependencies, busy times, pinned sessions, breaks/buffer and capacity shortfalls |
-| Course knowledge | Modules and Canvas pages, access-rechecked search of fetched pages, version-bound text continuation |
+| Course knowledge | Modules, Canvas pages and authorized PDF/TXT/Markdown text; page citations, scoped indexed search and version-bound continuation |
 | Grades | Own visible reported fields; unknown policy stays unknown. Simple-points arithmetic is tested internally, not advertised as exact Canvas reconstruction |
 | Local writes | Explicit version-checked preferences, personal progress and saved plans; no Canvas mutation |
 | Lifecycle | Encrypted credentials, OAuth binding/refresh leases, disconnect and account-wide deletion, JSON export, leased jobs, retention, encrypted backup and deletion-fenced restore |
 | Settings | Server-rendered authentication, course selection, timezone and privacy controls with CSRF protection |
 
-Binary PDF/DOCX/PPTX parsers are bounded **synthetic-development primitives**.
-Live binary retrieval remains disabled until a separately isolated worker is
-verified. Calendar writes, automatic notifications, broad quiz/LTI ingestion,
-public onboarding and exact course-grade scenarios are not advertised.
+PDF/TXT/Markdown reading is verified in the private Windows source deployment,
+including an actual 15-page course paper returned through the installed connector.
+It uses a network-isolated AppContainer worker and is disabled by default.
+See [file reading](docs/file-reading.md) for tools, limits and deployment details.
+Office documents, OCR and visual figure interpretation remain unavailable live.
+Linux/macOS extraction, Calendar writes, automatic notifications, broad quiz/LTI
+ingestion, public onboarding and exact course-grade scenarios are not advertised.
 
 ## Verify
 

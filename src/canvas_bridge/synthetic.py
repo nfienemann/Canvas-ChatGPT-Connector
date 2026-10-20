@@ -136,6 +136,21 @@ class SyntheticProvider:
             return httpx.Response(405)
         if path in self.failures:
             return httpx.Response(self.failures[path])
+        if path.startswith("/files/") and path.endswith("/download"):
+            body = self.data.get("file_bodies", {}).get(path.split("/")[2])
+            return (
+                httpx.Response(
+                    200,
+                    stream=httpx.ByteStream(body),
+                    headers={
+                        "Content-Type": self.data.get("file_types", {}).get(
+                            path.split("/")[2], "application/pdf"
+                        )
+                    },
+                )
+                if body
+                else httpx.Response(404)
+            )
         if path == "/api/v1/users/self/profile":
             return httpx.Response(200, json=self.data["user"])
         if path == "/api/v1/courses":

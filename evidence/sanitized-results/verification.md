@@ -253,3 +253,47 @@ encrypted pre-migration PostgreSQL archive was created and its decrypted bytes
 verified. The existing service remained running, public metadata stayed available,
 and unauthenticated MCP requests remained rejected. The running service was not
 restarted to load the new file-inventory code during the owner's ongoing use.
+
+## Phase 1 isolated file reading and actual ChatGPT proof
+
+This later increment supersedes the disabled-extraction state above for the
+private Windows source service. It adds `list_course_files`, `read_course_file`,
+`search_course_files` and `get_file_extraction_status`, preserving existing tools.
+PDF/TXT/Markdown use a credential-free Windows AppContainer worker and bounded,
+versioned, page-aware chunks. Office/OCR/visual interpretation remain unavailable.
+
+Final local run on Windows Python 3.14.5: **218 passed in 25.76 seconds**, no
+failures or skips, **80% statement coverage**. Disposable PostgreSQL migration,
+rollback and lifecycle tests were included. Ruff lint, formatting (85 Python
+files) and `git diff --check` passed. Tests include actual Windows isolation
+canaries for private files, environment secrets, network, child processes,
+runtime writes, memory and timeout, as well as synthetic transport/refresh,
+authorization, indexed/unindexed search, Unicode offsets, parser upgrades,
+versions, PDF pages, scans, corruption and continuation. Two Windows isolation
+tests explicitly skip on other operating systems.
+
+With explicit owner authorization, the private database migration was applied
+after an encrypted PostgreSQL backup and archive verification. Exact approved
+storage hosts and a numeric file-bound hostname template were configured only
+in private operator configuration. The existing launcher restarted the service.
+
+The installed connector resolved the requested module PDF despite the general
+course Files collection being denied. The actual 2,727,815-byte file traversed
+three approved storage redirects and yielded **15 pages / 74,408 characters**.
+Five `fetch_course_material` responses returned its complete text with consistent
+content hash, page attribution and continuation. No manual student upload occurred.
+
+After refreshing the installed plugin's catalog, a new actual ChatGPT Pro
+conversation answered the owner's acceptance question from that PDF. It covered
+the scientific subject, objective, experimental methods, major results and
+conclusions, linked the Canvas source, cited PDF pages and explicitly excluded
+visual interpretation and unread supplementary files. A follow-up invoked all
+four new tools successfully: module listing, parsed/indexed status, a page-specific
+read and text search. Two unread companion papers stayed unindexed and were not
+downloaded. The UI tool trace and completed response were inspected; screenshots
+and academic contents remain private and are not committed.
+
+The proof is limited to this authorized personal connection and Windows host.
+It is not institutional OAuth approval, other-university verification, Linux/macOS
+parser support, Phase 2/3 delivery or public release acceptance. See
+`docs/file-reading.md` and the remaining release gates.

@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     refresh_budget_seconds: float = Field(default=12, gt=0, le=15)
     authorization_lease_seconds: int = Field(default=300, ge=0, le=300)
     max_courses: int = Field(default=30, ge=1, le=100)
+    file_reading_enabled: bool = False
+    parser_root: Path | None = None
+    file_cache_hours: int = Field(default=24, ge=1, le=24)
 
     @property
     def browser_callback_url(self) -> str:

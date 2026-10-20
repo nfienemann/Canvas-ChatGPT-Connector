@@ -11,7 +11,15 @@ from pathlib import Path
 from sqlalchemy import DateTime, select
 
 from canvas_bridge.domain import utcnow
-from canvas_bridge.storage import Base, BrowserSession, OAuthState, PrincipalState, Tombstone, aware
+from canvas_bridge.storage import (
+    Base,
+    BrowserSession,
+    Material,
+    OAuthState,
+    PrincipalState,
+    Tombstone,
+    aware,
+)
 
 
 @contextmanager
@@ -84,6 +92,18 @@ def backup(bridge, destination: Path) -> dict:
                     }
                     for row in rows
                 ]
+                if table.name == Material.__tablename__:
+                    for row in records[table.name]:
+                        if row.get("kind") == "file":
+                            # Ephemeral extracted text must not gain an indefinite
+                            # lifetime just because an operator takes a backup.
+                            row.update(
+                                text="",
+                                locators=[],
+                                version_hash="",
+                                limitations=[],
+                                file_state={"stage": "available"},
+                            )
     payload = {"format": "bridge-backup-1", "created_at": utcnow().isoformat(), "tables": records}
     destination.write_text(bridge.vault.seal(payload, "operator", "backup"), encoding="utf-8")
     return {"tables": len(records), "encrypted": True}

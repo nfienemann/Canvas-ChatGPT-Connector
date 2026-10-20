@@ -19,6 +19,7 @@ from sqlalchemy import (
     create_engine,
     delete,
     select,
+    update,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -106,6 +107,7 @@ class Material(Owned, Base):
     text: Mapped[str] = mapped_column(Text)
     locators: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     limitations: Mapped[list[str]] = mapped_column(JSON)
+    file_state: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, server_default="{}")
     retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -310,6 +312,25 @@ class Store:
             )
             session.execute(delete(OAuthState).where(OAuthState.expires_at < utcnow()))
             session.execute(delete(BrowserSession).where(BrowserSession.expires_at < utcnow()))
+            return result.rowcount
+
+    def purge_file_cache(self, hours: int = 24) -> int:
+        with self.transaction() as session:
+            result = session.execute(
+                update(Material)
+                .where(
+                    Material.kind == "file",
+                    Material.retrieved_at < utcnow() - timedelta(hours=hours),
+                    Material.version_hash != "",
+                )
+                .values(
+                    text="",
+                    version_hash="",
+                    locators=[],
+                    limitations=[],
+                    file_state={"stage": "available"},
+                )
+            )
             return result.rowcount
 
     def export_connection(self, owner: str, ref: str) -> dict:

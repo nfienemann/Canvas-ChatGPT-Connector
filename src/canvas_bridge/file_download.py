@@ -5,6 +5,8 @@ OS-isolated parser. Signed download URLs stay transient and never become sources
 """
 
 import asyncio
+import hashlib
+import json
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
@@ -21,8 +23,21 @@ FILE_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ("docx", ".docx"),
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": ("pptx", ".pptx"),
     "text/plain": ("txt", ".txt"),
+    "text/markdown": ("md", ".md"),
+    "text/x-markdown": ("md", ".md"),
     "text/html": ("html", ".html"),
 }
+
+
+def file_version(metadata: dict) -> str | None:
+    # Signed URLs rotate independently of document contents and are excluded.
+    if not metadata.get("updated_at"):
+        return None
+    fields = {
+        key: metadata.get(key)
+        for key in ("id", "uuid", "updated_at", "modified_at", "size", "filename", "content-type")
+    }
+    return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
 
 
 def file_visible(metadata: dict) -> bool:
@@ -49,13 +64,21 @@ class DownloadedFile:
     # repr=False prevents accidental log output of private file bytes.
     data: bytes
     kind: str
+    revision: str | None = None
 
 
 def download_destination(url: str, client, course: str, file: str) -> bool:
     """Return whether this is the reviewed institution download route."""
     if len(url) > 8192 or any(ord(c) < 33 for c in url):
         raise DomainError("permission_denied", "Unsafe file download destination.")
-    origins = {client.institution.origin, *client.institution.download_origins}
+    origins = {
+        client.institution.origin,
+        *client.institution.download_origins,
+        *(
+            t.replace("{file_id}", source_id(file))
+            for t in client.institution.download_origin_templates
+        ),
+    }
     try:
         validate_https(url, origins)
         parsed = urlsplit(url)
@@ -86,6 +109,12 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
             supported = FILE_TYPES.get(mime)
             name = metadata.get("filename")
             if (
+                mime in {"text/plain", "application/octet-stream"}
+                and isinstance(name, str)
+                and name.lower().endswith(".md")
+            ):
+                supported = ("md", ".md")
+            if (
                 not supported
                 or not isinstance(name, str)
                 or not name.lower().endswith(supported[1])
@@ -105,7 +134,7 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
                 if url in seen:
                     raise DomainError("retry_later", "Course file redirects did not complete.")
                 seen.add(url)
-                headers = {"Accept-Encoding": "identity"}
+                headers = {"Accept-Encoding": "identity", "User-Agent": "CanvasBridge/0.1"}
                 if hop == 0 and same_origin:
                     headers["Authorization"] = f"Bearer {client.token}"
                 # Construct the request directly: no client cookies, default
@@ -164,7 +193,7 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
                         raise DomainError(
                             "unsupported_feature", "The file signature is unsupported."
                         )
-                    return DownloadedFile(bytes(data), kind)
+                    return DownloadedFile(bytes(data), kind, file_version(metadata))
                 finally:
                     await response.aclose()
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:

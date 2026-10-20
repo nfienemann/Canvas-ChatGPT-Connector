@@ -1,7 +1,15 @@
 # Student guide
 
-This release is a fictional local demonstration. No institution or ChatGPT client
-is yet advertised as supported. A student should not install a server or paste a
+The owner's private Windows connection now supports PDF, text and Markdown
+reading directly in ChatGPT. Ask “Summarize Bundle 2 Paper 3” or “Compare Papers
+1, 2 and 3 from Bundle 2.” ChatGPT can locate the files without asking for IDs.
+Search covers documents already read; unread documents are labeled unindexed.
+Scanned pages and figures cannot yet be visually interpreted. See
+[file-reading limits](file-reading.md). The private service must remain running.
+The public installer previews described below still use fictional courses.
+
+The downloadable preview is a fictional local demonstration; general student
+onboarding is not available. A student should not install a server or paste a
 Canvas token to use a future hosted release.
 
 To try fictional data now, choose your computer's package on the

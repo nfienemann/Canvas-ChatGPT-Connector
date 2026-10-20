@@ -31,6 +31,7 @@ class Institution(Model):
     client_secret_env: str | None = None
     # Exact operator-reviewed storage origins. Never inferred from a redirect.
     download_origins: list[str] = Field(default_factory=list)
+    download_origin_templates: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def canonical_origin(self):
@@ -72,6 +73,23 @@ class Institution(Model):
                 raise ValueError("Download origins must be exact canonical HTTPS origins.")
             normalized.append(f"https://{u.hostname}")
         self.download_origins = list(dict.fromkeys(normalized))
+        for template in self.download_origin_templates:
+            candidate = template.replace("{file_id}", "1")
+            u = urlsplit(candidate)
+            if (
+                template.count("{file_id}") != 1
+                or "{" in candidate
+                or "}" in candidate
+                or candidate != f"https://{u.hostname}"
+                or u.port is not None
+                or "*" in candidate
+                or "%" in candidate
+                or "\\" in candidate
+                or any(ord(c) < 33 for c in candidate)
+            ):
+                raise ValueError(
+                    "Download templates require one file_id in an exact HTTPS hostname."
+                )
         return self
 
 

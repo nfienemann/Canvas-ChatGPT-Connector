@@ -35,8 +35,11 @@ transport accepts only a course ID and file ID, obtains fresh course-qualified
 metadata, and validates every redirect against exact operator-reviewed HTTPS
 origins. It uses a separate HTTP session, sends a bearer only on the first
 reviewed Canvas download route, and bounds transfer size and total elapsed time.
-This transport does not parse documents and is not yet called by MCP retrieval;
-binary parsing remains disabled pending OS isolation proof.
+MCP file retrieval uses this transport, then passes only document bytes and a
+format identifier into a credential-free Windows AppContainer worker. No network
+capabilities, inherited handles or service configuration enter the worker.
+Job Objects enforce memory, CPU, wall time and one-process limits. Unsupported
+platforms fail closed. See the separately verified [file boundary](../file-reading.md).
 
 Canvas reported dates are used in the authenticated context. Broader override
 arrays are not interpreted. Staff/mixed-role courses are excluded until a safe

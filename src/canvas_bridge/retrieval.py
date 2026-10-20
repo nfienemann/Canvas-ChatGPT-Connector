@@ -1,7 +1,7 @@
 """Bounded source extraction and authorized Canvas page retrieval.
 
-Binary parsing is a local synthetic-development capability only until a
-network-isolated parser container has been deployed and verified.
+The in-process extraction helpers below remain synthetic-development primitives.
+Live PDF/text reads delegate to the isolated worker through course_files.
 """
 
 import asyncio
@@ -18,10 +18,10 @@ from sqlalchemy import select
 
 from canvas_bridge.canvas import Collection
 from canvas_bridge.domain import DomainError, Model, Result, Source, utcnow
-from canvas_bridge.file_download import file_metadata, file_visible
+from canvas_bridge.file_download import file_metadata, file_version, file_visible
 from canvas_bridge.normalize import canonical_id, plain_text
 from canvas_bridge.policy import Endpoint, source_id
-from canvas_bridge.storage import Material
+from canvas_bridge.storage import Material, aware
 
 MAX_BYTES = 10_000_000
 MAX_EXPANDED = 20_000_000
@@ -144,7 +144,9 @@ def extract_synthetic(
     )
 
 
-async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
+async def outline(
+    bridge, owner: str, ref: str, course_ref: str, module_filter: str | None = None
+) -> Result:
     await bridge.list_courses(owner, ref)
     _, courses = bridge.selected(owner, ref, [course_ref])
     course = courses[0]
@@ -162,10 +164,40 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
                     if module.get("published") is False or module.get("state") == "locked":
                         continue
                     module_id = source_id(module["id"])
+                    if (
+                        module_filter
+                        and canonical_id(owner, ref, "module", f"{course.source_id}:{module_id}")
+                        != module_filter
+                    ):
+                        continue
                     items = await client.collection(
                         Endpoint.MODULE_ITEMS, course=course.source_id, module=module_id
                     )
                     raw_modules.append((module_id, module, items))
+                # Some courses disable the Files tab/list endpoint while granting
+                # access to files through modules. Resolve those IDs with the
+                # course-qualified metadata endpoint; never trust a bare global ID.
+                known = {str(file.get("id")) for file in files.items[:100]}
+                for _, _, items in raw_modules:
+                    for item in items.items[:100]:
+                        if (
+                            item.get("type") != "File"
+                            or item.get("published") is False
+                            or item.get("locked_for_user") is True
+                            or len(known) >= 100
+                        ):
+                            continue
+                        file_id = source_id(item.get("content_id", ""))
+                        if file_id in known:
+                            continue
+                        try:
+                            metadata = await file_metadata(client, course.source_id, file_id)
+                        except DomainError as exc:
+                            if exc.status == "reconnect_required":
+                                raise
+                            continue
+                        files.items.insert(0, metadata)
+                        known.add(file_id)
         except TimeoutError:
             warnings.append("The course outline reached its overall request time limit.")
 
@@ -215,6 +247,14 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
                         )
                     else:
                         material.title, material.url = title, url
+                        if kind == "file" and (
+                            material.file_state.get("version") != file_version(entry)
+                            or (utcnow() - aware(material.retrieved_at)).total_seconds()
+                            > bridge.settings.file_cache_hours * 3600
+                        ):
+                            from canvas_bridge.course_files import clear
+
+                            clear(material)
                     references[lookup] = material_id
                     resources.append(
                         {
@@ -223,6 +263,15 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
                             "url": url,
                             "kind": kind,
                             "reading_status": "not_established",
+                            **(
+                                {
+                                    "filename": plain_text(str(entry.get("filename", "")), 1000),
+                                    "content_type": str(entry.get("content-type", ""))[:200],
+                                    "size": entry.get("size"),
+                                }
+                                if kind == "file"
+                                else {}
+                            ),
                         }
                     )
         for module_id, module, items in raw_modules:
@@ -285,7 +334,7 @@ async def outline(bridge, owner: str, ref: str, course_ref: str) -> Result:
                 )
             },
             "limitations": [
-                "File text requires an isolated parser and is not yet available.",
+                "Use read_course_file or fetch_course_material to read file text when isolated extraction is enabled.",
                 "External/LTI readings are not fetched. Module inclusion alone does not establish assigned versus optional status.",
             ],
         },
@@ -305,6 +354,13 @@ async def fetch_material(
 ) -> Result:
     if offset < 0 or not 1 <= length <= 16_000 or offset > MAX_TEXT:
         raise DomainError("needs_input", "Invalid text window.")
+    with bridge.store.transaction() as session:
+        entry = bridge.store.owned(session, Material, owner, ref, material_ref)
+        is_file = entry.kind == "file"
+    if is_file:
+        from canvas_bridge.course_files import read_file
+
+        return await read_file(bridge, owner, ref, material_ref, offset, length, expected_hash)
     await bridge.list_courses(owner, ref)
     _, courses = bridge.selected(owner, ref)
     with bridge.store.transaction() as session:
@@ -314,36 +370,6 @@ async def fetch_material(
             raise DomainError("permission_denied", "Material unavailable.")
     async with bridge.client(owner, ref) as client:
         try:
-            if material.kind == "file":
-                metadata = await file_metadata(client, course.source_id, material.source_id)
-                # No binary bytes enter the API process's extraction code. Until
-                # OS isolation is verified, return the stable source explicitly.
-                with bridge.store.transaction() as session:
-                    bridge.store.connection(session, owner, ref, lock=True)
-                    selected = bridge.store.owned(session, type(course), owner, ref, course.id)
-                    if not selected.selected or not selected.accessible:
-                        raise DomainError("permission_denied", "Material is no longer selected.")
-                    row = bridge.store.owned(session, Material, owner, ref, material_ref)
-                    row.title = plain_text(str(metadata.get("display_name", "Untitled file")), 1000)
-                    row.text, row.locators, row.version_hash = "", [], ""
-                    row.limitations = ["Isolated file extraction is not yet enabled."]
-                    title = row.title
-                return Result(
-                    status="unsupported_feature",
-                    summary="This file is accessible in Canvas; its contents have not been read.",
-                    data={
-                        "id": material_ref,
-                        "kind": "file",
-                        "coverage": "unsupported",
-                        "text": "",
-                    },
-                    sources=[
-                        Source(
-                            id=material_ref, title=title, url=material.url, retrieved_at=utcnow()
-                        )
-                    ],
-                    meta=bridge.meta(warnings=["Isolated file extraction is not yet enabled."]),
-                )
             if material.kind != "page":
                 raise DomainError("unsupported_feature", "Unknown material format.")
             page = await client.one(Endpoint.PAGE, course=course.source_id, page=material.source_id)

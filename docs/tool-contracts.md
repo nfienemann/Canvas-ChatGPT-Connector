@@ -19,7 +19,11 @@ response size is 250 KB; callers must narrow excessive requests.
 | get_changes | Complete matching-scope baselines only; first observed is not newly published |
 | get_gradebook | Own visible Canvas fields; no unposted fields or exact-policy assumptions |
 | get_course_outline | Bounded modules/items/pages/files with one overall time budget; course-bound material references join visible module items; listing never proves a reading was accessed |
-| fetch_course_material | Fresh authorized page text with version-bound continuation; files recheck current access and return an explicit unsupported extraction result with a stable Canvas link until parser isolation is enabled |
+| fetch_course_material | Backward-compatible page or file text; fresh access checks, content-hash-bound continuation; files require enabled OS isolation |
+| list_course_files | Selected-course metadata with module associations, opaque file IDs, stable Canvas links and indexed state; resolves visible module files even when the Files collection is denied |
+| read_course_file | PDF/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
+| search_course_files | Previously extracted authorized file text only; page passages, indexed count, unindexed documents and incomplete-coverage flags |
+| get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; no calendar access or saved side effect |
 | get_saved_study_state | Local record versions for explicit later changes |
@@ -51,5 +55,6 @@ The file inventory requires explicit current-user visibility and excludes hidden
 or locked files. A module label can remain visible without a usable material
 reference when its resource is absent from the accessible bounded inventory.
 Module inclusion does not establish whether a reading is assigned or optional.
-File bodies are not yet searched. Signed download URLs are never returned or
-persisted as sources.
+Only previously extracted file bodies are searched by `search_course_files`;
+`search_course_materials` retains its page-only behavior. Signed download URLs
+are never returned or persisted as sources. See [file reading](file-reading.md).
