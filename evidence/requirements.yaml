@@ -1,0 +1,1631 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "requirement_id": "R01",
+      "priority": "P0",
+      "requirement": "Identity/tenant isolation: principal and school resolved server-side; guessed IDs never expose another record.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/auth.py",
+        "src/canvas_bridge/storage.py"
+      ],
+      "test_refs": [
+        "T13",
+        "T21",
+        "T26",
+        "T39"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T39_worker_admin_connection_checks_job_ownership",
+        "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
+        "tests/test_service_security.py::test_T21_invalid_token_rejected",
+        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R02",
+      "priority": "P0",
+      "requirement": "Canvas linking: approved OAuth path; cancellation, revocation, reconnect, and two-school credential separation behave correctly.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/linking.py",
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "test_refs": [
+        "T14",
+        "T18",
+        "T43"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
+        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
+        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R03",
+      "priority": "P0",
+      "requirement": "Complete scoped inventory: all pages or explicit partial coverage; deduplication, archived/inaccessible and undated work handled.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/canvas.py",
+        "src/canvas_bridge/service.py"
+      ],
+      "test_refs": [
+        "T01",
+        "T07",
+        "T10",
+        "T46"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
+        "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
+        "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
+        "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R04",
+      "priority": "P0",
+      "requirement": "Student-specific dates: effective individual/section/group/overlap cases match student context; opens/due/closes separate.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/normalize.py",
+        "src/canvas_bridge/domain.py"
+      ],
+      "test_refs": [
+        "T02",
+        "T03",
+        "T04"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
+        "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
+        "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R05",
+      "priority": "P0",
+      "requirement": "Completion states: submitted/ungraded/late/missing/excused/revision/offline/personal progress distinct.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/normalize.py"
+      ],
+      "test_refs": [
+        "T06",
+        "T07"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T06_submission_states_zero_and_excused",
+        "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
+        "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
+        "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R06",
+      "priority": "P0",
+      "requirement": "What-first recommendation: useful feasible next action, ranked alternatives, evidence and uncertainty.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/planning.py"
+      ],
+      "test_refs": [
+        "T20",
+        "T29",
+        "T41"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T20_capacity_conservation",
+        "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
+        "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
+        "tests/test_domain_planning.py::test_T41_unknown_effort_proposes_bounded_review_and_large_urgent_work_is_first",
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependencies_respect_finish_time_and_reverse_input_order",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
+        "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R07",
+      "priority": "P0",
+      "requirement": "Honest grading: reported values preserved; known rule coverage; no false exact impact when policy is incomplete.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/grades.py",
+        "src/canvas_bridge/service.py"
+      ],
+      "test_refs": [
+        "T08",
+        "T28"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T08_T28_exact_points_fixture_and_boundaries"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R08",
+      "priority": "P0",
+      "requirement": "Effort uncertainty: remaining-work ranges, editable origin, unknowns; no authoritative points-to-hours conversion.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/planning.py",
+        "src/canvas_bridge/domain.py"
+      ],
+      "test_refs": [
+        "T20",
+        "T41"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T20_capacity_conservation",
+        "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
+        "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
+        "tests/test_domain_planning.py::test_T41_unknown_effort_proposes_bounded_review_and_large_urgent_work_is_first",
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependencies_respect_finish_time_and_reverse_input_order",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
+        "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R09",
+      "priority": "P0",
+      "requirement": "Evidence/explainability: each academic fact has provenance/time; ranking states why and what could change it.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/domain.py",
+        "src/canvas_bridge/planning.py"
+      ],
+      "test_refs": [
+        "T11",
+        "T29",
+        "T45"
+      ],
+      "automated_test_functions": [
+        "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
+        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R10",
+      "priority": "P0",
+      "requirement": "Least privilege: feature/route/scope inventory; student-only academic reads even with powerful token.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/policy.py",
+        "src/canvas_bridge/canvas.py"
+      ],
+      "test_refs": [
+        "T21",
+        "T22",
+        "T39"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T39_worker_admin_connection_checks_job_ownership",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
+        "tests/test_service_security.py::test_T21_invalid_token_rejected",
+        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
+        "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority",
+        "tests/test_service_security.py::test_T22_no_generic_academic_route",
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R11",
+      "priority": "P0",
+      "requirement": "Credential safety: no leaks; encrypted storage; rotation, refresh locks, revocation/disconnect tested.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/vault.py",
+        "src/canvas_bridge/linking.py"
+      ],
+      "test_refs": [
+        "T14",
+        "T23",
+        "T43"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
+        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
+        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_retrieval_lifecycle.py::test_T23_archive_expansion_bomb_rejected",
+        "tests/test_retrieval_lifecycle.py::test_T23_office_archives_reject_unsafe_members",
+        "tests/test_retrieval_lifecycle.py::test_T23_xml_entities_not_expanded",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs",
+        "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority",
+        "tests/test_service_security.py::test_T23_credentials_are_bound_to_owner_and_connection",
+        "tests/test_service_security.py::test_T23_dns_connect_is_pinned_to_validated_address",
+        "tests/test_service_security.py::test_T23_dns_rebinding_to_private_is_rejected",
+        "tests/test_service_security.py::test_T23_private_addresses_blocked"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R12",
+      "priority": "P0",
+      "requirement": "MCP/ChatGPT contract: Inspector plus actual supported conversation; auth, schemas, cancellations, bounded output, version record.",
+      "gate": "M0→M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/app.py",
+        "src/canvas_bridge/auth.py"
+      ],
+      "test_refs": [
+        "T21",
+        "T30",
+        "T35"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
+        "tests/test_service_security.py::test_T21_invalid_token_rejected",
+        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R13",
+      "priority": "P0",
+      "requirement": "Untrusted content/network: injection cannot authorize actions; SSRF, redirects, unsafe parsers bounded.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/network.py",
+        "src/canvas_bridge/retrieval.py"
+      ],
+      "test_refs": [
+        "T12",
+        "T23",
+        "T24"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T12_html_is_data_and_scripts_removed",
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_retrieval_lifecycle.py::test_T23_archive_expansion_bomb_rejected",
+        "tests/test_retrieval_lifecycle.py::test_T23_office_archives_reject_unsafe_members",
+        "tests/test_retrieval_lifecycle.py::test_T23_xml_entities_not_expanded",
+        "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority",
+        "tests/test_service_security.py::test_T23_credentials_are_bound_to_owner_and_connection",
+        "tests/test_service_security.py::test_T23_dns_connect_is_pinned_to_validated_address",
+        "tests/test_service_security.py::test_T23_dns_rebinding_to_private_is_rejected",
+        "tests/test_service_security.py::test_T23_private_addresses_blocked"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R14",
+      "priority": "P0",
+      "requirement": "Reliable reads/freshness: outages and incomplete pages become partial/stale states, never “nothing due.”",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/canvas.py",
+        "src/canvas_bridge/service.py"
+      ],
+      "test_refs": [
+        "T01",
+        "T15",
+        "T29"
+      ],
+      "automated_test_functions": [
+        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
+        "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R15",
+      "priority": "P0",
+      "requirement": "Privacy/suitability: reviewed flow, consent, retention, disconnect, export, deletion before live records.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/lifecycle.py",
+        "src/canvas_bridge/linking.py"
+      ],
+      "test_refs": [
+        "T18",
+        "T24",
+        "T34",
+        "T43"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
+        "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
+        "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R16",
+      "priority": "P0",
+      "requirement": "Accessibility/usability: owned UI targets WCAG 2.2 AA, keyboard/screen-reader path, zone clarity, text fallback.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "test_refs": [
+        "T19",
+        "T36",
+        "T42"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R17",
+      "priority": "P0",
+      "requirement": "Foundational quality: critical identity/date/permission fixtures pass; evaluation set never invents deadline/action success.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/app.py"
+      ],
+      "test_refs": [
+        "T01",
+        "T02",
+        "T03",
+        "T04",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T29"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
+        "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
+        "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
+        "tests/test_domain_planning.py::test_T12_html_is_data_and_scripts_removed",
+        "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
+        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
+        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R18",
+      "priority": "P0",
+      "requirement": "Production baseline: health, redaction, budgets, secrets, restore, rollback, incident owner.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/jobs.py",
+        "src/canvas_bridge/lifecycle.py"
+      ],
+      "test_refs": [
+        "T15",
+        "T34",
+        "T35",
+        "T40"
+      ],
+      "automated_test_functions": [
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
+        "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
+        "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
+        "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R19",
+      "priority": "P1",
+      "requirement": "Study/replanning: respect time, commitments, dependencies, breaks, capacity; retain student choices.",
+      "gate": "M2",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/planning.py"
+      ],
+      "test_refs": [
+        "T20",
+        "T41",
+        "T42"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T20_capacity_conservation",
+        "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
+        "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
+        "tests/test_domain_planning.py::test_T41_unknown_effort_proposes_bounded_review_and_large_urgent_work_is_first",
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependencies_respect_finish_time_and_reverse_input_order",
+        "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
+        "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R20",
+      "priority": "P1",
+      "requirement": "Syllabus/files: declared format coverage; page/section citations; honest scan/table/equation/image limits.",
+      "gate": "M2",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/retrieval.py"
+      ],
+      "test_refs": [
+        "T11",
+        "T25",
+        "T45"
+      ],
+      "automated_test_functions": [
+        "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
+        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read",
+        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R21",
+      "priority": "P1",
+      "requirement": "Course breadth: modules/pages/announcements/discussions/rubrics/quiz metadata to verified student-access level; external limits visible.",
+      "gate": "M2",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/retrieval.py"
+      ],
+      "test_refs": [
+        "T07",
+        "T10",
+        "T24",
+        "T46"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
+        "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
+        "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R22",
+      "priority": "P1",
+      "requirement": "Calendar preview: destination, zone, exact operations/conflicts; deadlines separate from study blocks; no invented dates.",
+      "gate": "M3",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T05",
+        "T31",
+        "T32",
+        "T46"
+      ],
+      "automated_test_functions": [
+        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R23",
+      "priority": "P1",
+      "requirement": "Calendar commit/recovery: actual receipts, idempotent retries, recoverable partial/uncertain states, owned-event boundaries.",
+      "gate": "M3",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T16",
+        "T17",
+        "T31",
+        "T32"
+      ],
+      "automated_test_functions": [],
+      "test_results": [],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R24",
+      "priority": "P1",
+      "requirement": "Ongoing sync: source/access changes and completion reconciled durably; independent of open chat/laptop.",
+      "gate": "M3",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T09",
+        "T15",
+        "T18",
+        "T27",
+        "T32"
+      ],
+      "automated_test_functions": [
+        "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search",
+        "tests/test_service_security.py::test_T09_closed_and_locked_assignment_never_exposes_content",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs",
+        "tests/test_service_security.py::test_T27_first_observed_is_not_invented_history"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R25",
+      "priority": "P1",
+      "requirement": "Notifications: opt-in, verified channel, quiet hours, deduplication, caps, pause/stop.",
+      "gate": "M3",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T18",
+        "T33",
+        "T43"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R26",
+      "priority": "P1",
+      "requirement": "Public onboarding/support: supported-school beginner succeeds; unsupported school gets truthful admin/support path.",
+      "gate": "M4",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "test_refs": [
+        "T14",
+        "T38",
+        "T44"
+      ],
+      "automated_test_functions": [
+        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
+        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
+        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R27",
+      "priority": "P1",
+      "requirement": "International/multi-school: zones, DST, Unicode, simultaneous school accounts; published support boundaries.",
+      "gate": "M4",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/domain.py",
+        "src/canvas_bridge/policy.py"
+      ],
+      "test_refs": [
+        "T04",
+        "T13",
+        "T19",
+        "T42"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
+        "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
+        "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R28",
+      "priority": "P1",
+      "requirement": "Capacity/deployment: measured latency, availability, lag/cost; quotas, worker recovery, migrations, rollback.",
+      "gate": "M4",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/jobs.py"
+      ],
+      "test_refs": [
+        "T15",
+        "T35",
+        "T40"
+      ],
+      "automated_test_functions": [
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R29",
+      "priority": "P1",
+      "requirement": "Documentation: student/admin/operator/contributor guides, scopes, privacy, recovery, limitations; clean-guide test.",
+      "gate": "M4",
+      "delivery_state": "implemented",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T35",
+        "T44"
+      ],
+      "automated_test_functions": [
+        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R30",
+      "priority": "P1",
+      "requirement": "Open-source release: approved license, notices, fixtures, contribution/security policies, releases, reproducible builds; no private data.",
+      "gate": "M4",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T35",
+        "T37",
+        "T38"
+      ],
+      "automated_test_functions": [
+        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",
+        "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R31",
+      "priority": "P1",
+      "requirement": "ChatGPT distribution: eligibility resolved, actual plan/workspace path tested, review/listing approved where required.",
+      "gate": "M0 feasibility→M4 approval",
+      "delivery_state": "blocked",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T30",
+        "T38",
+        "T44"
+      ],
+      "automated_test_functions": [
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R32",
+      "priority": "P2",
+      "requirement": "Advanced study: source-backed practice/spaced repetition/calibration with user controls and usefulness evidence.",
+      "gate": "M5",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [],
+      "automated_test_functions": [],
+      "test_results": [],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R33",
+      "priority": "P2",
+      "requirement": "Additional roles/providers: distinct authorization models and tested compatibility, not inferred from API existence.",
+      "gate": "M5",
+      "delivery_state": "deferred",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T13",
+        "T21",
+        "T39"
+      ],
+      "automated_test_functions": [
+        "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T39_worker_admin_connection_checks_job_ownership",
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
+        "tests/test_service_security.py::test_T21_invalid_token_rejected",
+        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R34",
+      "priority": "P0",
+      "requirement": "ChatGPT-native identity: all core academic journeys completed in normal conversations; no custom chatbot replacement.",
+      "gate": "M1 onward",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/app.py"
+      ],
+      "test_refs": [
+        "T30",
+        "T36"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R35",
+      "priority": "P0",
+      "requirement": "No duplicate AI or student AI billing: baseline works without model API keys, inference subscriptions, or model-hosting layer.",
+      "gate": "M1 onward",
+      "delivery_state": "implemented",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/app.py"
+      ],
+      "test_refs": [
+        "T37"
+      ],
+      "automated_test_functions": [
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R36",
+      "priority": "P0",
+      "requirement": "No external academic dashboard: external UI limited to allowed administrative/authorization needs; text path works.",
+      "gate": "M1 onward",
+      "delivery_state": "implemented",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "test_refs": [
+        "T19",
+        "T36"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R37",
+      "priority": "P0",
+      "requirement": "Native interoperability: actual Canvas-plus-Calendar composition tested; no credential reuse; absent Calendar handled honestly.",
+      "gate": "M1 supported path",
+      "delivery_state": "blocked",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T30"
+      ],
+      "automated_test_functions": [],
+      "test_results": [],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R38",
+      "priority": "P0",
+      "requirement": "Low-friction supported pilot onboarding: no token paste for other students; no mandatory paid account; minimum identity ceremony.",
+      "gate": "M1",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/linking.py",
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "test_refs": [
+        "T14",
+        "T37",
+        "T44"
+      ],
+      "automated_test_functions": [
+        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
+        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
+        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R39",
+      "priority": "P0",
+      "requirement": "Early access/distribution risk gate: G0–G5 recorded; no universal support/listing claim while eligibility or institution access is unknown.",
+      "gate": "M0 onward",
+      "delivery_state": "implemented",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T38"
+      ],
+      "automated_test_functions": [
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R40",
+      "priority": "P0",
+      "requirement": "Evidence ledger: implemented/verified/planned/blocked distinguished with references, version, environment, and limitations.",
+      "gate": "M0 onward",
+      "delivery_state": "implemented",
+      "verification_state": "REPORTED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [],
+      "automated_test_functions": [],
+      "test_results": [],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R41",
+      "priority": "P0",
+      "requirement": "Funding/product boundary: no freemium academic tiers, data monetization, sponsored rankings, or student upsell dependency.",
+      "gate": "All releases",
+      "delivery_state": "implemented",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [],
+      "test_refs": [
+        "T37"
+      ],
+      "automated_test_functions": [
+        "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
+        "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R42",
+      "priority": "P1",
+      "requirement": "Search/fetch/citations: exact supported compatibility interface and rendered citations verified when advertised.",
+      "gate": "M2 targeted surfaces",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/retrieval.py"
+      ],
+      "test_refs": [
+        "T25",
+        "T26",
+        "T45"
+      ],
+      "automated_test_functions": [
+        "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
+        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version",
+        "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    },
+    {
+      "requirement_id": "R43",
+      "priority": "P0",
+      "requirement": "Lifecycle honesty: local disconnect, remote revoke, pending operations, deletion and independent copies handled distinctly.",
+      "gate": "M1; extend M3",
+      "delivery_state": "partial",
+      "verification_state": "VERIFIED",
+      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "implementation_refs": [
+        "src/canvas_bridge/lifecycle.py"
+      ],
+      "test_refs": [
+        "T18",
+        "T34",
+        "T43"
+      ],
+      "automated_test_functions": [
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
+        "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
+        "tests/test_retrieval_lifecycle.py::test_T34_retention_removes_only_expired_snapshots",
+        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
+        "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
+        "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
+      "commit_sha": null,
+      "source_manifest": "evidence/sanitized-results/source-manifest.json",
+      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "institution": "synthetic only",
+      "student_role": "synthetic student",
+      "chatgpt_surface_and_plan": null,
+      "observed_at": "2026-10-20",
+      "limitations": [
+        "See evidence/release-gates.md and docs/tool-contracts.md."
+      ],
+      "next_proof_required": "Complete the remaining acceptance scenario under the documented milestone and external gates."
+    }
+  ]
+}

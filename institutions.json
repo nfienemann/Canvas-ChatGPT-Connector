@@ -1,0 +1,20 @@
+{
+  "institutions": [
+    {
+      "id": "synthetic",
+      "name": "Synthetic University (fictional)",
+      "origin": "https://canvas.synthetic.invalid",
+      "status": "unsupported",
+      "scopes": [],
+      "evidence": ["Local fixtures only; no institutional access."]
+    },
+    {
+      "id": "rowan-candidate",
+      "name": "Rowan University",
+      "origin": null,
+      "status": "candidate",
+      "scopes": [],
+      "evidence": ["Candidate in the product specification; access is not verified."]
+    }
+  ]
+}

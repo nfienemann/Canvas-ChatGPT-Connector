@@ -1,0 +1,51 @@
+from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
+
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="BRIDGE_", env_file=".env", extra="ignore")
+
+    profile: Literal["synthetic", "personal", "hosted"] = "synthetic"
+    database_url: str = "sqlite:///.local/bridge.db"
+    resource_url: str = "http://127.0.0.1:8000"
+    issuer_url: str = "https://synthetic.invalid"
+    jwks_url: str | None = None
+    local_jwks_file: Path | None = None
+    vault_key_file: Path = Path(".local/vault.key")
+    institutions_file: Path = Path("institutions.json")
+    deletion_journal: Path = Path(".local/deletions.jsonl")
+    browser_client_id: str | None = None
+    browser_client_secret_file: Path | None = None
+    browser_authorization_url: str | None = None
+    browser_token_url: str | None = None
+    live_access_enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = Field(default=8000, ge=1024, le=65535)
+    max_pages: int = Field(default=20, ge=1, le=100)
+    max_response_bytes: int = Field(default=2_000_000, ge=1000, le=10_000_000)
+    request_timeout_seconds: float = Field(default=8, gt=0, le=15)
+    refresh_budget_seconds: float = Field(default=12, gt=0, le=15)
+    authorization_lease_seconds: int = Field(default=300, ge=0, le=300)
+    max_courses: int = Field(default=30, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def safe_profile(self):
+        if self.profile != "synthetic":
+            if not self.live_access_enabled:
+                raise ValueError("Live access requires an explicit operator enablement.")
+            if not self.database_url.startswith("postgresql+psycopg://"):
+                raise ValueError("Live profiles require PostgreSQL.")
+            for value in (self.resource_url, self.issuer_url, self.jwks_url):
+                if not value or urlsplit(value).scheme != "https":
+                    raise ValueError("Live profiles require HTTPS resource, issuer and JWKS URLs.")
+            if self.local_jwks_file:
+                raise ValueError("Local fixture keys are restricted to the synthetic profile.")
+        if self.profile == "synthetic" and self.host not in {"127.0.0.1", "::1"}:
+            raise ValueError("Synthetic services must bind only to loopback.")
+        if urlsplit(self.resource_url).query or urlsplit(self.resource_url).fragment:
+            raise ValueError("Resource identifier cannot contain a query or fragment.")
+        return self

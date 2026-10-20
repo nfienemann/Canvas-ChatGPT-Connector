@@ -1,0 +1,36 @@
+# Local verification — 2026-10-20
+
+Environment: Windows, CPython 3.14.5, uv 0.13.4, PostgreSQL 17.11, locked
+dependencies in `uv.lock`. All academic records and identities were synthetic.
+The source manifest identifies the tested Python files with LF-normalized hashes.
+
+| Check | Observed result |
+|---|---|
+| Full pytest suite with disposable PostgreSQL | **81 passed**, 0 failed, 0 skipped; 19.73 seconds |
+| Statement coverage | **76%** (1,723 / 2,254 statements); not proof of full acceptance |
+| Ruff lint and format | Passed |
+| Frozen dependency sync | Passed |
+| Source distribution and wheel build | Passed |
+| Dependency advisory audit | 73 third-party distributions audited; no known vulnerabilities reported. This unpublished local project was skipped by the advisory service |
+| PostgreSQL migrations | Upgrade, read/write, downgrade to base, upgrade again passed in random isolated test schemas |
+| PostgreSQL concurrency | One of two conflicting local writes rejected; pooled connections did not cross owner scope |
+| MCP HTTP client | Protocol 2025-11-25, 14 tools, 5 fictional obligations; workload and planning succeeded |
+| Local settings browser | Keyboard synthetic sign-in and visual layout checked; screenshot retained |
+| Lifecycle | Disconnect, access loss/deselection purge, complete connection export, encrypted backup, deletion-fenced restore and queued-job isolation fixtures passed |
+| Planning | Capacity conservation, busy intervals, preserved pins, dependency order/cycles, unknown effort and urgent large-task fixtures passed |
+
+The local PostgreSQL runtime and database, keys, tokens, logs, raw test reports
+and build outputs are excluded from source publication. The API runs on
+loopback and uses fictional data. No real university or Calendar was contacted.
+
+The browser check found an Origin-null form issue under the page's no-referrer
+policy. The fix accepts that case only with a same-origin Fetch Metadata header
+and a matching CSRF nonce; the automated browser-route test covers it.
+
+This report does **not** establish actual ChatGPT conversations, live Canvas OAuth,
+individual/section/group date equivalence, Calendar interoperability, WCAG
+conformance, screen-reader/mobile usability, production SLOs, a real parser
+sandbox, hosted recovery, institutional approval or public Directory eligibility.
+Container execution and GitHub CI are separately recorded when observed.
+See the requirement ledger and release gates rather than treating 81 passing
+fixtures as completion of every scenario in the specification.

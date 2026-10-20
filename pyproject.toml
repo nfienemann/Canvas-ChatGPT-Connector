@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "canvas-bridge"
+version = "0.1.0"
+description = "Canvas-read-only academic tools for ordinary ChatGPT conversations"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+  "mcp>=1.26,<2",
+  "pydantic-settings>=2.12,<3",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.17,<2",
+  "psycopg[binary]>=3.2,<4",
+  "httpx>=0.28,<1",
+  "httpcore>=1.0,<2",
+  "pyjwt[crypto]>=2.10,<3",
+  "cryptography>=46",
+  "uvicorn>=0.38",
+  "defusedxml>=0.7",
+  "pypdf>=6",
+  "tzdata>=2025",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=1",
+  "pytest-cov>=7",
+  "hypothesis>=6",
+  "ruff>=0.14",
+  "pip-audit>=2.9",
+]
+
+[project.scripts]
+canvas-bridge = "canvas_bridge.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/canvas_bridge"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra"
+markers = ["postgres: requires a disposable PostgreSQL database", "contract: real MCP transport"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S"]
+ignore = ["E501", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "S311"]
+"src/canvas_bridge/cli.py" = ["S603"]
+"src/canvas_bridge/network.py" = ["ASYNC109"] # Required httpcore backend method signature.

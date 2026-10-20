@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+Codex_Spec.md whitespace=-blank-at-eol

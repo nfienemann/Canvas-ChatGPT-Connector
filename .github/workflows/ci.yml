@@ -1,0 +1,38 @@
+name: Synthetic checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: bridge
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: bridge_fixture
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bridge -d bridge_fixture"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://bridge:synthetic-ci-only@127.0.0.1:5432/bridge_fixture
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        with:
+          version: "0.13.4"
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest --cov=canvas_bridge --cov-report=term-missing
+      - run: uv run pip-audit --local
+      - run: docker build -t canvas-bridge:ci .

@@ -1,0 +1,52 @@
+# Operator deployment template; does not provision a public service or IdP.
+x-bridge: &bridge
+  build: .
+  env_file: .env
+  environment:
+    BRIDGE_HOST: 0.0.0.0
+    BRIDGE_PROFILE: hosted
+    BRIDGE_VAULT_KEY_FILE: /run/secrets/vault_key
+    BRIDGE_DELETION_JOURNAL: /fences/deletions.jsonl
+  secrets: [vault_key]
+  volumes:
+    - ./institutions.json:/app/institutions.json:ro
+    - deletion_fences:/fences
+  read_only: true
+  tmpfs: ["/tmp"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+services:
+  db:
+    image: postgres:17.11
+    environment:
+      POSTGRES_USER: bridge
+      POSTGRES_DB: bridge
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [database:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bridge -d bridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  migrate:
+    <<: *bridge
+    command: [".venv/bin/alembic", "upgrade", "head"]
+    depends_on:
+      db: {condition: service_healthy}
+  api:
+    <<: *bridge
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  worker:
+    <<: *bridge
+    command: [".venv/bin/canvas-bridge", "worker"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+secrets:
+  db_password: {file: .local/db-password}
+  vault_key: {file: .local/vault.key}
+volumes:
+  database:
+  deletion_fences:
