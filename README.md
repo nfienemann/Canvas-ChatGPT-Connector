@@ -85,7 +85,7 @@ live profiles require PostgreSQL.
 |---|---|
 | MCP | Official SDK, streamable HTTP, JWT audience/issuer/expiry/scope checks, OAuth resource discovery, bounded typed responses |
 | Canvas reads | Reviewed GET routes, student-only course scope, effective assignment dates, own submission states, paginated reads, partial coverage |
-| Planning | Explained priorities, bounded next actions, effort ranges, dependencies, busy times, pinned sessions, breaks/buffer and capacity shortfalls |
+| Planning | Explained priorities, bounded next actions, effort ranges, dependencies, busy times, pinned sessions, breaks/buffer and capacity shortfalls; [selected course activity planning](docs/activity-study-planning.md) includes quizzes, discussions and event preparation |
 | Course knowledge | Modules, Canvas pages and authorized PDF/DOCX/PPTX/TXT/Markdown text; page citations, scoped indexed search and version-bound continuation |
 | Grades | Own visible reported fields, deterministic supported Canvas/syllabus calculations and reconciliation; unsupported policy stays indeterminate |
 | Local writes | Explicit version-checked preferences, personal progress and saved plans; no Canvas mutation |

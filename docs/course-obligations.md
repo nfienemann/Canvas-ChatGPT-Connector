@@ -16,7 +16,8 @@ Explicit assignment `quiz_id`, `discussion_topic.id`, topic/quiz `assignment_id`
 when returned, and calendar `assignment_<id>` identities associate sources.
 Matching titles alone never merge records. Ambiguous links remain separate.
 An assignment's canonical identity matches the existing workload identity; call
-`get_workload` for its supported scheduling/detail workflow. This inventory does
+`get_workload` for its snapshot/detail workflow, or use the inventory version with
+[`propose_course_study_plan`](activity-study-planning.md) for selected activities. This inventory does
 not persist new Work rows, synthesize snapshots or automatically schedule newly
 discovered activities. Ungraded activities are candidates, with required status
 and completion unknown until additional evidence supports them.
@@ -91,7 +92,7 @@ not a claim that the student's Quiz 3 requirements were successfully read.
 
 Planner items, undated calendar events, New Quizzes/external instructions,
 group-child discussions, automatic participation sub-deadlines, persistent alias
-history and new-activity planning are remaining dependencies. The complete R03/R21
+history and new-activity saved progress/Calendar integration are remaining dependencies. The complete R03/R21
 course-breadth requirements remain partial. Institution developer-key scopes must
 be approved independently; there is no new OAuth flow or change to token handling.
 

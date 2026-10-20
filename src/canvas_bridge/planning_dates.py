@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from canvas_bridge.domain import WorkItem
+from canvas_bridge.domain import FactDate, WorkItem
 
 
 def instant(value: datetime) -> datetime:
@@ -37,6 +37,7 @@ class Timing:
     blocked: str | None = None
     assumptions: list[str] = field(default_factory=list)
     timezone: str | None = None
+    preparation_target: FactDate | None = None
 
     def evidence(self, item):
         return {
@@ -45,6 +46,9 @@ class Timing:
             "source_due": item.effective_due.model_dump(mode="json"),
             "source_opens": item.available_from.model_dump(mode="json"),
             "source_closes": item.closes_at.model_dump(mode="json"),
+            "preparation_target": self.preparation_target.model_dump(mode="json")
+            if self.preparation_target
+            else None,
             "planning_not_before": self.opens.isoformat() if self.opens else None,
             "planning_finish_by": self.deadline.isoformat() if self.deadline else None,
             "blocked_reason": self.blocked,
@@ -55,9 +59,25 @@ class Timing:
         }
 
 
-def resolve_timing(item: WorkItem, now: datetime, timezone: str | None = None) -> Timing:
-    result = Timing()
-    facts = (item.effective_due, item.available_from, item.closes_at)
+def resolve_timing(
+    item: WorkItem,
+    now: datetime,
+    timezone: str | None = None,
+    *,
+    preparation_target: FactDate | None = None,
+) -> Timing:
+    result = Timing(preparation_target=preparation_target)
+    if preparation_target and item.effective_due.kind in {"timestamp", "local_date"}:
+        raise ValueError("An event preparation target cannot replace a reported due date.")
+    target = preparation_target or item.effective_due
+    facts = (target, item.available_from, item.closes_at)
+    if preparation_target:
+        result.assumptions.append(
+            "Prepare before the reported event start; this is not an assignment deadline or evidence that attendance is required."
+        )
+        if preparation_target.kind not in {"timestamp", "local_date"}:
+            result.blocked = "event_start_unavailable"
+            return result
     date_only = any(f.local_date for f in facts)
     if date_only and timezone is None:
         result.blocked = "date_only_timezone_required"
@@ -79,6 +99,8 @@ def resolve_timing(item: WorkItem, now: datetime, timezone: str | None = None) -
                 result.assumptions.append(
                     "Date-only opening: conservatively wait until after that local calendar day; this is not a reported unlock time."
                     if index == 1
+                    else "Date-only event start: conservatively finish preparation before that local calendar day starts; no start time or assignment deadline is inferred."
+                    if index == 0 and preparation_target
                     else "Date-only due/close: conservatively finish before that local calendar day starts; this is not a reported deadline time."
                 )
             values.append(value)
@@ -89,12 +111,16 @@ def resolve_timing(item: WorkItem, now: datetime, timezone: str | None = None) -
     now = instant(now)
     if close and close <= now:
         result.blocked = "source_closing_bound_passed"
-    if item.effective_due.local_date and due <= now:
+    if preparation_target and due <= now:
+        result.blocked = result.blocked or "event_preparation_bound_passed"
+    if target.local_date and due <= now:
         result.blocked = result.blocked or "date_only_deadline_needs_clarification"
         result.assumptions.append(
-            "The date-only planning cutoff has passed. Confirm the actual due time or a supported recovery deadline before scheduling work."
+            "The date-only preparation cutoff has passed. Confirm the event start before scheduling preparation."
+            if preparation_target
+            else "The date-only planning cutoff has passed. Confirm the actual due time or a supported recovery deadline before scheduling work."
         )
-    result.overdue = bool(item.effective_due.timestamp and due < now)
+    result.overdue = bool(not preparation_target and item.effective_due.timestamp and due < now)
     if result.overdue:
         due = None  # Existing overdue recovery is bounded by the close, not an invented extension.
     result.deadline = min(t for t in (due, close) if t) if due or close else None

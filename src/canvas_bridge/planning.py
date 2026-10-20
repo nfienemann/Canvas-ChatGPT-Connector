@@ -123,9 +123,23 @@ def prioritize(
         elif item.prerequisites:
             tier, reason = 3, "Known prerequisite work needs to be completed first."
         elif timing.overdue or (hours is not None and hours <= 24):
-            tier, reason = 0, "Due or closing within a day, or overdue; check recoverability."
+            tier, reason = (
+                0,
+                (
+                    "Selected event preparation should finish within a day, before the event or an earlier source closing bound."
+                    if timing.preparation_target
+                    else "Due or closing within a day, or overdue; check recoverability."
+                ),
+            )
         elif hours is not None and hours <= 72:
-            tier, reason = 1, "Limited time remains before the source deadline."
+            tier, reason = (
+                1,
+                (
+                    "Limited time remains for selected event preparation before the event or an earlier source closing bound."
+                    if timing.preparation_target
+                    else "Limited time remains before the source deadline."
+                ),
+            )
         else:
             tier, reason = 2, "A reported date leaves more time; review the remaining work."
         effort = item.effort_remaining
@@ -203,7 +217,9 @@ def subtract(windows: list[list[datetime]], start: datetime, end: datetime):
     return result
 
 
-def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
+def propose(
+    items: list[WorkItem], request: PlanRequest, now: datetime, *, preparation_targets=None
+) -> dict:
     now = instant(now)
     by_id = {item.id: item.model_copy(deep=True) for item in items}
     if (
@@ -223,8 +239,16 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
             # Keep an online-submission verification reminder, but do not
             # allocate work sessions for something the student says is done.
             item.effort_remaining = None
+    preparation_targets = preparation_targets or {}
+    if set(preparation_targets) - by_id.keys():
+        raise ValueError("Preparation target references work outside this workload.")
     timings = {
-        ref: resolve_timing(item, now, request.date_only_timezones.get(ref))
+        ref: resolve_timing(
+            item,
+            now,
+            request.date_only_timezones.get(ref),
+            preparation_target=preparation_targets.get(ref),
+        )
         for ref, item in by_id.items()
     }
     timing_evidence = {ref: timing.evidence(by_id[ref]) for ref, timing in timings.items()}

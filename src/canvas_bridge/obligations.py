@@ -87,7 +87,9 @@ def date_key(value):
     return (value.kind, value.timestamp, value.local_date)
 
 
-def build_inventory(owner, ref, conn, course, origin, collections, now, window, zone):
+def build_inventory(
+    owner, ref, conn, course, origin, collections, now, window, zone, *, work_items=None
+):
     """Deterministic projection of allowlisted fields; never pass provider objects through."""
     records, omitted = {}, {}
     blocked_assignments = set()
@@ -250,6 +252,14 @@ def build_inventory(owner, ref, conn, course, origin, collections, now, window, 
                     in {"practice_quiz", "assignment", "graded_survey", "survey"}
                     else "unknown"
                 )
+            if kind == "discussion_topics":
+                alias["participation_state"] = (
+                    "closed"
+                    if raw.get("locked") is True
+                    else "open"
+                    if raw.get("locked") is False
+                    else "unknown"
+                )
             source = Source(
                 id=alias_id,
                 url=url,
@@ -297,7 +307,13 @@ def build_inventory(owner, ref, conn, course, origin, collections, now, window, 
                     origin=origin,
                     now=now,
                 )
+                if work_items is not None:
+                    item.source = source
+                    work_items[identity] = item
                 group.update(
+                    availability_state=item.availability_state,
+                    revision_state=item.revision_state,
+                    submission_requirement=item.submission_requirement,
                     title=item.title,
                     kind=item.kind,
                     effective_due=item.effective_due.model_dump(mode="json"),
@@ -338,33 +354,19 @@ def build_inventory(owner, ref, conn, course, origin, collections, now, window, 
     return sorted(groups.values(), key=lambda g: g["id"]), sources, omitted
 
 
-async def course_obligations(
-    bridge,
-    owner,
-    ref,
-    course_id,
-    start,
-    end,
-    timezone,
-    *,
-    offset=0,
-    limit=10,
-    expected_version=None,
-    obligation_id=None,
+async def collect_inventory(
+    bridge, owner, ref, course_id, start, end, timezone, *, refresh_courses=True
 ):
     if any(t.tzinfo is None or t.utcoffset() is None for t in (start, end)) or not timedelta(
         0
     ) < end - start <= timedelta(days=31):
         raise DomainError("needs_input", "Choose aware start/end times spanning at most 31 days.")
-    if not 0 <= offset <= 500 or not 1 <= limit <= 20:
-        raise DomainError("needs_input", "Choose a valid inventory page.")
-    if offset and not expected_version:
-        raise DomainError("needs_input", "Continuation requires the previous inventory version.")
     try:
         zone = ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise DomainError("needs_input", "Choose a valid IANA timezone.") from exc
-    await bridge.list_courses(owner, ref)
+    if refresh_courses:
+        await bridge.list_courses(owner, ref)
     conn, courses = bridge.selected(owner, ref, [course_id])
     course, now = courses[0], utcnow()
     async with bridge.client(owner, ref) as client:
@@ -392,6 +394,7 @@ async def course_obligations(
             raise DomainError(
                 "permission_denied", "The course assignment scope could not be verified."
             )
+        work_items = {}
         items, sources, omitted = build_inventory(
             owner,
             ref,
@@ -402,6 +405,7 @@ async def course_obligations(
             now,
             (start, end),
             zone,
+            work_items=work_items,
         )
     current, _ = bridge.selected(owner, ref, [course_id])
     if current.epoch != conn.epoch:
@@ -436,6 +440,41 @@ async def course_obligations(
             "window": [start.isoformat(), end.isoformat()],
             "timezone": timezone,
         }
+    )
+    return {
+        "items": items,
+        "sources": sources,
+        "omitted": omitted,
+        "coverage": coverage,
+        "version": version,
+        "work_items": work_items,
+        "course": course,
+        "connection": conn,
+        "retrieved_at": now,
+    }
+
+
+async def course_obligations(
+    bridge,
+    owner,
+    ref,
+    course_id,
+    start,
+    end,
+    timezone,
+    *,
+    offset=0,
+    limit=10,
+    expected_version=None,
+    obligation_id=None,
+):
+    if not 0 <= offset <= 500 or not 1 <= limit <= 20:
+        raise DomainError("needs_input", "Choose a valid inventory page.")
+    if offset and not expected_version:
+        raise DomainError("needs_input", "Continuation requires the previous inventory version.")
+    inventory = await collect_inventory(bridge, owner, ref, course_id, start, end, timezone)
+    items, sources, omitted, coverage, version = (
+        inventory[key] for key in ("items", "sources", "omitted", "coverage", "version")
     )
     if expected_version and expected_version != version:
         raise DomainError(
@@ -480,6 +519,7 @@ async def course_obligations(
             "content_boundary": "untrusted_source_data",
             "limitations": LIMITATIONS,
             "not_in_study_plan_automatically": True,
+            "planning_tool": "propose_course_study_plan",
             "omission_reasons": {kind: dict(counts) for kind, counts in omitted.items() if counts},
         },
         sources=list(selected_sources.values()),

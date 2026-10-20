@@ -36,6 +36,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; date-only bounds require applicable per-work timezone; no calendar access or saved side effect |
+| propose_course_study_plan | Fresh inventory/version-bound planning for selected assignments, quizzes, discussions and event preparation; suggested activities need review; no save or Calendar write |
 | get_saved_study_state | Local record versions for explicit later changes |
 | update_study_preferences | Persistent scoped preference write with expected version |
 | record_personal_progress | Persistent personal status/effort; never Canvas submission evidence |

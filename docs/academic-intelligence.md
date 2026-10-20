@@ -26,6 +26,13 @@ it does not establish coverage of every natural-language policy or all universit
 
 ## Evidence and deterministic methods
 
+Selected activity planning now also uses `propose_course_study_plan`, backed by
+fresh course inventory versions. It supports explicit assignment, classic-quiz,
+discussion and event-preparation choices with shared capacity, unknown-state
+preservation and cited conflict review. Its acceptance suite and remaining saved
+progress/Calendar dependencies are described in
+[activity study planning](activity-study-planning.md).
+
 `Source` remains backward compatible with additive `source_type`, `course_id`,
 `resource_id`, `content_hash`, `extraction_status` and `uncertainty` fields. Every
 MCP result now also provides evidence envelopes containing the source URL,

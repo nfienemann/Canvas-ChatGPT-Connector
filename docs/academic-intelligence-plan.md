@@ -48,3 +48,14 @@ deadline and DST capacity errors. The shared allocator now uses source-preservin
 conservative date bounds and elapsed instants across native planning, saved-plan
 validation and Calendar study proposals. Acceptance and limitations are recorded
 in [planning date boundaries](planning-date-bounds.md).
+
+## Follow-on selected activity planning
+
+The next dependency is now implemented through `propose_course_study_plan`,
+reusing the inventory and shared allocator. It refreshes authorized evidence,
+checks inventory versions, accepts explicit activity choices, deduplicates linked
+assignment sources and keeps event preparation separate from source deadlines.
+Synthetic acceptance covers mixed activity allocation, partial/changed sources,
+unknown participation, permissions, date precision and MCP transport. Saved
+progress and Calendar synchronization for new activity types remain dependencies.
+See [activity study planning](activity-study-planning.md) for the precise scope.

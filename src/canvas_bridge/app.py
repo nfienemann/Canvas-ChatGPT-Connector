@@ -18,6 +18,11 @@ from starlette.routing import Route, request_response
 
 from canvas_bridge import __version__
 from canvas_bridge.academic_intelligence import academic_request
+from canvas_bridge.activity_planning import (
+    ActivityPlanRequest,
+    CoursePlanningScope,
+    propose_course_plan,
+)
 from canvas_bridge.auth import READ_SCOPE, WRITE_SCOPE, JWTVerifier, request_identity
 from canvas_bridge.calendar_sync import CalendarContext, propose_sync
 from canvas_bridge.config import Settings
@@ -575,6 +580,30 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         Unknown estimates stay unknown. This tool saves nothing and changes no calendar.
         """
         return bridge.study_plan(request_identity().owner, connection_id, snapshot_id, request)
+
+    @register()
+    async def propose_course_study_plan(
+        connection_id: Ref,
+        courses: Annotated[list[CoursePlanningScope], Field(min_length=1, max_length=10)],
+        start: AwareDatetime,
+        end: AwareDatetime,
+        timezone: str,
+        request: ActivityPlanRequest,
+    ) -> Result:
+        """Plan selected assignments, classic quizzes, discussions and event preparation.
+
+        First use get_course_obligations for each selected course. Pass its current
+        inventory_version and the SAME calendar window/timezone. Use canonical
+        obligation IDs, never source alias IDs or title guesses. Select activities
+        the student requested; leave uncertain suggestions as suggested_review.
+        Do not invent student choices, effort, importance, completion or required
+        participation. Event preparation uses the event start as a preparation
+        target, never as an assignment due date. Source changes require a new
+        inventory read. This tool is read-only; it saves no plan or Calendar event.
+        """
+        return await propose_course_plan(
+            bridge, request_identity().owner, connection_id, courses, start, end, timezone, request
+        )
 
     @register()
     async def get_saved_study_state(connection_id: Ref) -> Result:

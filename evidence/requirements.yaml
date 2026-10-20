@@ -21,6 +21,11 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
         "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
         "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
         "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
@@ -94,6 +99,8 @@
         "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T43_selection_race_discards_plan",
         "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
         "tests/test_file_reading.py::test_T18_deselection_during_parse_cannot_resurrect_text",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
@@ -141,7 +148,8 @@
       "implementation_refs": [
         "src/canvas_bridge/canvas.py",
         "src/canvas_bridge/service.py",
-        "src/canvas_bridge/obligations.py"
+        "src/canvas_bridge/obligations.py",
+        "src/canvas_bridge/activity_planning.py"
       ],
       "test_refs": [
         "T01",
@@ -151,6 +159,15 @@
       ],
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T06_T07_completed_assignments_excluded",
+        "tests/test_activity_planning.py::test_T07_T08_suggestion_is_review_not_mandatory_work",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T07_T46_discussion_participation_is_not_completion",
+        "tests/test_activity_planning.py::test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_preserve_unknowns",
+        "tests/test_activity_planning.py::test_T46_wrong_activity_intent_needs_review",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
@@ -204,6 +221,9 @@
         "T04"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T04_event_preparation_past_dst_and_missing_target_are_not_due_dates",
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
         "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
         "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
@@ -266,6 +286,10 @@
       ],
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_activity_planning.py::test_T06_T07_completed_assignments_excluded",
+        "tests/test_activity_planning.py::test_T07_T08_suggestion_is_review_not_mandatory_work",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T07_T46_discussion_participation_is_not_completion",
         "tests/test_domain_planning.py::test_T06_submission_states_zero_and_excused",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_integration_findings.py::test_T03_T06_eleven_undated_assessments_are_not_upcoming",
@@ -310,6 +334,9 @@
         "T41"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_domain_planning.py::test_T20_capacity_conservation",
         "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
         "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
@@ -367,6 +394,9 @@
         "T28"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T07_T08_suggestion_is_review_not_mandatory_work",
+        "tests/test_activity_planning.py::test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_preserve_unknowns",
+        "tests/test_activity_planning.py::test_T08_T09_quiz_duration_never_becomes_effort",
         "tests/test_domain_planning.py::test_T08_T28_exact_points_fixture_and_boundaries",
         "tests/test_grade_audit.py::test_T08_T02_deselection_during_audit_prevents_response",
         "tests/test_grade_audit.py::test_T08_T02_hidden_totals_not_reconstructed_and_cross_user_denied",
@@ -421,13 +451,17 @@
       "implementation_refs": [
         "src/canvas_bridge/planning.py",
         "src/canvas_bridge/planning_dates.py",
-        "src/canvas_bridge/domain.py"
+        "src/canvas_bridge/domain.py",
+        "src/canvas_bridge/activity_planning.py"
       ],
       "test_refs": [
         "T20",
         "T41"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_domain_planning.py::test_T20_capacity_conservation",
         "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
         "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
@@ -476,7 +510,8 @@
       "implementation_refs": [
         "src/canvas_bridge/domain.py",
         "src/canvas_bridge/planning.py",
-        "src/canvas_bridge/planning_dates.py"
+        "src/canvas_bridge/planning_dates.py",
+        "src/canvas_bridge/activity_planning.py"
       ],
       "test_refs": [
         "T11",
@@ -529,6 +564,9 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
         "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
@@ -584,6 +622,8 @@
         "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T43_selection_race_discards_plan",
         "tests/test_course_files.py::test_T23_direct_storage_url_never_receives_bearer",
         "tests/test_course_files.py::test_T23_download_cancellation_is_propagated_and_closed",
         "tests/test_course_files.py::test_T23_download_origins_require_exact_operator_configuration",
@@ -666,6 +706,11 @@
         "T35"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
@@ -805,6 +850,10 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
         "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
@@ -858,6 +907,7 @@
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_activity_planning.py::test_T43_selection_race_discards_plan",
         "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_file_reading.py::test_T18_deselection_during_parse_cannot_resurrect_text",
         "tests/test_file_reading.py::test_T34_background_retention_removes_expired_extracted_text",
@@ -914,6 +964,7 @@
         "T42"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
@@ -964,6 +1015,16 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T04_event_preparation_past_dst_and_missing_target_are_not_due_dates",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
         "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
         "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
@@ -1071,6 +1132,9 @@
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
@@ -1124,6 +1188,9 @@
         "T42"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_domain_planning.py::test_T20_capacity_conservation",
         "tests/test_domain_planning.py::test_T20_combined_demand_shortfall_is_not_double_booked",
         "tests/test_domain_planning.py::test_T20_overlapping_windows_rejected",
@@ -1240,6 +1307,14 @@
       ],
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
+        "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T06_T07_completed_assignments_excluded",
+        "tests/test_activity_planning.py::test_T07_T08_suggestion_is_review_not_mandatory_work",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T07_T46_discussion_participation_is_not_completion",
+        "tests/test_activity_planning.py::test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_preserve_unknowns",
+        "tests/test_activity_planning.py::test_T46_wrong_activity_intent_needs_review",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
         "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
         "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
@@ -1284,6 +1359,10 @@
         "T46"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T07_T46_discussion_participation_is_not_completion",
+        "tests/test_activity_planning.py::test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_preserve_unknowns",
+        "tests/test_activity_planning.py::test_T46_wrong_activity_intent_needs_review",
         "tests/test_integration_findings.py::test_T05_failed_requirements_fetch_is_never_empty_success",
         "tests/test_integration_findings.py::test_T05_requirements_empty_is_not_failed_or_omitted",
         "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states",
@@ -1359,6 +1438,11 @@
         "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
         "tests/test_account_deletion.py::test_T18_inflight_oauth_exchange_cannot_create_connection_after_delete",
         "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
+        "tests/test_activity_planning.py::test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_preserve_unknowns",
+        "tests/test_activity_planning.py::test_T08_T09_quiz_duration_never_becomes_effort",
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_course_files.py::test_T27_missing_file_collection_is_partial_not_empty_success",
         "tests/test_course_files.py::test_T27_outline_uses_one_budget_for_module_requests",
         "tests/test_file_reading.py::test_T18_deselection_during_parse_cannot_resurrect_text",
@@ -1419,6 +1503,7 @@
         "tests/test_account_deletion.py::test_T18_stale_browser_cannot_restart_linking_but_new_signin_can",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_activity_planning.py::test_T43_selection_race_discards_plan",
         "tests/test_file_reading.py::test_T18_deselection_during_parse_cannot_resurrect_text",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
@@ -1467,6 +1552,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
@@ -1515,6 +1601,12 @@
         "T42"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
+        "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
+        "tests/test_activity_planning.py::test_T04_event_preparation_past_dst_and_missing_target_are_not_due_dates",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
         "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
         "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
         "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
@@ -1591,6 +1683,9 @@
         "T40"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
+        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
@@ -1631,6 +1726,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
@@ -1667,6 +1763,7 @@
         "T38"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
@@ -1710,6 +1807,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
@@ -1771,6 +1869,11 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
+        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
+        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
+        "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
         "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
         "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
         "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
@@ -1833,6 +1936,7 @@
         "T36"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool",
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns"
@@ -1902,6 +2006,7 @@
         "T36"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
@@ -1938,6 +2043,7 @@
         "T30"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool"
       ],
       "test_results": [
@@ -1973,6 +2079,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
@@ -2158,6 +2265,7 @@
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
+        "tests/test_activity_planning.py::test_T43_selection_race_discards_plan",
         "tests/test_course_files.py::test_T34_file_kind_survives_backup_without_signed_urls",
         "tests/test_file_reading.py::test_T18_deselection_during_parse_cannot_resurrect_text",
         "tests/test_file_reading.py::test_T34_background_retention_removes_expired_extracted_text",

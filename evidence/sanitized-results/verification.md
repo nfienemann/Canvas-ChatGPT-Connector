@@ -566,3 +566,32 @@ source suite is not rerun for that update.
 No new tool, OAuth scope, Canvas route, database migration or Calendar write is
 introduced. See [planning date boundaries](../../docs/planning-date-bounds.md)
 for inputs, source-versus-calculation provenance, known limits and root causes.
+
+## 2026-10-20: Selected activity study planning
+
+`propose_course_study_plan` bridges the bounded course inventory into the shared
+deterministic allocator. The snapshot-based planner remains compatible. Source
+versions and current selected-course access are checked, linked aliases schedule
+once, suggested activities remain review entries, and calendar event preparation
+retains its own target instead of inventing an assignment due date. Source and
+coverage changes require a fresh inventory. No extra credential, route, table,
+Canvas write, saved plan or Calendar event is introduced.
+
+The increment adds **26 synthetic regression cases** in
+`tests/test_activity_planning.py`. The focused run passed **81 tests in 6.01
+seconds**. The first full run found an outdated read-only catalog count (25
+instead of 26); the catalog assertion now verifies the new tool and unchanged
+read-only annotations. After correction, the full Windows/PostgreSQL suite passed
+**391 tests, 12 Linux-only skips, in 50.01 seconds**, with **82% total statement
+coverage**, **97% new activity-planning coverage**, **96% shared planner coverage**
+and **97% timing coverage**. Actual HTTP MCP and Windows AppContainer cases were
+included. Ruff and formatting passed for all 114 Python files.
+
+Acceptance covers mixed activity allocation, linked-record deduplication,
+same-title course isolation, later inventory pages, explicit source conflicts,
+unknown effort/participation, completed work, own progress, authorization errors,
+selection races, partial coverage, changed sources, timeout cancellation, response
+bounds, all-day event preparation and DST. It does not establish institution-wide
+availability, New Quizzes, group-child participation, persisted new-activity
+progress or new-activity Calendar writes. See
+[activity study planning](../../docs/activity-study-planning.md).
