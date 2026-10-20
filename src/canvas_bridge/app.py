@@ -27,6 +27,7 @@ from canvas_bridge.domain import DomainError, Effort, Model, Result
 from canvas_bridge.evidence import attach
 from canvas_bridge.grade_audit import grading_request
 from canvas_bridge.grading_engine import GradeScenario, Mode, PolicyReview
+from canvas_bridge.obligations import course_obligations
 from canvas_bridge.planning import PlanRequest
 from canvas_bridge.policy import Registry
 from canvas_bridge.retrieval import fetch_material, outline, search_materials
@@ -151,6 +152,42 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     async def list_courses(connection_id: Ref) -> Result:
         """List currently authorized active student courses. Does not select or enroll in courses."""
         return await bridge.list_courses(request_identity().owner, connection_id)
+
+    @register()
+    async def get_course_obligations(
+        connection_id: Ref,
+        course_id: Ref,
+        start: AwareDatetime,
+        end: AwareDatetime,
+        timezone: str,
+        offset: Annotated[int, Field(ge=0, le=500)] = 0,
+        limit: Annotated[int, Field(ge=1, le=20)] = 10,
+        expected_version: Annotated[str | None, Field(max_length=64)] = None,
+        obligation_id: Ref | None = None,
+    ) -> Result:
+        """Discover assignments, classic quiz instructions, discussion topics and Canvas events.
+
+        Use a selected course and an aware window of at most 31 days for calendar
+        entries. Assignments/quizzes/topics include undated and historical items.
+        Follow next_offset with expected_version; focus an obligation_id to read
+        its visible instructions. Explicit Canvas links deduplicate sources;
+        titles alone never merge activities. Read conflicts and coverage. An
+        activity is not automatically required, upcoming or incomplete. No quiz
+        questions/attempts, discussion replies or external-tool content are read.
+        """
+        return await course_obligations(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            start,
+            end,
+            timezone,
+            offset=offset,
+            limit=limit,
+            expected_version=expected_version,
+            obligation_id=obligation_id,
+        )
 
     @register()
     async def get_workload(

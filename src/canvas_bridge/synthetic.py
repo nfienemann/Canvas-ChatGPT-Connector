@@ -164,12 +164,19 @@ class SyntheticProvider:
                 .removeprefix("course_")
             )
             return httpx.Response(200, json=self.data.get("announcements", {}).get(course, []))
+        if path == "/api/v1/calendar_events":
+            query = parse_qs(request.url.query.decode())
+            course = query.get("context_codes[]", [""])[0].removeprefix("course_")
+            kind = query.get("type", ["event"])[0]
+            return httpx.Response(200, json=self.data.get("calendar_" + kind, {}).get(course, []))
         parts = path.split("/")
         if len(parts) == 5 and parts[3] == "courses":
             item = self.data.get("course_details", {}).get(parts[4])
             return httpx.Response(200, json=item) if item else httpx.Response(404)
         if len(parts) >= 6 and parts[3] == "courses":
             course = parts[4]
+            if len(parts) == 6 and parts[5] in {"quizzes", "discussion_topics"}:
+                return httpx.Response(200, json=self.data.get(parts[5], {}).get(course, []))
             if parts[5] == "assignment_groups":
                 return httpx.Response(
                     200, json=self.data.get("assignment_groups", {}).get(course, [])

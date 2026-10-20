@@ -443,3 +443,43 @@ and explicitly stated that nothing was created or changed. This establishes
 native read/proposal composition; explicit approved create/update/read-back and
 autonomous synchronization remain untested and are not claimed. Private UI
 proof is stored outside Git; no actual event titles or coursework were committed.
+
+## 2026-10-20: Source-linked course obligations
+
+The unchanged 309-test baseline at `b175fae` was reused. A new
+`get_course_obligations` tool adds bounded assignment/classic-quiz/discussion-topic/
+Canvas-calendar discovery through three reviewed GET routes. Explicit source
+relationships deduplicate records; titles alone do not. Assignment-effective dates,
+unknown completion, source differences, per-description states and partial coverage
+remain distinct. No planner, peer-post, question, attempt or calendar-write route
+was added. Existing workload and planning contracts were preserved.
+
+There are **28 new regression cases** in `tests/test_obligations.py`, including
+real HTTP MCP transport, safe quiz instructions when assignment text is empty,
+same-title and contradictory aliases, denied/expired access, owner isolation,
+epoch fencing, pagination confinement, source-version continuation, bounded
+responses, date-only events and the DST half-open-window boundary. The final
+Windows suite passed **337 tests in 45.96 seconds**, with no failures or skips,
+**84% total statement coverage** and **93% obligation-module coverage**. PostgreSQL
+and the Windows AppContainer checks were included. Ruff lint and all 103 Python
+files' format checks passed. An intermediate run had 336 passes and one test-only
+NameError introduced while moving fixture assertions; it was corrected before the
+successful final full run. No application change was needed for that failure.
+
+The authorized private selected-course read completed assignment and both Canvas
+calendar collections. Classic quizzes were permission-denied, and one discussion
+had no posting timestamp, so no quiz/topic instructions were asserted readable.
+This verifies honest graceful limitations against the actual account, not complete
+course coverage. Private results are retained outside Git. The local service was
+restarted using its existing scoped launcher. No Canvas content, grades, Calendar
+events or institutional OAuth settings were changed.
+
+After catalog refresh, an actual ChatGPT conversation invoked the new inventory,
+followed continuation through the selected course, cited the assignment source,
+and explicitly refused to invent unread quiz instructions or upcoming dates. Its
+live answer exposed an overly general omitted-discussion warning. The projection
+now returns per-reason counts (including missing posting time), with no withheld
+resource identities or text. A new regression brought the increment to **29
+cases**, all passing in **3.30 seconds** after that additive clarification. The
+337-test full run above precedes this final reason-label change; CI validates the
+final tree. Private conversation screenshots remain outside Git.

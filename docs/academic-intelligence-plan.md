@@ -29,3 +29,13 @@ isolation and failure tests remain applicable; final checks include the complete
 suite, native MCP contracts, dependency audit/CI and authorized live read-only
 proof. Feature completion is recorded against observed acceptance, not route
 registration. External deployment and institutional gates remain separate.
+
+## Follow-on course breadth increment
+
+Baseline `b175fae` already passed the 309-test full run; it was not rerun unchanged.
+Original specification R03/R21 still lacked non-assignment discovery. The next
+increment adds a fresh canonical obligation inventory through reviewed quiz,
+discussion-topic and Canvas-calendar GET collections. Existing workload and study
+plan contracts are preserved. Explicit aliases, source dates, unknown completion,
+bounded continuation and authorization receive synthetic acceptance before a
+private read-only check. See [scope and limitations](course-obligations.md).

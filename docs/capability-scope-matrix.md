@@ -18,6 +18,9 @@ Configure only the enabled capabilities. The registry contains no live grant.
 | Outline items | `/api/v1/courses/{course}/modules/{module}/items` | `url:GET\|/api/v1/courses/:course_id/modules/:module_id/items` | Module obtained from selected course; metadata only |
 | Page discovery | `/api/v1/courses/{course}/pages` | `url:GET\|/api/v1/courses/:course_id/pages` | Selected course; no revision history or group-wide reads |
 | Course announcements | `/api/v1/announcements` | `url:GET\|/api/v1/announcements` | Fixed selected-course context; last 180 days; visible posted entries only |
+| Classic quiz instructions | `/api/v1/courses/{course}/quizzes` | `url:GET\|/api/v1/courses/:course_id/quizzes` | Selected-course visible metadata only; no question/attempt routes or access-code output |
+| Discussion instructions | `/api/v1/courses/{course}/discussion_topics` | `url:GET\|/api/v1/courses/:course_id/discussion_topics` | Posted, visible course topics; no peers' replies, group-child traversal or mark-read operations |
+| Canvas obligation calendar | `/api/v1/calendar_events` | `url:GET\|/api/v1/calendar_events` | Current user, fixed selected-course context, <=31 days, events and assignment aliases; no reservations or writes |
 | Current page text | `/api/v1/courses/{course}/pages/page_id:{page}` | `url:GET\|/api/v1/courses/:course_id/pages/:url_or_id` | Numeric page ID; fresh access check; content is untrusted data |
 
 Sources: [users](https://developerdocs.instructure.com/services/canvas/resources/users),
@@ -25,7 +28,10 @@ Sources: [users](https://developerdocs.instructure.com/services/canvas/resources
 [assignments](https://developerdocs.instructure.com/services/canvas/resources/assignments),
 [enrollments](https://developerdocs.instructure.com/services/canvas/resources/enrollments),
 [modules](https://developerdocs.instructure.com/services/canvas/resources/modules),
-[pages](https://developerdocs.instructure.com/services/canvas/resources/pages).
+[pages](https://developerdocs.instructure.com/services/canvas/resources/pages),
+[quizzes](https://developerdocs.instructure.com/services/canvas/resources/quizzes),
+[discussion topics](https://developerdocs.instructure.com/services/canvas/resources/discussion_topics),
+[calendar events](https://developerdocs.instructure.com/services/canvas/resources/calendar_events).
 
 All IDs and URLs are resolved internally. Tools cannot submit a method, route,
 token, institution origin, user ID or arbitrary URL. The adapter validates

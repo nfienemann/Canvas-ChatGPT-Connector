@@ -31,6 +31,11 @@
         "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T13_user_and_course_isolation_and_stale_lease_refresh",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T21_hidden_assignment_blocks_linked_aliases",
+        "tests/test_obligations.py::test_T21_invalid_scope_window_fails_before_academic_reads",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
@@ -95,6 +100,8 @@
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T43_selection_changed_mid_read_is_fenced",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
@@ -131,7 +138,8 @@
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
         "src/canvas_bridge/canvas.py",
-        "src/canvas_bridge/service.py"
+        "src/canvas_bridge/service.py",
+        "src/canvas_bridge/obligations.py"
       ],
       "test_refs": [
         "T01",
@@ -143,6 +151,16 @@
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
+        "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T07_T46_same_titles_without_links_stay_distinct_unknown",
+        "tests/test_obligations.py::test_T10_T46_linked_quiz_calendar_one_obligation_and_safe_instructions",
+        "tests/test_obligations.py::test_T10_conflicting_explicit_links_never_guess",
+        "tests/test_obligations.py::test_T46_missing_posting_time_has_specific_coverage_reason",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
@@ -192,6 +210,9 @@
         "tests/test_grade_audit.py::test_T08_T02_score_visibility_and_identity",
         "tests/test_integration_findings.py::test_T03_T06_eleven_undated_assessments_are_not_upcoming",
         "tests/test_integration_findings.py::test_T03_T20_undated_records_need_relevance_before_automatic_allocation",
+        "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T04_calendar_half_open_window_across_dst",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
       "test_results": [
@@ -232,6 +253,7 @@
         "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states",
         "tests/test_integration_findings.py::test_T06_omitted_submission_is_not_filled_from_stale_workload",
         "tests/test_integration_findings.py::test_T06_same_submission_contract_for_list_and_details",
+        "tests/test_obligations.py::test_T07_T46_same_titles_without_links_stay_distinct_unknown",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
@@ -464,6 +486,10 @@
       "automated_test_functions": [
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T21_hidden_assignment_blocks_linked_aliases",
+        "tests/test_obligations.py::test_T21_invalid_scope_window_fails_before_academic_reads",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_personal.py::test_T21_personal_identity_allowlist_still_checks_signature_and_claims",
         "tests/test_personal.py::test_T21_personal_settings_require_an_owner_and_live_prerequisites",
@@ -534,6 +560,9 @@
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T43_selection_changed_mid_read_is_fenced",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T23_personal_prompt_refuses_echo_fallback_and_redacts_failures",
@@ -587,6 +616,12 @@
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T21_hidden_assignment_blocks_linked_aliases",
+        "tests/test_obligations.py::test_T21_invalid_scope_window_fails_before_academic_reads",
+        "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_personal.py::test_T21_personal_identity_allowlist_still_checks_signature_and_claims",
         "tests/test_personal.py::test_T21_personal_settings_require_an_owner_and_live_prerequisites",
@@ -656,6 +691,8 @@
         "tests/test_file_reading_contract.py::test_T11_T12_actual_mcp_file_tools_return_pdf_content",
         "tests/test_grade_audit.py::test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T23_personal_prompt_refuses_echo_fallback_and_redacts_failures",
         "tests/test_retrieval_lifecycle.py::test_T23_archive_expansion_bomb_rejected",
@@ -705,6 +742,11 @@
       ],
       "automated_test_functions": [
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
+        "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
@@ -760,6 +802,9 @@
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T43_selection_changed_mid_read_is_fenced",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
@@ -879,6 +924,17 @@
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T04_calendar_half_open_window_across_dst",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T13_user_and_course_isolation_and_stale_lease_refresh",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
@@ -937,6 +993,9 @@
         "tests/test_file_reading.py::test_T34_background_retention_removes_expired_extracted_text",
         "tests/test_file_reading.py::test_T34_backups_exclude_ephemeral_file_text",
         "tests/test_file_reading.py::test_T34_expired_cache_is_not_returned",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
         "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
@@ -1069,7 +1128,8 @@
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
         "src/canvas_bridge/retrieval.py",
-        "src/canvas_bridge/course_files.py"
+        "src/canvas_bridge/course_files.py",
+        "src/canvas_bridge/obligations.py"
       ],
       "test_refs": [
         "T07",
@@ -1080,6 +1140,14 @@
       "automated_test_functions": [
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_domain_planning.py::test_T07_personal_completion_cannot_replace_submission",
+        "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
+        "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T07_T46_same_titles_without_links_stay_distinct_unknown",
+        "tests/test_obligations.py::test_T10_T46_linked_quiz_calendar_one_obligation_and_safe_instructions",
+        "tests/test_obligations.py::test_T10_conflicting_explicit_links_never_guess",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T46_missing_posting_time_has_specific_coverage_reason",
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
@@ -1118,6 +1186,10 @@
         "tests/test_integration_findings.py::test_T05_failed_requirements_fetch_is_never_empty_success",
         "tests/test_integration_findings.py::test_T05_requirements_empty_is_not_failed_or_omitted",
         "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T07_T46_same_titles_without_links_stay_distinct_unknown",
+        "tests/test_obligations.py::test_T10_T46_linked_quiz_calendar_one_obligation_and_safe_instructions",
+        "tests/test_obligations.py::test_T46_missing_posting_time_has_specific_coverage_reason",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
       "test_results": [
@@ -1192,6 +1264,8 @@
         "tests/test_integration_findings.py::test_T27_history_reports_baseline_scope_and_incomplete_observations",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
@@ -1248,6 +1322,8 @@
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T43_selection_changed_mid_read_is_fenced",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
@@ -1295,6 +1371,7 @@
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles",
@@ -1349,6 +1426,11 @@
         "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
+        "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
+        "tests/test_obligations.py::test_T04_calendar_half_open_window_across_dst",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T13_user_and_course_isolation_and_stale_lease_refresh",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
@@ -1393,6 +1475,9 @@
       "automated_test_functions": [
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
+        "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
+        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
         "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
@@ -1430,6 +1515,7 @@
       "automated_test_functions": [
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
         "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
         "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
       ],
@@ -1466,6 +1552,7 @@
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles",
@@ -1506,6 +1593,7 @@
       ],
       "automated_test_functions": [
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
@@ -1575,6 +1663,11 @@
         "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
+        "tests/test_obligations.py::test_T13_user_and_course_isolation_and_stale_lease_refresh",
+        "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted",
+        "tests/test_obligations.py::test_T21_hidden_assignment_blocks_linked_aliases",
+        "tests/test_obligations.py::test_T21_invalid_scope_window_fails_before_academic_reads",
         "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
@@ -1620,7 +1713,8 @@
         "T36"
       ],
       "automated_test_functions": [
-        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope"
+        "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1721,8 +1815,12 @@
       "test_refs": [
         "T30"
       ],
-      "automated_test_functions": [],
-      "test_results": [],
+      "automated_test_functions": [
+        "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool"
+      ],
+      "test_results": [
+        "evidence/sanitized-results/verification.md"
+      ],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
       "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
@@ -1757,6 +1855,7 @@
         "tests/test_oauth.py::test_T14_expired_state_cannot_link",
         "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
         "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
@@ -1944,6 +2043,8 @@
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
         "tests/test_oauth.py::test_T18_disconnect_during_refresh_cannot_resurrect_token",
+        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
+        "tests/test_obligations.py::test_T43_selection_changed_mid_read_is_fenced",
         "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",

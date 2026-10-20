@@ -1,7 +1,8 @@
 import asyncio
 import random
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Literal
 
 import httpx
 
@@ -116,9 +117,34 @@ class CanvasClient:
             raise DomainError("partial_data", "Canvas returned an unexpected object.")
         return payload
 
-    async def collection(self, endpoint: Endpoint, **ids: str) -> Collection:
+    async def collection(
+        self,
+        endpoint: Endpoint,
+        *,
+        window: tuple[datetime, datetime] | None = None,
+        calendar_kind: Literal["event", "assignment"] = "event",
+        **ids: str,
+    ) -> Collection:
         # Query values are determined here, never passed through from a tool.
         params: list[tuple[str, str]] = [("per_page", "100")]
+        if endpoint == Endpoint.CALENDAR_EVENTS:
+            if (
+                window is None
+                or any(t.tzinfo is None or t.utcoffset() is None for t in window)
+                or not timedelta(0) < window[1] - window[0] <= timedelta(days=31)
+                or calendar_kind not in {"event", "assignment"}
+            ):
+                raise DomainError(
+                    "needs_input", "Calendar reads require a bounded aware date window."
+                )
+            params += [
+                ("context_codes[]", "course_" + source_id(ids.get("course", ""))),
+                ("type", calendar_kind),
+                ("start_date", window[0].isoformat()),
+                ("end_date", window[1].isoformat()),
+                ("excludes[]", "child_events"),
+                ("excludes[]", "assignment"),
+            ]
         if endpoint == Endpoint.COURSES:
             params += [("enrollment_type", "student"), ("enrollment_state", "active")]
         if endpoint == Endpoint.ASSIGNMENTS:

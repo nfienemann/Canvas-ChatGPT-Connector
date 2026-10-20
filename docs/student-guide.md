@@ -15,6 +15,12 @@ upcoming. An empty assignment description is labeled explicitly and does not
 mean the instructor has provided no requirements elsewhere. Change tracking
 starts with complete observed snapshots and cannot reconstruct older history.
 
+Ask “Check this course for quiz instructions, discussions and calendar activities”
+to look beyond the assignment list. Where Canvas provides visible classic quiz
+instructions, they can be read even if the assignment description is empty.
+Locked or unavailable instructions stay unavailable. An ungraded discussion or
+calendar entry does not automatically mean required work or an upcoming deadline.
+
 The downloadable preview is a fictional local demonstration; general student
 onboarding is not available. A student should not install a server or paste a
 Canvas token to use a future hosted release.

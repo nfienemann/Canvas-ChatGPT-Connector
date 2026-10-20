@@ -14,6 +14,7 @@ response size is 250 KB; callers must narrow excessive requests.
 |---|---|
 | get_connection_status | Owned identity/scope/capability state; fictional profile visibly labeled |
 | list_courses | Active student courses; staff/mixed roles excluded; does not select courses |
+| get_course_obligations | Assignment/quiz/topic/event source aliases, bounded calendar window, visible instructions and hash-bound continuation; candidates never imply required or unfinished work |
 | get_workload | Explicit <=31-day window; max 100 items/page; course coverage and encrypted bound cursor |
 | get_assignment_details | Fresh accessible requirements/rubric; no locked material |
 | get_changes | Complete matching-scope baselines only; first observed is not newly published |

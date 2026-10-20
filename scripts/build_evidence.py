@@ -26,7 +26,7 @@ for path in sorted((ROOT / "tests").glob("test_*.py")):
 component_map = {
     "R01": ["auth.py", "storage.py", "personal.py"],
     "R02": ["linking.py", "settings_ui.py", "personal.py"],
-    "R03": ["canvas.py", "service.py"],
+    "R03": ["canvas.py", "service.py", "obligations.py"],
     "R04": [
         "normalize.py",
         "domain.py",
@@ -57,7 +57,7 @@ component_map = {
         "parser_worker.py",
         "windows_sandbox.py",
     ],
-    "R21": ["retrieval.py", "course_files.py"],
+    "R21": ["retrieval.py", "course_files.py", "obligations.py"],
     "R26": ["settings_ui.py"],
     "R27": ["domain.py", "policy.py"],
     "R28": ["jobs.py"],

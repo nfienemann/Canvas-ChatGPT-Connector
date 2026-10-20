@@ -20,7 +20,9 @@ acceptance. OCR, visual interpretation and Linux/macOS parser workers remain
 unimplemented live. Calendar proposals now compose with the existing native
 connection; actual writes still require explicit event approval and read-back.
 
-Additional gaps: comprehensive non-assignment obligations, advanced grade
+Additional gaps: comprehensive non-assignment obligations (classic quiz/topic and
+dated Canvas calendar inventory now has bounded tests; planner and group-child
+coverage remain absent), advanced grade
 policies, fleet quotas,
 production key rotation, real mobile/screen-reader tests and license adoption.
 Desktop previews also require Windows publisher signing, Apple Developer ID

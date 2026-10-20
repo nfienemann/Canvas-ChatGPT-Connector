@@ -130,6 +130,9 @@ class Endpoint(StrEnum):
     PAGES = "/api/v1/courses/{course}/pages"
     PAGE = "/api/v1/courses/{course}/pages/page_id:{page}"
     ANNOUNCEMENTS = "/api/v1/announcements"
+    QUIZZES = "/api/v1/courses/{course}/quizzes"
+    DISCUSSIONS = "/api/v1/courses/{course}/discussion_topics"
+    CALENDAR_EVENTS = "/api/v1/calendar_events"
     FILE = "/api/v1/courses/{course}/files/{file}"
     FILES = "/api/v1/courses/{course}/files"
 
