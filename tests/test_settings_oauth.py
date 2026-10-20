@@ -1,0 +1,153 @@
+"""Browser OAuth interop and mix-up defenses without a live identity provider."""
+
+import base64
+import hashlib
+from contextlib import asynccontextmanager
+from urllib.parse import parse_qs, urlsplit
+
+import httpx
+import pytest
+
+from canvas_bridge.app import create_app
+from canvas_bridge.linking import digest
+from canvas_bridge.storage import OAuthState
+
+
+@pytest.fixture
+def identity_exchange(settings, token_factory, monkeypatch):
+    settings.browser_client_id = "settings-fixture"
+    settings.browser_authorization_url = settings.issuer_url + "/oauth2/authorize"
+    settings.browser_token_url = settings.issuer_url + "/oauth2/token"
+    calls = []
+
+    async def exchange(request):
+        calls.append(request)
+        return httpx.Response(200, json={"access_token": token_factory()})
+
+    @asynccontextmanager
+    async def client():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(exchange)) as http:
+            yield http
+
+    monkeypatch.setattr("canvas_bridge.settings_ui.public_client", client)
+    return calls
+
+
+async def start(client):
+    response = await client.get("/settings/login")
+    assert response.status_code == 307
+    values = parse_qs(urlsplit(response.headers["location"]).query)
+    return values, urlsplit(values["redirect_uri"][0]).path
+
+
+@pytest.mark.parametrize("require_issuer", [True, False])
+async def test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay(
+    bridge, settings, identity_exchange, require_issuer
+):
+    settings.browser_require_issuer_parameter = require_issuer
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(settings, bridge)),
+        base_url=settings.resource_url,
+    ) as client:
+        values, callback = await start(client)
+        params = {"state": values["state"][0], "code": "fixture-code"}
+        if require_issuer:
+            params["iss"] = settings.issuer_url
+        else:
+            assert callback.endswith(hashlib.sha256(settings.issuer_url.encode()).hexdigest())
+        result = await client.get(callback, params=params)
+        assert result.status_code == 303
+        assert "bridge_session" in result.cookies
+        assert len(identity_exchange) == 1
+        exchange = parse_qs(identity_exchange[0].content.decode())
+        assert str(identity_exchange[0].url) == settings.browser_token_url
+        assert exchange["redirect_uri"] == values["redirect_uri"]
+        assert exchange["resource"] == values["resource"]
+        challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(exchange["code_verifier"][0].encode()).digest())
+            .decode()
+            .rstrip("=")
+        )
+        assert values["code_challenge"] == [challenge]
+        assert values["code_challenge_method"] == ["S256"]
+        assert (await client.get(callback, params=params)).status_code == 403
+        assert len(identity_exchange) == 1
+
+
+@pytest.mark.parametrize(
+    "attack",
+    [
+        "wrong_issuer",
+        "empty_issuer",
+        "duplicate_issuer",
+        "duplicate_code",
+        "unbound_path",
+        "wrong_path",
+        "wrong_cookie",
+        "changed_issuer",
+        "changed_token_url",
+        "changed_client",
+        "changed_resource",
+        "changed_mode",
+    ],
+)
+async def test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange(
+    bridge, settings, identity_exchange, attack
+):
+    settings.browser_require_issuer_parameter = False
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(settings, bridge)),
+        base_url=settings.resource_url,
+    ) as client:
+        values, callback = await start(client)
+        params = [("state", values["state"][0]), ("code", "fixture-code")]
+        if attack == "wrong_issuer":
+            params.append(("iss", "https://wrong.invalid"))
+        elif attack == "empty_issuer":
+            params.append(("iss", ""))
+        elif attack == "duplicate_issuer":
+            params.extend([("iss", "https://wrong.invalid"), ("iss", settings.issuer_url)])
+        elif attack == "duplicate_code":
+            params.append(("code", "second-code"))
+        elif attack == "unbound_path":
+            callback = "/settings/callback"
+        elif attack == "wrong_path":
+            callback = "/settings/callback/other-provider"
+        elif attack == "wrong_cookie":
+            client.cookies.clear()
+        elif attack == "changed_issuer":
+            settings.issuer_url = "https://changed.invalid"
+        elif attack == "changed_token_url":
+            settings.browser_token_url += "/changed"
+        elif attack == "changed_client":
+            settings.browser_client_id = "changed-client"
+        elif attack == "changed_resource":
+            settings.resource_url += "/changed"
+        elif attack == "changed_mode":
+            settings.browser_require_issuer_parameter = True
+        result = await client.get(callback, params=params)
+        assert result.status_code == 403
+        assert not identity_exchange
+        assert "bridge_session" not in result.cookies
+
+
+async def test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state(
+    bridge, settings, identity_exchange
+):
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(settings, bridge)),
+        base_url=settings.resource_url,
+    ) as client:
+        values, callback = await start(client)
+        params = {"state": values["state"][0], "code": "fixture-code"}
+        assert (await client.get(callback, params=params)).status_code == 403
+        # States created before endpoint/issuer binding must restart sign-in.
+        state_digest = digest(params["state"])
+        with bridge.store.transaction() as database:
+            row = database.get(OAuthState, state_digest)
+            payload = bridge.vault.open(row.payload, "identity", state_digest)
+            payload.pop("context")
+            row.payload = bridge.vault.seal(payload, "identity", state_digest)
+        params["iss"] = settings.issuer_url
+        assert (await client.get(callback, params=params)).status_code == 403
+        assert not identity_exchange

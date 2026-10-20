@@ -183,6 +183,8 @@ def doctor(settings: Settings):
         "live_access_enabled": settings.live_access_enabled,
         "calendar_writes_enabled": False,
         "model_api_key_required": False,
+        "browser_callback_url": settings.browser_callback_url,
+        "browser_requires_issuer_parameter": settings.browser_require_issuer_parameter,
     }
     try:
         bridge = create_bridge(settings)

@@ -64,6 +64,16 @@ def add_settings_routes(mcp, bridge, verifier):
     root = settings.resource_url.rstrip("/")
     secure = root.startswith("https://")
 
+    def authorization_context():
+        return {
+            "issuer": settings.issuer_url,
+            "authorization_url": settings.browser_authorization_url,
+            "token_url": settings.browser_token_url,
+            "client_id": settings.browser_client_id,
+            "resource": settings.resource_url,
+            "require_issuer": settings.browser_require_issuer_parameter,
+        }
+
     def route(path: str, methods: list[str]):
         def decorate(fn):
             @functools.wraps(fn)
@@ -288,7 +298,7 @@ def add_settings_routes(mcp, bridge, verifier):
             .decode()
             .rstrip("=")
         )
-        callback = root + "/settings/callback"
+        callback = settings.browser_callback_url
         with bridge.store.transaction() as session:
             session.add(
                 OAuthState(
@@ -299,7 +309,9 @@ def add_settings_routes(mcp, bridge, verifier):
                     browser_digest=digest(nonce),
                     expires_at=utcnow() + timedelta(minutes=10),
                     payload=bridge.vault.seal(
-                        {"verifier": verifier_secret}, "identity", digest(state)
+                        {"verifier": verifier_secret, "context": authorization_context()},
+                        "identity",
+                        digest(state),
                     ),
                 )
             )
@@ -325,9 +337,16 @@ def add_settings_routes(mcp, bridge, verifier):
         response.headers.update({"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
         return response
 
+    @route("/settings/callback/{issuer_key}", ["GET"])
     @route("/settings/callback", ["GET"])
     async def login_callback(request):
+        if any(
+            len(request.query_params.getlist(name)) > 1
+            for name in ("state", "code", "iss", "error")
+        ):
+            raise DomainError("permission_denied", "Identity callback parameters are ambiguous.")
         state = request.query_params.get("state", "")
+        response_issuer = request.query_params.get("iss")
         with bridge.store.transaction() as session:
             record = session.scalar(
                 select(OAuthState)
@@ -343,14 +362,20 @@ def add_settings_routes(mcp, bridge, verifier):
                 or not secrets.compare_digest(
                     record.browser_digest, digest(request.cookies.get("bridge_oauth", ""))
                 )
-                or request.query_params.get("iss") != settings.issuer_url
+                or record.redirect != settings.browser_callback_url
+                or request.url.path != urlsplit(record.redirect).path
+                or (response_issuer is not None and response_issuer != settings.issuer_url)
+                or (settings.browser_require_issuer_parameter and response_issuer is None)
             ):
                 raise DomainError(
                     "permission_denied", "Identity callback did not match this login."
                 )
-            verifier_secret = bridge.vault.open(record.payload, "identity", digest(state))[
-                "verifier"
-            ]
+            payload = bridge.vault.open(record.payload, "identity", digest(state))
+            if payload.get("context") != authorization_context():
+                raise DomainError(
+                    "permission_denied", "Identity-provider configuration changed; sign in again."
+                )
+            verifier_secret = payload["verifier"]
             callback = record.redirect
             session.delete(record)
         code = request.query_params.get("code")

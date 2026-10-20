@@ -34,8 +34,26 @@ including issuer/resource binding, discovery, S256 PKCE and exact redirects.
 For browser settings configure `BRIDGE_BROWSER_CLIENT_ID`,
 `BRIDGE_BROWSER_AUTHORIZATION_URL`, `BRIDGE_BROWSER_TOKEN_URL`, and optionally
 `BRIDGE_BROWSER_CLIENT_SECRET_FILE`. Browser endpoints must share the configured
-issuer host. The callback requires an exact issuer `iss` parameter.
-Register `/settings/callback` at the deployment resource base.
+issuer host. By default the callback requires an exact issuer `iss` parameter.
+Register `/settings/callback` at the deployment resource base. For a provider
+that does not support RFC 9207 authorization-response issuer identification, set
+`BRIDGE_BROWSER_REQUIRE_ISSUER_PARAMETER=false` and register the **exact**
+`browser_callback_url` reported by `doctor`. This uses a separate callback path
+for each exact issuer, following RFC 9700 section 4.4.2.2. Do not register a
+wildcard. A returned `iss`, when present, must still match. The encrypted one-use
+login transaction also binds the issuer, authorization/token endpoints, client,
+resource and callback policy; changing configuration requires a fresh login.
+
+For WorkOS AuthKit, use the environment's AuthKit issuer and `/oauth2/jwks`,
+`/oauth2/authorize`, and `/oauth2/token`. Inspect that environment's discovery
+before choosing the callback mode. Configure the exact resource indicator to
+match `BRIDGE_RESOURCE_URL`; the environment client ID is not a substitute
+audience. Static Connect OAuth applications can be assigned the app's custom
+scopes. The settings client needs `academic:read preferences:write settings:write`;
+the initial read-only MCP client needs `academic:read`. Dynamically registered
+WorkOS clients do not receive these custom scopes by default. Do not bypass
+scope validation or treat `openid` as coursework permission. This configuration
+guidance is not a completed WorkOS or ChatGPT integration test.
 
 Keep operator files and secret mounts outside public artifacts. Reverse-proxy
 logs must omit authorization headers and callback query strings.

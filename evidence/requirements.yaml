@@ -562,7 +562,10 @@
         "tests/test_service_security.py::test_T23_credentials_are_bound_to_owner_and_connection",
         "tests/test_service_security.py::test_T23_dns_connect_is_pinned_to_validated_address",
         "tests/test_service_security.py::test_T23_dns_rebinding_to_private_is_rejected",
-        "tests/test_service_security.py::test_T23_private_addresses_blocked"
+        "tests/test_service_security.py::test_T23_private_addresses_blocked",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -696,7 +699,10 @@
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
-        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks"
+        "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -757,7 +763,10 @@
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
-        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
+        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1177,7 +1186,10 @@
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
-        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied"
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1499,7 +1511,10 @@
       "automated_test_functions": [
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
-        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect"
+        "tests/test_mcp_contract.py::test_T19_T43_settings_flow_csrf_and_disconnect",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
+        "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"

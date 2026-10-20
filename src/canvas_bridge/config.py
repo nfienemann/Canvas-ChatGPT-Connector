@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
     browser_client_secret_file: Path | None = None
     browser_authorization_url: str | None = None
     browser_token_url: str | None = None
+    browser_require_issuer_parameter: bool = True
     live_access_enabled: bool = False
     personal_subject: str | None = Field(default=None, min_length=1, max_length=256, repr=False)
     mcp_read_only: bool = False
@@ -33,6 +35,14 @@ class Settings(BaseSettings):
     refresh_budget_seconds: float = Field(default=12, gt=0, le=15)
     authorization_lease_seconds: int = Field(default=300, ge=0, le=300)
     max_courses: int = Field(default=30, ge=1, le=100)
+
+    @property
+    def browser_callback_url(self) -> str:
+        callback = self.resource_url.rstrip("/") + "/settings/callback"
+        if not self.browser_require_issuer_parameter:
+            # RFC 9700 section 4.4.2.2: a distinct redirect for each exact issuer.
+            callback += "/" + hashlib.sha256(self.issuer_url.encode()).hexdigest()
+        return callback
 
     @model_validator(mode="after")
     def safe_profile(self):

@@ -117,3 +117,18 @@ Rowan's public Canvas origin was verified using its official service page.
 No personal token was supplied to this code, no real Canvas account was accessed,
 and no actual ChatGPT conversation was tested. Identity-provider and secure
 reachability setup remain prerequisites for that first private proof.
+
+## Browser identity-provider compatibility increment
+
+On 2026-10-20 the full local suite passed **124 tests in 19.42 seconds**, including
+PostgreSQL tests, with no skips and 79% statement coverage (2,253/2,858). Ruff lint,
+format and `git diff --check` passed. Fifteen new HTTP cases verify settings
+OAuth PKCE, exact redirect/resource binding, replay rejection, provider-specific
+callbacks, missing/wrong/duplicate issuer rejection, browser binding and rejection
+of changed identity-provider configuration before code exchange.
+
+The default callback still requires RFC 9207 `iss`. An explicit compatibility
+mode uses issuer-specific redirect URIs under RFC 9700 section 4.4.2.2. WorkOS
+configuration is documented, but a live provider login and an actual ChatGPT
+coursework read have not yet passed. No personal token or academic records were
+used in these tests. Native demo packages are unchanged.
