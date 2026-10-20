@@ -2,3 +2,4 @@
 *.png binary
 *.pdf binary
 Codex_Spec.md whitespace=-blank-at-eol
+packaging/licenses/*.txt whitespace=-blank-at-eol,-blank-at-eof

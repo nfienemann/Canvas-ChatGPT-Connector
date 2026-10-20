@@ -59,7 +59,10 @@ def notices():
             ):
                 source = dist.locate_file(file)
                 if source.is_file():
-                    target = folder / name / file.name
+                    # Preserve vendored license paths; basename-only copies overwrite
+                    # distinct LICENSE files within a single distribution.
+                    relative = Path(*[part for part in file.parts if part not in {".", ".."}])
+                    target = folder / name / relative
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(source, target)
     (folder / "build-dependencies.json").write_text(
@@ -69,6 +72,11 @@ def notices():
     python_license = Path(sys.base_prefix) / "LICENSE.txt"
     if python_license.is_file():
         shutil.copyfile(python_license, folder / "PYTHON-LICENSE.txt")
+    else:
+        shutil.copyfile(
+            ROOT / "packaging/licenses/PYTHON-LICENSE.txt", folder / "PYTHON-LICENSE.txt"
+        )
+    shutil.copyfile(ROOT / "packaging/licenses/TCL-LICENSE.txt", folder / "TCL-LICENSE.txt")
     return folder
 
 
