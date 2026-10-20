@@ -11,3 +11,7 @@ htmlcov
 .coverage
 tests
 evidence
+dist
+build
+.hypothesis
+node_modules

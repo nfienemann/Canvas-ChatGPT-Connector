@@ -1,0 +1,28 @@
+{
+  "platform": "win32",
+  "signing": "unsigned_development_preview",
+  "installer": "passed",
+  "mcp": {
+    "environment": "local_synthetic",
+    "protocol": "2025-11-25",
+    "tool_count": 14,
+    "observed_obligations": 5,
+    "workload_status": "ok",
+    "planning": "verified",
+    "actual_chatgpt": "not_tested",
+    "live_canvas": "not_tested",
+    "bundled": true,
+    "platform": "win32"
+  },
+  "in_place_upgrade": "passed",
+  "wizard": {
+    "native_wizard": "passed",
+    "platform": "win32"
+  },
+  "restart_preserves_keys": "passed",
+  "uninstall_preserves_data": "passed",
+  "source_commit": "bd95942cd2c2c68f55bb9b0397c956762951d1d0",
+  "installer_bytes": 38718289,
+  "installer_sha256": "12ccb9383eec273d25ec8591527b6256cb420cd109a6fd5f817bd0be612d682c",
+  "scope": "Local Windows build; GitHub-built packages have separate checksums and reports."
+}
