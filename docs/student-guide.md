@@ -67,5 +67,15 @@ Use fetched sources for quotes. Text extraction does not establish what a figure
 shows. Locked or unfetched readings remain unresolved. Visible grades and
 hypothetical calculations are different.
 
+You can ask “Is my Canvas grade accurate according to the syllabus?” or “What
+would I need on the final?” The connector preserves Canvas's reported value and
+shows any independent calculation separately. It first checks visible scores and
+grading settings, then retrieves available syllabus text. It may ask you to review
+specific source passages and confirm whether amendments or other rules are missing.
+An ungraded assessment is not a zero. If a policy, grade or course category is
+uncertain, a precise estimate may be unavailable; this is not an accusation that
+the instructor or Canvas is wrong. Projections use your explicit hypothetical
+scores, remain conditional on visible work, and never change Canvas.
+
 Report issues to the repository owner using synthetic examples. Never include
 tokens, private grades or other students' data in a public issue.

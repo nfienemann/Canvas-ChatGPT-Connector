@@ -100,6 +100,16 @@ class CanvasClient:
         # Match assignment-list semantics. Canvas omits the current user's
         # submission from a single assignment unless explicitly requested.
         params = [("include[]", "submission")] if endpoint == Endpoint.ASSIGNMENT else []
+        if endpoint == Endpoint.COURSE:
+            params = [
+                ("include[]", key)
+                for key in (
+                    "syllabus_body",
+                    "total_scores",
+                    "grading_periods",
+                    "current_grading_period_scores",
+                )
+            ]
         payload, _ = await self._get(str(httpx.URL(self.url(endpoint, **ids), params=params)))
         if not isinstance(payload, dict):
             raise DomainError("partial_data", "Canvas returned an unexpected object.")
@@ -113,7 +123,11 @@ class CanvasClient:
         if endpoint == Endpoint.ASSIGNMENTS:
             params += [("include[]", "submission")]
         if endpoint == Endpoint.ENROLLMENTS:
-            params += [("type[]", "StudentEnrollment"), ("state[]", "active")]
+            params += [
+                ("type[]", "StudentEnrollment"),
+                ("state[]", "active"),
+                ("include[]", "current_points"),
+            ]
         if endpoint == Endpoint.PAGE:
             raise DomainError("permission_denied", "This route is not a collection.")
         original = str(httpx.URL(self.url(endpoint, **ids), params=params))

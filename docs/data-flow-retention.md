@@ -47,3 +47,10 @@ were committed. No blanket FERPA
 certification, universal “never used for training” statement or legal suitability
 claim is made. Applicable ChatGPT workspace controls, deployment region, institution
 arrangements and privacy policy must be reviewed for the actual service.
+
+Grade auditing adds no persistent grade/audit table or notification job. Visible
+scores, configuration, rule candidates, scenario inputs and calculation bases
+exist in the request and its returned response. Syllabus documents reuse the
+existing material cache and its deletion/expiry behavior; no separate grade cache
+or raw-record logging is introduced. Returned grades may remain in the student's
+ChatGPT conversation and require that product's own deletion controls.

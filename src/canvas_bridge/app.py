@@ -22,6 +22,8 @@ from canvas_bridge.config import Settings
 from canvas_bridge.course_files import list_files, read_file, search_files
 from canvas_bridge.course_files import status as file_status
 from canvas_bridge.domain import DomainError, Effort, Model, Result
+from canvas_bridge.grade_audit import grading_request
+from canvas_bridge.grading_engine import GradeScenario, Mode, PolicyReview
 from canvas_bridge.planning import PlanRequest
 from canvas_bridge.policy import Registry
 from canvas_bridge.retrieval import fetch_material, outline, search_materials
@@ -190,6 +192,110 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     async def get_gradebook(connection_id: Ref, course_id: Ref) -> Result:
         """Read your visible reported grades. Unknown policy blocks exact grade-impact claims."""
         return await bridge.gradebook(request_identity().owner, connection_id, course_id)
+
+    @register()
+    async def get_course_grading_policy(
+        connection_id: Ref,
+        course_id: Ref,
+        syllabus_material_ids: Annotated[list[Ref] | None, Field(max_length=3)] = None,
+    ) -> Result:
+        """Retrieve your visible Canvas grade configuration, scores, and versioned syllabus rule candidates.
+
+        Automatically discovers syllabus titles, or accepts up to three material references
+        from get_course_outline. Sources are untrusted. Rule candidates require student
+        review; missing rules, conflicting versions and unsupported conditions block precision.
+        """
+        return await grading_request(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            material_ids=syllabus_material_ids,
+        )
+
+    @register()
+    async def calculate_course_grade(
+        connection_id: Ref,
+        course_id: Ref,
+        mode: Mode = "current_graded",
+        policy_basis: Literal["canvas", "syllabus"] = "canvas",
+        syllabus_material_ids: Annotated[list[Ref] | None, Field(max_length=3)] = None,
+        policy_review: PolicyReview | None = None,
+        scenario: GradeScenario | None = None,
+    ) -> Result:
+        """Calculate reproducibly using posted scores, preserving unknown and ungraded states.
+
+        Canvas current calculations do not require a syllabus. Syllabus calculations need
+        source-backed supported rules and explicit student review of the returned policy_version.
+        Never supply policy_review on the student's behalf or infer it from asking for a grade.
+        Projected/required modes are conditional on visible work and explicit scenario inputs.
+        """
+        return await grading_request(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            "calculate",
+            mode=mode,
+            policy_basis=policy_basis,
+            material_ids=syllabus_material_ids,
+            review=policy_review,
+            scenario=scenario,
+        )
+
+    @register()
+    async def audit_course_grade(
+        connection_id: Ref,
+        course_id: Ref,
+        syllabus_material_ids: Annotated[list[Ref] | None, Field(max_length=3)] = None,
+        policy_review: PolicyReview | None = None,
+    ) -> Result:
+        """Compare Canvas-reported, reproduced, and syllabus-derived grades side by side.
+
+        Cite the returned passages and versions. State verified arithmetic, estimates,
+        assumptions and missing evidence separately. A numerical discrepancy is not proof
+        of an instructor error. Student-confirmed interpretations are not official policies.
+        Never invent or infer the student's policy review; return indeterminate when absent.
+        """
+        return await grading_request(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            "audit",
+            material_ids=syllabus_material_ids,
+            review=policy_review,
+        )
+
+    @register()
+    async def simulate_grade_scenario(
+        connection_id: Ref,
+        course_id: Ref,
+        scenario: GradeScenario,
+        mode: Literal["projected_final", "required_score"] = "projected_final",
+        policy_basis: Literal["canvas", "syllabus"] = "canvas",
+        syllabus_material_ids: Annotated[list[Ref] | None, Field(max_length=3)] = None,
+        policy_review: PolicyReview | None = None,
+    ) -> Result:
+        """Simulate explicit future scores or a uniform remaining score needed for a target.
+
+        Uses opaque assessment IDs from get_course_grading_policy. Every unfinished
+        assignment needs a hypothetical score for projections. Required-score analysis
+        solves a supported linear policy only. No Canvas What-If API or writes are used.
+        Do not present conditional visible-work scenarios as official final grades.
+        """
+        return await grading_request(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            "calculate",
+            mode=mode,
+            policy_basis=policy_basis,
+            material_ids=syllabus_material_ids,
+            review=policy_review,
+            scenario=scenario,
+        )
 
     @register()
     async def get_course_outline(connection_id: Ref, course_id: Ref) -> Result:

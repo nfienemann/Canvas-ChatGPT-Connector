@@ -30,7 +30,7 @@ component_map = {
     "R04": ["normalize.py", "domain.py"],
     "R05": ["normalize.py"],
     "R06": ["planning.py"],
-    "R07": ["grades.py", "service.py"],
+    "R07": ["grades.py", "service.py", "grade_audit.py", "grading_engine.py", "grading_policy.py"],
     "R08": ["planning.py", "domain.py"],
     "R09": ["domain.py", "planning.py"],
     "R10": ["policy.py", "canvas.py"],

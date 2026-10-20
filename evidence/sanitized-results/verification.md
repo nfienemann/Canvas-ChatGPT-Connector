@@ -329,3 +329,46 @@ The outline reported denied Pages/Files collections explicitly while resolving
 the authorized module files. All academic requests remained GET-only; no Canvas
 content or grades were changed. New additive JSON response fields need no schema
 migration. See `docs/live-integration-findings.md` for classification and root causes.
+
+## Grade auditing and syllabus reconciliation
+
+This increment adds four native read-only tools and a deterministic Decimal
+calculation engine. `tests/test_grade_audit.py` adds **30 regression cases**,
+covering all 17 requested grading edge cases plus PDF syllabus/page provenance,
+version-bound policy reviews, explicit refusal, access withdrawal, cross-user and
+cross-course isolation, request limits and timeout handling. The official HTTP
+MCP client verifies actual tool schemas, annotations and calculation/refusal
+responses. Existing tools and the original points helper remain compatible.
+
+Local Windows Python 3.14.5 full run: **274 passed in 31.76 seconds**, no failures
+or skips, **82% statement coverage**, including disposable PostgreSQL and real
+Windows sandbox checks. The new acquisition/calculation/policy modules reached
+84%/91%/90% statement coverage respectively. Ruff lint, formatting and diff checks
+passed. The first focused test run exposed a missing imported HTTP-server test
+fixture (24 passed, one setup error); importing the existing fixture fixed it.
+One formatting check was corrected without a behavioral change. No unchanged
+second full-suite run was performed.
+
+An owner-authorized live GET-only check retrieved Canvas grading configuration,
+own enrollment fields and list/detail evidence from the selected course. All
+eleven returned assessments were ungraded, and the reported percentage was
+unavailable. The engine correctly refused to manufacture a current percentage.
+A separate live audit retrieved two syllabus sources through the existing
+material infrastructure, returned source-bound rule candidates, and classified
+the result as insufficient evidence: no posted scores and incomplete/ambiguous
+policy mappings. No actual grades, source passages, private identifiers, tokens,
+signed URLs or screenshots are committed in this evidence.
+
+The existing private launcher restarted successfully with the four new tools.
+No database migration, identity scope change or notification was introduced.
+After refreshing the installed connector, an actual ChatGPT Pro conversation
+invoked connection status and the new grade audit. The inspected tool activity
+and final answer distinguished current versus final Canvas fields, reported
+indeterminate independent calculations, cited the actual syllabus PDF/page,
+listed unconfirmed rule candidates and identified missing scores and mappings.
+It did not supply a policy review or accuse the instructor of an error. Private
+UI proof remains outside the repository. An expanded HTTP contract check then
+exercised all four new tools; the focused 30-case suite passed again.
+The verified arithmetic subset and remaining policy/notification limitations are
+documented in `docs/grade-auditing.md`. This is not proof of all grading policies,
+instructor verification, institutional approval or a generally released service.

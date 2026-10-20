@@ -10,7 +10,10 @@ Configure only the enabled capabilities. The registry contains no live grant.
 | Course access | `/api/v1/courses` | `url:GET\|/api/v1/courses` | Active student enrollments only; mixed staff roles excluded |
 | Workload | `/api/v1/courses/{course}/assignments` | `url:GET\|/api/v1/courses/:course_id/assignments` | Selected authorized course; own submission only |
 | Requirements/rubric | `/api/v1/courses/{course}/assignments/{assignment}` | `url:GET\|/api/v1/courses/:course_id/assignments/:id` | Opaque work reference resolved server-side; locked/unpublished content denied |
-| Reported grades | `/api/v1/users/self/enrollments` | `url:GET\|/api/v1/users/:user_id/enrollments` | Own student enrollment in selected course; four visible grade fields |
+| Reported grades | `/api/v1/users/self/enrollments` | `url:GET\|/api/v1/users/:user_id/enrollments` | Own student enrollment; visible grade fields/current points and separately preserved overrides; no unposted fields |
+| Grading configuration/syllabus | `/api/v1/courses/{course}` | `url:GET\|/api/v1/courses/:id` | Selected student course; syllabus and grading-period includes; no instructor history |
+| Grading categories | `/api/v1/courses/{course}/assignment_groups` | `url:GET\|/api/v1/courses/:course_id/assignment_groups` | Weights/drop rules; assignment scores obtained through existing own-submission paths |
+| Course file metadata | `/api/v1/courses/{course}/files/{file}` and `/api/v1/courses/{course}/files` | `url:GET\|/api/v1/courses/:course_id/files/:id` and `url:GET\|/api/v1/courses/:course_id/files` | Selected course, current visibility, approved bounded download path |
 | Outline | `/api/v1/courses/{course}/modules` | `url:GET\|/api/v1/courses/:course_id/modules` | Selected course; bounded pagination |
 | Outline items | `/api/v1/courses/{course}/modules/{module}/items` | `url:GET\|/api/v1/courses/:course_id/modules/:module_id/items` | Module obtained from selected course; metadata only |
 | Page discovery | `/api/v1/courses/{course}/pages` | `url:GET\|/api/v1/courses/:course_id/pages` | Selected course; no revision history or group-wide reads |
@@ -34,7 +37,7 @@ credential lifecycle operations. They do not authorize academic mutations.
 See [Canvas OAuth](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth)
 and [developer keys](https://developerdocs.instructure.com/services/canvas/oauth2/file.developer_keys).
 
-`COURSE`, `SUBMISSION`, `ANNOUNCEMENTS` and `FILE` enum entries are reserved and
+`SUBMISSION` and `ANNOUNCEMENTS` enum entries are reserved and
 have no current public tool path. Do not grant their additional scopes simply
 because the constants exist. Discussion replies, rosters, submissions, grades,
 module completion and other academic writes are outside the application.

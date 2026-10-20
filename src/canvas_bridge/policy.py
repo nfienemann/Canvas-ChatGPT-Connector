@@ -121,6 +121,7 @@ class Endpoint(StrEnum):
     COURSES = "/api/v1/courses"
     COURSE = "/api/v1/courses/{course}"
     ASSIGNMENTS = "/api/v1/courses/{course}/assignments"
+    ASSIGNMENT_GROUPS = "/api/v1/courses/{course}/assignment_groups"
     ASSIGNMENT = "/api/v1/courses/{course}/assignments/{assignment}"
     SUBMISSION = "/api/v1/courses/{course}/assignments/{assignment}/submissions/self"
     ENROLLMENTS = "/api/v1/users/self/enrollments"

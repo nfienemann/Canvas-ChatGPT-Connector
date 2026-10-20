@@ -18,6 +18,10 @@ response size is 250 KB; callers must narrow excessive requests.
 | get_assignment_details | Fresh accessible requirements/rubric; no locked material |
 | get_changes | Complete matching-scope baselines only; first observed is not newly published |
 | get_gradebook | Own visible Canvas fields; no unposted fields or exact-policy assumptions |
+| get_course_grading_policy | Own visible grade evidence and configuration; exact syllabus quotes/versions and conservative candidate rules |
+| calculate_course_grade | Deterministic current/syllabus/projected/required-score modes; refuses unsupported or incomplete policy inputs |
+| audit_course_grade | Reported/reproduced/syllabus estimates remain distinct; neutral reconciliation and explicit insufficient evidence |
+| simulate_grade_scenario | Conditional visible-work simulations only; no Canvas What-If writes or inferred future scores |
 | get_course_outline | Bounded modules/items/pages/files with one overall time budget; course-bound material references join visible module items; listing never proves a reading was accessed |
 | fetch_course_material | Backward-compatible page or file text; fresh access checks, content-hash-bound continuation; files require enabled OS isolation |
 | list_course_files | Selected-course metadata with module associations, opaque file IDs, stable Canvas links and indexed state; resolves visible module files even when the Files collection is denied |
@@ -67,6 +71,12 @@ comparison interval, missing-baseline reason and incomplete-observation coverage
 it cannot reconstruct pre-baseline history or exact change times.
 
 See [live findings and root causes](live-integration-findings.md).
+
+Grade tools add no new identity scope or persistence. Syllabus candidates require
+actual student review tied to the returned policy version; the assistant cannot
+manufacture that review. Unsupported rules, missing eligibility, hidden scores,
+period uncertainty or contradictory detail/list evidence prevent exact claims.
+See [grade auditing](grade-auditing.md) for schemas, formulas, limits and examples.
 
 The file inventory requires explicit current-user visibility and excludes hidden
 or locked files. A module label can remain visible without a usable material
