@@ -13,6 +13,47 @@ from canvas_bridge.linking import digest
 from canvas_bridge.storage import OAuthState
 
 
+@pytest.mark.parametrize("path", ["", "/", "/private", "/private/"])
+@pytest.mark.parametrize("read_only", [True, False])
+async def test_T12_oauth_discovery_preserves_exact_resource_and_issuer(
+    settings, bridge, path, read_only
+):
+    settings.resource_url = "https://resource.invalid" + path
+    settings.issuer_url = "https://issuer.invalid" + path
+    settings.mcp_read_only = read_only
+    metadata_path = "/.well-known/oauth-protected-resource" + (path if path != "/" else "")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(settings, bridge)),
+        base_url="https://resource.invalid",
+    ) as client:
+        response = await client.get(metadata_path, headers={"Origin": "https://client.invalid"})
+        assert response.status_code == 200
+        assert response.json() == {
+            "resource": settings.resource_url,
+            "authorization_servers": [settings.issuer_url],
+            "scopes_supported": ["academic:read"]
+            if read_only
+            else ["academic:read", "preferences:write"],
+            "bearer_methods_supported": ["header"],
+        }
+        assert response.headers["access-control-allow-origin"] == "*"
+        preflight = await client.options(
+            metadata_path,
+            headers={
+                "Origin": "https://client.invalid",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert preflight.status_code == 200
+        assert preflight.headers["access-control-allow-origin"] == "*"
+        denied = await client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        assert denied.status_code == 401
+        assert (
+            'resource_metadata="https://resource.invalid' + metadata_path + '"'
+            in denied.headers["www-authenticate"]
+        )
+
+
 @pytest.fixture
 def identity_exchange(settings, token_factory, monkeypatch):
     settings.browser_client_id = "settings-fixture"

@@ -44,7 +44,8 @@ async def test_T12_T21_T36_real_http_mcp_read_and_write_scope(running, token_fac
         assert "resource_metadata" in denied.headers["www-authenticate"]
         discovery = await client.get(running + "/.well-known/oauth-protected-resource")
         assert discovery.status_code == 200
-        assert discovery.json()["authorization_servers"]
+        assert discovery.json()["resource"] == running
+        assert discovery.json()["authorization_servers"] == ["https://fixture-issuer.invalid"]
     async with httpx.AsyncClient(
         headers={"Authorization": f"Bearer {token_factory(scope='academic:read')}"}
     ) as http:

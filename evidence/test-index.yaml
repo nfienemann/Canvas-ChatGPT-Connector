@@ -134,6 +134,7 @@
       "fixture_functions": [
         "tests/test_domain_planning.py::test_T12_html_is_data_and_scripts_removed",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
+        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"

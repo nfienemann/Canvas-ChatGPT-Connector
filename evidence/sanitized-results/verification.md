@@ -132,3 +132,17 @@ mode uses issuer-specific redirect URIs under RFC 9700 section 4.4.2.2. WorkOS
 configuration is documented, but a live provider login and an actual ChatGPT
 coursework read have not yet passed. No personal token or academic records were
 used in these tests. Native demo packages are unchanged.
+
+## Exact OAuth metadata identifiers
+
+On 2026-10-20 the full local suite passed **132 tests in 16.54 seconds**, including
+PostgreSQL tests, with no skips and 79% statement coverage (2,263/2,869). Discovery
+now preserves configured resource and issuer strings exactly instead of allowing
+the MCP SDK URL model to append a slash to bare origins. Eight new cases cover
+bare origins, trailing slashes, resource paths, read-only and writable scopes,
+CORS discovery and the unauthenticated challenge URL. The real HTTP MCP contract
+also checks exact identifiers. This does not relax JWT issuer or audience checks.
+
+The private HTTPS endpoint is reachable and rejects unauthenticated MCP requests.
+Actual provider sign-in, a personal Canvas connection and ChatGPT coursework
+retrieval remain unverified. No personal token or coursework appears in evidence.

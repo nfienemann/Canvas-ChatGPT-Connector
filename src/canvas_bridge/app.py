@@ -10,7 +10,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from pydantic import AwareDatetime, Field
 from sqlalchemy import text
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
+from starlette.routing import Route, request_response
 
 from canvas_bridge import __version__
 from canvas_bridge.auth import READ_SCOPE, WRITE_SCOPE, JWTVerifier, request_identity
@@ -329,6 +331,39 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
     add_settings_routes(mcp, bridge, verifier)
     app = mcp.streamable_http_app()
+
+    async def resource_metadata(request):
+        # OAuth identifiers use exact string comparison. The SDK's AnyHttpUrl
+        # models add a slash to bare origins, unlike the configured JWT claims.
+        return JSONResponse(
+            {
+                "resource": settings.resource_url,
+                "authorization_servers": [settings.issuer_url],
+                "scopes_supported": [READ_SCOPE]
+                if settings.mcp_read_only
+                else [READ_SCOPE, WRITE_SCOPE],
+                "bearer_methods_supported": ["header"],
+            }
+        )
+
+    resource_path = origin.path if origin.path != "/" else ""
+    metadata_path = "/.well-known/oauth-protected-resource" + resource_path
+    # Replace only the SDK discovery route; its authenticated MCP middleware
+    # and challenge URL remain intact. Metadata itself contains no credentials.
+    for index, existing in enumerate(app.routes):
+        if getattr(existing, "path", None) == metadata_path:
+            app.routes[index] = Route(
+                metadata_path,
+                endpoint=CORSMiddleware(
+                    request_response(resource_metadata),
+                    allow_origins=["*"],
+                    allow_methods=["GET", "OPTIONS"],
+                ),
+                methods=["GET", "OPTIONS"],
+            )
+            break
+    else:
+        raise RuntimeError("The MCP discovery route was not registered.")
     app.state.bridge = bridge
     app.state.mcp = mcp
     return app

@@ -565,7 +565,8 @@
         "tests/test_service_security.py::test_T23_private_addresses_blocked",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -766,7 +767,8 @@
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
