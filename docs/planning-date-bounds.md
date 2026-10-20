@@ -69,7 +69,15 @@ unknown timezone, date-only due/open/close, contradictory bounds, pins, skipped
 dates, repeated midnight, both DST transitions, elapsed busy-time capacity,
 owner/scope/stale/partial snapshots, Calendar composition, and actual HTTP MCP
 contract tests using fictional Canvas responses. See the verification ledger for
-actual run totals. No real grades are needed for these automated tests.
+actual run totals. The complete Windows run passed 365 tests (12 Linux-only
+skips). [Linux CI](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39516486216)
+passed 373 tests (four Windows-only skips) against source commit `96af218`.
+The installed private connector also
+returned the new timing evidence from a fresh read of all four selected courses,
+kept availability unknown and allocated no blocks. The live window contained no
+date-only deadlines; that acceptance case remains synthetic. The ChatGPT tool
+catalog was refreshed and the new description visibly verified. No real grades
+are needed for automated tests.
 
 Authorization and selected-course checks are unchanged. Request timing inputs
 are ephemeral unless the student explicitly saves a plan through the existing

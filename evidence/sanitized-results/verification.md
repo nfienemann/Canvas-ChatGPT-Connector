@@ -545,7 +545,24 @@ Windows AppContainer and actual HTTP MCP tests were included. Ruff and formattin
 checks passed for all 111 Python files. Source dates and submission states are not
 modified; automated tests use fictional records and request no Canvas writes.
 
-Linux CI and the private live read/proposal check are pending at this record.
+Linux [CI run 39516486216](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39516486216)
+passed **373 tests with four Windows-only skips in 55.95 seconds**, with **81%
+total statement coverage**, at source commit `96af218`. Checks included lint/formatting,
+dependency auditing, image build and all five isolated document formats in the
+restricted container. Dependency auditing found no known vulnerabilities.
+
+The private source service was restarted using its existing scoped launcher.
+The installed native connector returned a fresh complete assignment collection
+for all four selected courses, then returned a study recommendation with the new
+source-linked timing records. It returned `availability_unknown` and no blocks,
+as no study availability was supplied. No date-only deadline was present in that
+live window: date-only and DST acceptance remain synthetic. The ChatGPT plugin
+catalog was refreshed, and its visible planning-tool description included the
+new timezone/boundary contract. Private proof files remain outside Git. No plan
+was saved, and no Canvas content, grades or Calendar events were changed.
+
+The final acceptance-record commit changes documentation only; the unchanged
+source suite is not rerun for that update.
 No new tool, OAuth scope, Canvas route, database migration or Calendar write is
 introduced. See [planning date boundaries](../../docs/planning-date-bounds.md)
 for inputs, source-versus-calculation provenance, known limits and root causes.
