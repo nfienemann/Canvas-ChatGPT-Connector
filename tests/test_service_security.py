@@ -42,7 +42,8 @@ async def test_T21_expired_key_cache_fails_closed(settings, token_factory):
     verifier = JWTVerifier(settings)
     raw = token_factory()
     assert await verifier.verify_token(raw)
-    verifier.loaded_at = 0
+    # Monotonic zero can be recent on a freshly booted Linux runner.
+    verifier.loaded_at -= 301
     settings.local_jwks_file.unlink()
     assert await verifier.verify_token(raw) is None
 

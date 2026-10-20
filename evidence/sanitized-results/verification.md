@@ -34,3 +34,7 @@ sandbox, hosted recovery, institutional approval or public Directory eligibility
 Container execution and GitHub CI are separately recorded when observed.
 See the requirement ledger and release gates rather than treating 81 passing
 fixtures as completion of every scenario in the specification.
+
+The first Linux CI run found a test-clock assumption: assigning monotonic zero
+did not expire a five-minute cache on a newly booted runner. The regression now
+ages the recorded load time by 301 seconds. Application behavior is unchanged.
