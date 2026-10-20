@@ -1,0 +1,164 @@
+{
+  "observed_at": "2026-10-20",
+  "source_commit": "bb3e957b7e01d2f4d490116729a8537c81e64c4c",
+  "workflow": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39489429523",
+  "workflow_conclusion": "success",
+  "release": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/tag/demo-bb3e957b7e01",
+  "scope": "Unsigned synthetic desktop previews. No live Canvas or ChatGPT acceptance.",
+  "assets": [
+    {
+      "name": "CanvasBridgeDemo-Linux-x64.deb",
+      "size": 59540046,
+      "digest": "sha256:3a22da0efa29010418c7b36f3e71fe72832261ae5ac2c9124de5350f34ef2f5a",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Linux-x64.deb"
+    },
+    {
+      "name": "CanvasBridgeDemo-Linux-x64.tar.gz",
+      "size": 70802140,
+      "digest": "sha256:8d1bbcee923fc6daa1f6363ea2531c9df396f42c4787b9830081882e83e40c8d",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Linux-x64.tar.gz"
+    },
+    {
+      "name": "CanvasBridgeDemo-macOS-arm64.dmg",
+      "size": 47708365,
+      "digest": "sha256:495eff729a25fd76b73aa7cd7614dc84e634c50a7cb3325d77945212441e8747",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-arm64.dmg"
+    },
+    {
+      "name": "CanvasBridgeDemo-macOS-x64.dmg",
+      "size": 46174773,
+      "digest": "sha256:4de9f494ea2273387278dd1b3dac11aa94ab0b108d8f9499c4a1355118e6e2b4",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-x64.dmg"
+    },
+    {
+      "name": "CanvasBridgeDemo-Windows-x64-Setup.exe",
+      "size": 40045143,
+      "digest": "sha256:57ea1d389a080e744f8d5b19dfa82b1cf96bffc7e79f131df8998ab9c4cc4bba",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Windows-x64-Setup.exe"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 878,
+      "digest": "sha256:963c76067a95b7b87159bf0a0134e6d9f7e5c0b6bec699e6339ad351a0548bc3",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/SHA256SUMS.txt"
+    },
+    {
+      "name": "verification-linux-x64.json",
+      "size": 557,
+      "digest": "sha256:a30c43c99e2ac0dde3a73600d26fa5adcfb53a7173aef06daad1c034da8a7f95",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/verification-linux-x64.json"
+    },
+    {
+      "name": "verification-macos-arm64.json",
+      "size": 527,
+      "digest": "sha256:1ca0fc020384ad244dbc510ebb6f760b977ca34e1b6891c71cbf43d6a5ad4b1d",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/verification-macos-arm64.json"
+    },
+    {
+      "name": "verification-macos-x64.json",
+      "size": 527,
+      "digest": "sha256:1ca0fc020384ad244dbc510ebb6f760b977ca34e1b6891c71cbf43d6a5ad4b1d",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/verification-macos-x64.json"
+    },
+    {
+      "name": "verification-windows-x64.json",
+      "size": 610,
+      "digest": "sha256:e9801c0f69d7dd7b8531731b12b91878e1e94518f2dc2ea92c272c5e9a136d6d",
+      "browser_download_url": "https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/verification-windows-x64.json"
+    }
+  ],
+  "public_checksum_matches_asset_metadata": true,
+  "verified_reports": {
+    "verification-linux-x64.json": {
+      "platform": "linux",
+      "signing": "unsigned_development_preview",
+      "deb_install": "passed",
+      "mcp": {
+        "environment": "local_synthetic",
+        "protocol": "2025-11-25",
+        "tool_count": 14,
+        "observed_obligations": 5,
+        "workload_status": "ok",
+        "planning": "verified",
+        "actual_chatgpt": "not_tested",
+        "live_canvas": "not_tested",
+        "bundled": true,
+        "platform": "linux"
+      },
+      "wizard": {
+        "native_wizard": "passed",
+        "platform": "linux"
+      },
+      "restart_preserves_keys": "passed",
+      "uninstall_preserves_data": "passed"
+    },
+    "verification-macos-arm64.json": {
+      "platform": "darwin",
+      "signing": "unsigned_development_preview",
+      "disk_image_install": "passed",
+      "mcp": {
+        "environment": "local_synthetic",
+        "protocol": "2025-11-25",
+        "tool_count": 14,
+        "observed_obligations": 5,
+        "workload_status": "ok",
+        "planning": "verified",
+        "actual_chatgpt": "not_tested",
+        "live_canvas": "not_tested",
+        "bundled": true,
+        "platform": "darwin"
+      },
+      "wizard": {
+        "native_wizard": "passed",
+        "platform": "darwin"
+      },
+      "restart_preserves_keys": "passed"
+    },
+    "verification-macos-x64.json": {
+      "platform": "darwin",
+      "signing": "unsigned_development_preview",
+      "disk_image_install": "passed",
+      "mcp": {
+        "environment": "local_synthetic",
+        "protocol": "2025-11-25",
+        "tool_count": 14,
+        "observed_obligations": 5,
+        "workload_status": "ok",
+        "planning": "verified",
+        "actual_chatgpt": "not_tested",
+        "live_canvas": "not_tested",
+        "bundled": true,
+        "platform": "darwin"
+      },
+      "wizard": {
+        "native_wizard": "passed",
+        "platform": "darwin"
+      },
+      "restart_preserves_keys": "passed"
+    },
+    "verification-windows-x64.json": {
+      "platform": "win32",
+      "signing": "unsigned_development_preview",
+      "installer": "passed",
+      "mcp": {
+        "environment": "local_synthetic",
+        "protocol": "2025-11-25",
+        "tool_count": 14,
+        "observed_obligations": 5,
+        "workload_status": "ok",
+        "planning": "verified",
+        "actual_chatgpt": "not_tested",
+        "live_canvas": "not_tested",
+        "bundled": true,
+        "platform": "win32"
+      },
+      "in_place_upgrade": "passed",
+      "wizard": {
+        "native_wizard": "passed",
+        "platform": "win32"
+      },
+      "restart_preserves_keys": "passed",
+      "uninstall_preserves_data": "passed"
+    }
+  }
+}

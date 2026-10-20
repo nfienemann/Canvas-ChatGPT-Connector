@@ -21,6 +21,31 @@ The source manifest identifies the tested Python files with LF-normalized hashes
 | Lifecycle | Disconnect, account-wide deletion, pending OAuth cancellation, scope purge, export, encrypted backup, deletion-fenced restore and queued-job isolation fixtures passed |
 | Planning | Capacity conservation, busy intervals, preserved pins, dependency order/cycles, unknown effort and urgent large-task fixtures passed |
 
+## Published native demo packages
+
+[Workflow 39489429523](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39489429523)
+passed for source commit `bb3e957b7e01d2f4d490116729a8537c81e64c4c`.
+The Ubuntu PostgreSQL job passed **97 tests in 10.10 seconds**, with **77%**
+statement coverage (2,097 / 2,738), lint/format, dependency audit and Docker build.
+
+The Windows x64 installer, macOS ARM64/Intel disk images and Linux x64 DEB each
+passed packaged startup, the native wizard controls and a real authenticated
+MCP read/planning check. The harness removed Python from the subprocess PATH and
+used an unrelated working directory and a profile path containing spaces/Unicode.
+Windows also passed an in-place upgrade and uninstall; Linux passed DEB removal.
+Keys/data were retained across restart and the tested uninstall paths.
+
+The [public preview](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/tag/demo-bb3e957b7e01)
+includes four platform verification reports, five native/portable downloads and
+checksums. The four downloaded report hashes were verified, and all nine entries
+in the published checksum file matched GitHub's asset digest metadata. See
+[native-packages.json](native-packages.json) for exact assets, hashes and reports.
+
+These are unsigned synthetic previews. CI does not establish trusted-publisher
+approval, consumer-OS installation prompts, screen-reader accessibility, support
+for every Linux distribution, live Canvas access or actual ChatGPT connectivity.
+Publisher signing and Apple notarization remain release gates.
+
 The local PostgreSQL runtime and database, keys, tokens, logs, raw test reports
 and build outputs are excluded from source publication. The API runs on
 loopback and uses fictional data. No real university or Calendar was contacted.

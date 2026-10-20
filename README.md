@@ -17,6 +17,13 @@ The desktop preview bundles everything it needs. Use the **Windows setup wizard*
 [Downloads](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases).
 No Python, Git, terminal commands or model API keys are needed.
 
+| Your computer | Local demo download |
+|---|---|
+| Windows 10/11, x64 | [Download the setup wizard](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Windows-x64-Setup.exe) |
+| Mac with Apple silicon, macOS 14+ | [Download the Mac app](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-arm64.dmg) |
+| Mac with Intel, macOS 15+ | [Download the Intel Mac app](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-x64.dmg) |
+| Ubuntu 22.04+ / compatible Debian, x64 | [Download the Linux package](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Linux-x64.deb) |
+
 Open **Canvas Bridge Demo → Set up local demo → Start local demo**. The launcher
 opens the local settings page and includes a **Check study tools** button. It picks
 an available port, keeps data in your user account, and stops when you close it.
