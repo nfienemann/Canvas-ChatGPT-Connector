@@ -10,6 +10,7 @@ journal. No course text is an instruction source.
 |---|---|---|
 | Wrong user, school or guessed object ID | Issuer+subject principal; owner+connection filters; canonical course-qualified IDs | Synthetic and PostgreSQL isolation tests; real multi-school proof pending |
 | Token substitution / expired issuer key | RS256-only pinned configured JWKS, exact issuer/audience/expiry/subject/scopes, bounded key cache | Invalid-token and expired-cache tests |
+| Private token proof becomes multi-user access | Personal-profile subject allowlist, operator-only hidden entry, verified expected Canvas ID, private registry status rejected in hosted mode | Fixture HTTP, other-user JWT rejection, duplicate/deletion races; no real personal account tested |
 | Login CSRF / replay / refresh race | Browser-bound expiring one-use state; exact redirects; PKCE settings flow; database refresh lease | State and refresh race fixtures; real external IdP login pending |
 | Powerful Canvas credential | Typed GET allowlist, student enrollment check, exclusion of staff/mixed-role courses, own-user response filtering | No roster/write route; staff-power fixture |
 | SSRF or malicious continuation | HTTPS origin checks, unchanged route/query, public-IP DNS pinning, no API redirects | Private/mapped IP, redirect/pagination and pinned-IP tests |

@@ -125,3 +125,41 @@ async def test_T18_T43_postgres_account_deletion_and_link_race(pg_bridge, owner,
         assert not session.scalar(select(Connection).where(Connection.owner == owner))
         assert not session.scalar(select(OAuthState).where(OAuthState.owner == owner))
         assert session.get(PrincipalState, owner).generation == 1
+
+
+def test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant(pg_bridge, owner, monkeypatch):
+    import asyncio
+    from threading import Barrier
+
+    from canvas_bridge.personal import link_personal_token
+
+    pg_bridge.settings.profile = "personal"
+    pg_bridge.settings.personal_subject = "student-one"
+    pg_bridge.settings.live_access_enabled = True
+    pg_bridge.synthetic = None
+    pg_bridge.registry.entries["synthetic"].status = "personal_testing"
+    barrier = Barrier(2)
+
+    async def profile(*args):
+        await asyncio.to_thread(barrier.wait, timeout=5)
+        return {"id": 101}
+
+    monkeypatch.setattr("canvas_bridge.personal.CanvasClient.one", profile)
+
+    def import_token(token):
+        try:
+            return asyncio.run(link_personal_token(pg_bridge, "synthetic", "101", token))
+        except DomainError as exc:
+            return exc.status
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(import_token, ["fixture-one", "fixture-two"]))
+    assert sum(item == "needs_input" for item in outcomes) == 1
+    with pg_bridge.store.transaction() as session:
+        connections = list(session.scalars(select(Connection)))
+        assert len(connections) == 1 and connections[0].owner == owner
+        row = connections[0]
+        assert pg_bridge.vault.open(row.credential, owner, row.id)["access_token"] in {
+            "fixture-one",
+            "fixture-two",
+        }

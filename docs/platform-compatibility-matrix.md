@@ -7,6 +7,7 @@
 | Resource JWT checks | Valid/invalid issuer, audience, expiry, scope and key-cache tests | Verified fixture boundary |
 | Settings in Codex in-app browser | Keyboard sign-in, labels and narrow viewport visually inspected | Partial browser usability evidence |
 | Ordinary ChatGPT conversation | Not exercised | Not verified |
+| Private first-read catalog | Eleven reading/planning tools; three saved-state writes omitted by configuration | Fixture-tested; actual ChatGPT account discovery pending |
 | ChatGPT + native Calendar composition | No live configuration | Not verified |
 | iOS / Android ChatGPT | Not exercised | Not supported claim |
 | Public Directory install | Policy/authorization unresolved | Blocked |

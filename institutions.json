@@ -11,10 +11,13 @@
     {
       "id": "rowan-candidate",
       "name": "Rowan University",
-      "origin": null,
+      "origin": "https://canvas.rowan.edu",
       "status": "candidate",
       "scopes": [],
-      "evidence": ["Candidate in the product specification; access is not verified."]
+      "evidence": [
+        "Canvas origin linked by https://irt.rowan.edu/service-catalog/teaching/lms/ on 2026-10-20.",
+        "Personal API access and institution OAuth enablement have not been verified."
+      ]
     }
   ]
 }

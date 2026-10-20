@@ -102,6 +102,8 @@ class JWTVerifier(TokenVerifier):
             subject = claims["sub"]
             if not isinstance(subject, str) or not 1 <= len(subject) <= 256:
                 return None
+            if self.settings.profile == "personal" and subject != self.settings.personal_subject:
+                return None
             scope = claims.get("scope", "")
             if not isinstance(scope, str):
                 return None

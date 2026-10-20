@@ -54,10 +54,18 @@ class Bridge:
 
     @asynccontextmanager
     async def client(self, owner: str, ref: str):
+        if self.settings.profile == "personal":
+            from canvas_bridge.auth import principal_id
+
+            subject = self.settings.personal_subject
+            if not subject or owner != principal_id(self.settings.issuer_url, subject):
+                raise DomainError("permission_denied", "Private testing is limited to its owner.")
         with self.store.transaction() as session:
             conn = self.store.connection(session, owner, ref)
             institution = self.registry.require(
-                conn.institution, self.settings.profile == "synthetic"
+                conn.institution,
+                self.settings.profile == "synthetic",
+                personal=self.settings.profile == "personal",
             )
             if not conn.credential:
                 raise DomainError("reconnect_required", "Reconnect this Canvas account.")
@@ -118,6 +126,9 @@ class Bridge:
                 "id": owner,
                 "connections": data,
                 "profile": self.settings.profile,
+                "mcp_saved_state_writes": "disabled"
+                if self.settings.mcp_read_only
+                else "available",
                 "calendar": "not_connected",
                 "notifications": "disabled",
                 "live_institution_verification": "not_verified",

@@ -204,6 +204,11 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("init-demo", "serve", "doctor", "verify-read", "worker", "purge"):
         sub.add_parser(name)
+    personal_parser = sub.add_parser(
+        "link-personal", help="Operator-only private test with your own Canvas account."
+    )
+    personal_parser.add_argument("--institution", required=True)
+    personal_parser.add_argument("--expected-canvas-user", required=True)
     backup_parser = sub.add_parser("backup")
     backup_parser.add_argument("destination", type=Path)
     restore_parser = sub.add_parser("restore")
@@ -212,6 +217,11 @@ def main():
     args = parser.parse_args()
     if args.command == "init-demo":
         initialize_demo()
+        return
+    if args.command == "link-personal":
+        from canvas_bridge.personal import run_personal_setup
+
+        run_personal_setup(args.institution, args.expected_canvas_user)
         return
     settings = Settings()
     if args.command == "serve":

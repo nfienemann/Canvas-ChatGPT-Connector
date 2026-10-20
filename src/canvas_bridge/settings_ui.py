@@ -173,13 +173,19 @@ def add_settings_routes(mcp, bridge, verifier):
                 return response
             return page(
                 "Connection settings",
-                "<p>Sign in through the configured identity provider to connect your supported institution.</p>"
-                '<a class="button" href="/settings/login">Sign in securely</a>',
+                (
+                    "<p>Sign in to your private Canvas test.</p>"
+                    if settings.profile == "personal"
+                    else "<p>Sign in through the configured identity provider to connect your supported institution.</p>"
+                )
+                + '<a class="button" href="/settings/login">Sign in securely</a>',
             )
         status = bridge.connection_status(session.owner)
         body = "<p>Manage access here. Ask academic questions in ChatGPT.</p>"
         if bridge.synthetic:
             body += '<div class="notice">Synthetic local environment · not a live institution connection</div>'
+        elif settings.profile == "personal":
+            body += '<div class="notice">Private developer test · access is limited to the configured owner.</div>'
         for connection in status.data["connections"]:
             if connection["state"] != "active":
                 body += '<section class="card"><h2>Disconnected</h2><p>Local access is disabled.</p></section>'
@@ -220,7 +226,10 @@ def add_settings_routes(mcp, bridge, verifier):
             for x in bridge.registry.entries.values()
             if x.status in {"supported", "pilot_supported"}
         ]
-        if supported and not bridge.synthetic:
+        if settings.profile == "personal":
+            body += "<p>Canvas access is configured privately by the operator. "
+            body += "After setup, choose your courses here. This test cannot onboard other students.</p>"
+        elif supported and not bridge.synthetic:
             body += '<section class="card"><h2>Link an institution</h2><form method="post" action="/settings/link">'
             body += (
                 hidden("csrf", session.csrf)

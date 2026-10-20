@@ -96,3 +96,24 @@ The increment also passed [Linux CI run 39486541840](https://github.com/nfienema
 on commit `ac4e4e45bcb40b8245c06099ce16ea045d64dbfd`: **92 passed in 7.85
 seconds**, 78% statement coverage, successful lint/format, no known dependency
 vulnerabilities, and a successful Docker image build.
+
+## Personal developer setup increment
+
+On 2026-10-20, the full local suite passed **109 tests in 20.09 seconds** with
+PostgreSQL 17.11 enabled and no skips. Statement coverage was 78% (2,207/2,841).
+Ruff lint, format and `git diff --check` passed after a formatting-only correction.
+No dependency or packaging change was made; native installers remain the earlier
+synthetic preview release.
+
+New fixtures cover personal-profile identity restriction, expected Canvas user
+verification, encrypted import, no automatic course selection, wrong-origin and
+wrong-profile rejection, duplicate import, deletion during verification,
+PostgreSQL simultaneous imports, normal provider revocation, hidden-input
+fallback refusal, redacted operator errors, and browser/MCP rejection of other
+users. An optional eleven-tool read-only catalog omits saved-state write tools
+from discovery and dispatch.
+
+Rowan's public Canvas origin was verified using its official service page.
+No personal token was supplied to this code, no real Canvas account was accessed,
+and no actual ChatGPT conversation was tested. Identity-provider and secure
+reachability setup remain prerequisites for that first private proof.

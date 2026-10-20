@@ -18,6 +18,7 @@ class Institution(Model):
     status: Literal[
         "candidate",
         "access_pending",
+        "personal_testing",
         "pilot_supported",
         "supported",
         "temporarily_degraded",
@@ -53,13 +54,18 @@ class Registry:
         content = json.loads(path.read_text(encoding="utf-8"))
         self.entries = {i.id: i for i in map(Institution.model_validate, content["institutions"])}
 
-    def require(self, institution: str, synthetic: bool = False) -> Institution:
+    def require(
+        self, institution: str, synthetic: bool = False, *, personal: bool = False
+    ) -> Institution:
         item = self.entries.get(institution)
         if item is None or not item.origin:
             raise DomainError(
                 "unsupported_feature", "This institution has no approved access path."
             )
-        if not synthetic and item.status not in {"pilot_supported", "supported"}:
+        allowed = {"pilot_supported", "supported"}
+        if personal:
+            allowed.add("personal_testing")
+        if not synthetic and item.status not in allowed:
             raise DomainError(
                 "unsupported_feature", "This institution is not enabled for live access."
             )

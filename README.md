@@ -10,6 +10,13 @@ working authenticated MCP service, not a live university integration or approved
 ChatGPT Directory listing. The owner requested local construction and testing
 first. No real Canvas account has been accessed.
 
+An operator-only personal testing path is implemented and fixture-tested. It
+restricts access to one configured identity and verifies the expected Canvas
+user before storing an encrypted credential. It is separate from the desktop
+demo and from student OAuth onboarding. See the private developer proof section
+of the [operator guide](docs/operator-guide.md); actual ChatGPT/Canvas acceptance
+is still pending.
+
 ## Try the local demonstration
 
 The desktop preview bundles everything it needs. Use the **Windows setup wizard**,

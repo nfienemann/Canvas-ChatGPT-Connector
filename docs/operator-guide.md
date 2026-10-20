@@ -14,8 +14,9 @@ logging callback codes or bearer credentials. Errors use sanitized categories.
 ## PostgreSQL and hosted configuration
 
 Live profiles require PostgreSQL, explicit `BRIDGE_LIVE_ACCESS_ENABLED=true`,
-HTTPS resource/issuer/JWKS URLs, a separately mounted vault key, supported
-institution entries and private OAuth client credentials. These flags are not
+HTTPS resource/issuer/JWKS URLs and a separately mounted vault key. Hosted
+student use additionally needs supported institution entries and private OAuth
+client credentials. These flags are not
 evidence of institutional approval. Complete the release gates first.
 
 Migrate with `uv run alembic upgrade head`. The schema has upgrade/downgrade tests
@@ -38,6 +39,65 @@ Register `/settings/callback` at the deployment resource base.
 
 Keep operator files and secret mounts outside public artifacts. Reverse-proxy
 logs must omit authorization headers and callback query strings.
+
+## Private developer proof
+
+This is only for the operator's own Canvas records. It is not a student onboarding
+alternative. Canvas documents personal testing tokens separately from the OAuth
+grants required for other users. No personal credentials or real records have
+been used in repository tests.
+
+Use a separate, migrated PostgreSQL database and private operator configuration.
+Set `BRIDGE_PROFILE=personal`, explicit live enablement, the HTTPS/authentication
+settings above, and `BRIDGE_PERSONAL_SUBJECT` to the operator's exact subject from
+that identity provider. The service rejects every other subject, even when a
+different user has a valid token from the same issuer. An email address or Canvas
+token cannot substitute for that authenticated subject.
+
+After confirming the institution allows this personal test, copy the institution
+registry into private configuration and point `BRIDGE_INSTITUTIONS_FILE` at it.
+Enable only the intended entry with status `personal_testing` and its verified
+HTTPS origin. This status is rejected by hosted profiles and is never advertised
+as a supported school. The published Rowan entry remains `candidate`.
+
+Set `BRIDGE_MCP_READ_ONLY=true` for an initial reading/planning trial. This removes
+the three saved-state write tools from the MCP catalog and dispatch entirely; it
+does not label writes as reads. Course selection and privacy controls still use
+the authenticated settings page. The setting does not prove plan compatibility;
+test discovery and actual calls in the user's ChatGPT account.
+
+From a private interactive operator terminal, run:
+
+```console
+uv run canvas-bridge link-personal --institution YOUR_REGISTRY_ID --expected-canvas-user YOUR_NUMERIC_CANVAS_USER_ID
+```
+
+The expected ID is the operator's Canvas user ID, not a campus student/Banner ID.
+The command prompts for the operator's testing token with terminal echo disabled.
+There is no token command-line argument, web form, MCP input or `.env` token
+setting. It refuses redirected/echoed input and sanitizes setup failures. Use a
+dedicated testing token; never supply another person's credential.
+
+The command checks `/api/v1/users/self/profile` at the allowlisted origin and
+compares the returned user ID before saving an owner-bound encrypted credential.
+It fetches no courses during import. Then sign in to settings, select courses,
+and perform the first read through actual ChatGPT. Token setup alone is not that
+acceptance test. The same student-only route/role restrictions apply to personal
+tokens even if Canvas granted broader permissions.
+
+A second import cannot silently replace an active connection. Disconnect first;
+the normal disconnect/delete controls purge local records and attempt provider
+revocation. An expired/revoked personal token requires a new private setup and is
+not sent through OAuth refresh. If deletion cancels a pending import, the supplied
+token is not saved or automatically revoked; the operator still controls that
+token in Canvas. No success is reported for the interrupted setup.
+
+For reachability, evaluate the user's custom MCP connection options before
+buying hosting. [Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)
+can keep the service private, but requires separate Platform tunnel permissions,
+a restricted runtime credential and the correct ChatGPT workspace association.
+It does not replace application OAuth or automatically expose its authorization
+server. Neither a tunnel nor an external identity provider has been configured.
 
 ## Worker and retention
 

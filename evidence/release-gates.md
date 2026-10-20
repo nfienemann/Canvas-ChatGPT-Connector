@@ -27,3 +27,10 @@ The requirement ledger records these separately from code/test existence.
 
 No purchase, institutional application, public service deployment, message,
 live student-account action or directory submission occurred.
+
+The owner subsequently selected Rowan and ChatGPT Pro for a private first test
+using their own coursework. Operator-only token setup and a configurable
+read-only MCP catalog are implemented and tested with fictional records. The
+Rowan origin is verified; actual token validity, authenticated hosting/tunnel,
+identity-provider setup and an ordinary ChatGPT first read remain unverified.
+This does not change the hosted-pilot or public-distribution gates above.

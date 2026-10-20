@@ -38,6 +38,8 @@ def begin_link(
     browser_nonce: str,
     expected_generation: int | None = None,
 ) -> str:
+    if bridge.settings.profile == "personal":
+        raise DomainError("unsupported_feature", "Private testing uses operator-only setup.")
     institution = bridge.registry.require(institution_id)
     if bridge.settings.profile == "synthetic":
         raise DomainError("unsupported_feature", "Live linking is disabled in synthetic mode.")
@@ -117,6 +119,8 @@ async def exchange(institution, data: dict, http: httpx.AsyncClient | None = Non
 
 
 async def finish_link(bridge, state: str, browser_nonce: str, code: str | None) -> Result:
+    if bridge.settings.profile == "personal":
+        raise DomainError("unsupported_feature", "Private testing uses operator-only setup.")
     with bridge.store.transaction() as session:
         hint = session.get(OAuthState, digest(state))
         if hint is None or hint.institution == "__identity__":
@@ -249,7 +253,9 @@ async def revoke_token(bridge, institution_id: str, secret: dict) -> str:
     if bridge.synthetic:
         return "not_applicable"
     try:
-        institution = bridge.registry.require(institution_id)
+        institution = bridge.registry.require(
+            institution_id, personal=bridge.settings.profile == "personal"
+        )
         async with public_client() as client:
             async with client.stream(
                 "DELETE",

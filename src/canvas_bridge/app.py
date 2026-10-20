@@ -89,6 +89,9 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         scope = WRITE_SCOPE if write else READ_SCOPE
 
         def decorator(fn):
+            if write and settings.mcp_read_only:
+                return fn
+
             @functools.wraps(fn)
             async def guarded(*args, **kwargs):
                 try:

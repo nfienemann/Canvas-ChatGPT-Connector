@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     browser_authorization_url: str | None = None
     browser_token_url: str | None = None
     live_access_enabled: bool = False
+    personal_subject: str | None = Field(default=None, min_length=1, max_length=256, repr=False)
+    mcp_read_only: bool = False
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
     max_pages: int = Field(default=20, ge=1, le=100)
@@ -34,6 +36,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def safe_profile(self):
+        if self.profile == "personal" and not self.personal_subject:
+            raise ValueError("Personal testing requires one configured identity-provider subject.")
         if self.profile != "synthetic":
             if not self.live_access_enabled:
                 raise ValueError("Live access requires an explicit operator enablement.")
