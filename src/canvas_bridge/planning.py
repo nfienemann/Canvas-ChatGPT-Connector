@@ -2,10 +2,12 @@
 
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import AwareDatetime, Field, model_validator
 
 from canvas_bridge.domain import Effort, Model, WorkItem
+from canvas_bridge.planning_dates import instant, resolve_timing
 
 
 class Window(Model):
@@ -14,6 +16,7 @@ class Window(Model):
 
     @model_validator(mode="after")
     def valid(self):
+        self.start, self.end = instant(self.start), instant(self.end)
         if self.end <= self.start or self.end - self.start > timedelta(days=1):
             raise ValueError("Availability windows must be positive and at most one day.")
         return self
@@ -38,6 +41,9 @@ class PlanRequest(Model):
         default_factory=dict, max_length=100
     )
     importance: dict[str, Importance] = Field(default_factory=dict, max_length=100)
+    date_only_timezones: dict[str, Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=dict, max_length=100
+    )
     opportunity_minutes: int = Field(default=45, ge=5, le=720)
     break_minutes: int = Field(default=10, ge=0, le=60)
     buffer_minutes: int = Field(default=10, ge=0, le=120)
@@ -47,6 +53,11 @@ class PlanRequest(Model):
 
     @model_validator(mode="after")
     def consistent(self):
+        for zone in self.date_only_timezones.values():
+            try:
+                ZoneInfo(zone)
+            except (ValueError, ZoneInfoNotFoundError) as exc:
+                raise ValueError("Date-only planning requires valid IANA timezones.") from exc
         if self.minimum_block_minutes > self.max_block_minutes:
             raise ValueError("Minimum block exceeds maximum block.")
         ordered = sorted(self.windows, key=lambda w: w.start)
@@ -81,26 +92,37 @@ def is_actionable(item: WorkItem) -> bool:
 
 
 def prioritize(
-    items: list[WorkItem], now: datetime, opportunity: int, overrides=None, importance=None
+    items: list[WorkItem],
+    now: datetime,
+    opportunity: int,
+    overrides=None,
+    importance=None,
+    timings=None,
 ) -> list[dict]:
+    now = instant(now)
     overrides, importance = overrides or {}, importance or {}
     ranked = []
     for item in items:
         if not is_actionable(item):
             continue
+        timing = timings[item.id] if timings else resolve_timing(item, now)
         due = item.effective_due.timestamp
-        closes = item.closes_at.timestamp
-        hard_limit = min(t for t in (due, closes) if t) if due or closes else None
+        hard_limit = timing.deadline
         hours = (hard_limit - now).total_seconds() / 3600 if hard_limit else None
         undated = item.effective_due.kind not in {"timestamp", "local_date"}
-        if undated and not closes:
+        if timing.blocked:
+            tier, reason = (
+                3,
+                "Source timing needs clarification before study blocks can be allocated.",
+            )
+        elif undated and not hard_limit:
             tier, reason = (
                 3,
                 "Timing is unknown; confirm whether this assessment is still relevant.",
             )
         elif item.prerequisites:
             tier, reason = 3, "Known prerequisite work needs to be completed first."
-        elif hours is not None and hours <= 24:
+        elif timing.overdue or (hours is not None and hours <= 24):
             tier, reason = 0, "Due or closing within a day, or overdue; check recoverability."
         elif hours is not None and hours <= 72:
             tier, reason = 1, "Limited time remains before the source deadline."
@@ -111,8 +133,10 @@ def prioritize(
         action = (
             f"Verify the Canvas submission receipt for {item.title}; you marked the work done, so do not redo it based only on this status."
             if item.personal_progress == "student_marked_done"
+            else f"Confirm the source date, timezone or availability for {item.title} before scheduling it."
+            if timing.blocked
             else f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
-            if undated and not closes
+            if undated and not hard_limit
             else f"Work on {item.title} for up to {minutes} minutes."
             if effort
             else f"Spend up to {minutes} minutes reviewing the requirements for {item.title} "
@@ -133,6 +157,7 @@ def prioritize(
                 "first_action": action,
                 "action_minutes": minutes,
                 "effort_remaining": effort.model_dump(mode="json") if effort else None,
+                "timing": timing.evidence(item),
                 "uncertainties": [
                     *(
                         []
@@ -179,9 +204,13 @@ def subtract(windows: list[list[datetime]], start: datetime, end: datetime):
 
 
 def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
+    now = instant(now)
     by_id = {item.id: item.model_copy(deep=True) for item in items}
     if (
-        set(request.effort_overrides) | set(request.priority_overrides) | set(request.importance)
+        set(request.effort_overrides)
+        | set(request.priority_overrides)
+        | set(request.importance)
+        | set(request.date_only_timezones)
     ) - by_id.keys():
         raise ValueError("Planning input references a task outside this workload.")
     for key, effort in request.effort_overrides.items():
@@ -194,12 +223,18 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
             # Keep an online-submission verification reminder, but do not
             # allocate work sessions for something the student says is done.
             item.effort_remaining = None
+    timings = {
+        ref: resolve_timing(item, now, request.date_only_timezones.get(ref))
+        for ref, item in by_id.items()
+    }
+    timing_evidence = {ref: timing.evidence(by_id[ref]) for ref, timing in timings.items()}
     ranked = prioritize(
         list(by_id.values()),
         now,
         request.opportunity_minutes,
         request.priority_overrides,
         request.importance,
+        timings,
     )
     if not request.windows:
         return {
@@ -207,6 +242,7 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
             "recommendations": ranked[:5],
             "blocks": [],
             "unmet_work": [],
+            "timing_constraints": timing_evidence,
             "assumptions": ["No calendar access or free time has been independently verified."],
         }
     windows = []
@@ -229,9 +265,15 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
         if minutes < 1:
             raise ValueError("Pinned blocks must last at least one minute.")
         item = by_id[pin.work_id]
-        for limit in (item.effective_due.timestamp, item.closes_at.timestamp):
-            if limit and limit >= now and pin.end > limit:
-                raise ValueError("Pinned block conflicts with a current source deadline.")
+        timing = timings[pin.work_id]
+        if timing.blocked:
+            raise ValueError("Pinned block requires resolved source timing: " + timing.blocked)
+        if (timing.opens and pin.start < timing.opens) or (
+            timing.deadline and pin.end > timing.deadline
+        ):
+            raise ValueError(
+                "Pinned block conflicts with source timing or a conservative date-only planning bound."
+            )
         pinned_minutes[pin.work_id] = pinned_minutes.get(pin.work_id, 0) + minutes
         pinned_end[pin.work_id] = max(pin.end, pinned_end.get(pin.work_id, pin.end))
         blocks.append(
@@ -241,9 +283,7 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
                 "end": pin.end.isoformat(),
                 "minutes": minutes,
                 "pinned": True,
-                "overdue_recovery": bool(
-                    item.effective_due.timestamp and item.effective_due.timestamp < now
-                ),
+                "overdue_recovery": timing.overdue,
             }
         )
         windows = subtract(
@@ -283,9 +323,13 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
         visit(ref)
     for ref in ordered:
         item = by_id[ref]
+        timing = timings[ref]
+        if timing.blocked:
+            unmet.append({"work_id": item.id, "reason": timing.blocked, "minutes": None})
+            continue
         if (
             item.effective_due.kind not in {"timestamp", "local_date"}
-            and not item.closes_at.timestamp
+            and not timing.deadline
             and ref not in request.effort_overrides
             and ref not in pinned_minutes
             and item.personal_progress != "in_progress"
@@ -307,7 +351,7 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
                 }
             )
             continue
-        earliest = max([now, *(completed_at[p] for p in item.prerequisites)])
+        earliest = max([now, timing.opens or now, *(completed_at[p] for p in item.prerequisites)])
         item_pins = [p for p in request.pinned_blocks if p.work_id == item.id]
         if any(p.start < earliest for p in item_pins):
             unmet.append(
@@ -321,14 +365,7 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
         remaining = max(0, effort.maximum_minutes - pinned_minutes.get(item.id, 0))
         finish = pinned_end.get(item.id, now)
         # Overdue-but-open work uses the close time and labels lateness, not an invented extension.
-        deadline = item.effective_due.timestamp
-        overdue = deadline is not None and deadline < now
-        if overdue:
-            deadline = item.closes_at.timestamp
-        if item.closes_at.timestamp:
-            deadline = (
-                min(deadline, item.closes_at.timestamp) if deadline else item.closes_at.timestamp
-            )
+        deadline, overdue = timing.deadline, timing.overdue
         for window in windows:
             while remaining > 0:
                 cursor, window_end = max(window[0], earliest), window[1]
@@ -361,16 +398,23 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
         by_id[row["work_id"]].prerequisite_coverage == "unknown"
         or by_id[row["work_id"]].availability_state != "available"
         or by_id[row["work_id"]].effective_due.kind != "timestamp"
+        or bool(timings[row["work_id"]].assumptions)
+        or timings[row["work_id"]].overdue
         for row in ranked
     )
     return {
-        "feasibility": "shortfall"
+        "feasibility": "timing_unresolved"
+        if unmet
+        and all(x["reason"] in {t.blocked for t in timings.values() if t.blocked} for x in unmet)
+        else "shortfall"
         if unmet
         else ("provisional" if unknown_constraints else "feasible"),
         "recommendations": ranked[:5],
         "blocks": sorted(blocks, key=lambda b: b["start"]),
         "unmet_work": unmet,
+        "timing_constraints": timing_evidence,
         "known_shortfall_minutes": sum(x["minutes"] or 0 for x in unmet),
+        "shortfall_basis": "Capacity within reported timing and labeled conservative date-only bounds. Unknown timing is not counted as a numerical shortage.",
         "availability_origin": request.availability_origin,
         "assumptions": [
             "Allocation uses the upper effort estimate.",
@@ -378,5 +422,6 @@ def propose(items: list[WorkItem], request: PlanRequest, now: datetime) -> dict:
             "Availability was supplied in conversation; no provider was contacted.",
             "Supplied busy times are excluded and pinned sessions are preserved.",
             "Unknown prerequisites or source constraints keep a fitting plan provisional.",
+            "Block durations use elapsed UTC minutes, including across daylight-saving changes.",
         ],
     }

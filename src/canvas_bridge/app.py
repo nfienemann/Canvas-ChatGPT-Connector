@@ -569,6 +569,9 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         """Propose what to do first and optional non-overlapping blocks from a recent workload.
 
         Availability is user/conversation supplied, never independently verified calendar access.
+        Date-only source fields need date_only_timezones keyed by work ID. Use the
+        applicable course timezone, not an assumed display timezone. Their bounds
+        are conservative planning assumptions, never invented Canvas due times.
         Unknown estimates stay unknown. This tool saves nothing and changes no calendar.
         """
         return bridge.study_plan(request_identity().owner, connection_id, snapshot_id, request)

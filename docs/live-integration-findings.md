@@ -50,6 +50,11 @@ Canvas. There is no database schema migration for this increment. Added response
 fields preserve existing fields and current code derives date coverage for older
 stored snapshots. Restart the private source service to load the updated adapter.
 
-Office extraction, OCR, visual interpretation, complete pre-connection history,
+OCR, visual interpretation, complete pre-connection history,
 and automatic unread-file indexing remain unsupported. See `file-reading.md`
 and the release gates for platform and distribution boundaries.
+
+
+A subsequent synthetic planning audit confirmed date-only deadline and DST
+capacity bugs. Their root causes, corrections and verification boundaries are
+recorded in [planning date boundaries](planning-date-bounds.md).

@@ -253,7 +253,10 @@ async def propose_sync(bridge, owner, ref, snapshot_id, context, study_request=N
                     "availability_origin": "provided_via_conversation",
                 }
             )
-            result["study_plan"] = propose(items, request, utcnow())
+            try:
+                result["study_plan"] = propose(items, request, utcnow())
+            except ValueError as exc:
+                raise DomainError("needs_input", str(exc)) from exc
     current, _ = bridge.selected(owner, ref, snapshot.course_ids)
     if current.epoch != conn.epoch:
         raise DomainError("source_changed", "Connection scope changed during Calendar planning.")

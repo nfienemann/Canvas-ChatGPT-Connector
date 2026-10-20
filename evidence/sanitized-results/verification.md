@@ -524,3 +524,28 @@ suite is not rerun for that update.
 Actual Linux student-course reads, hosted service
 deployment, other CPU architectures and independent security review remain
 unverified. No student data or secrets were used in these tests.
+
+
+## 2026-10-20: Planning date and elapsed-capacity corrections
+
+The prior full suite at `edf364e` was reused as the unchanged baseline. Executing
+the baseline planner with synthetic inputs reproduced allocation after a date-only
+due date and 120 scheduled minutes inside a spring-DST window containing only 60
+elapsed minutes. A shared timing calculation now preserves source precision,
+requires applicable per-work timezones for date-only fields, exposes conservative
+planning bounds, enforces opening/closing constraints for pins and automatic
+blocks, and computes elapsed UTC capacity. Missing timing yields an explicit
+unresolved result. The Calendar composition path uses the same calculation.
+
+The increment adds **26 regression cases** in `tests/test_planning_dates.py`.
+The focused run passed **82 tests in 13.56 seconds**. The full Windows run passed
+**365 tests with 12 Linux-only skips in 46.34 seconds**, with **82% total statement
+coverage**, **95% planner coverage** and **99% timing-module coverage**. PostgreSQL,
+Windows AppContainer and actual HTTP MCP tests were included. Ruff and formatting
+checks passed for all 111 Python files. Source dates and submission states are not
+modified; automated tests use fictional records and request no Canvas writes.
+
+Linux CI and the private live read/proposal check are pending at this record.
+No new tool, OAuth scope, Canvas route, database migration or Calendar write is
+introduced. See [planning date boundaries](../../docs/planning-date-bounds.md)
+for inputs, source-versus-calculation provenance, known limits and root causes.

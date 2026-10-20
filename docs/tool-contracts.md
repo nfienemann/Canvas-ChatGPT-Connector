@@ -35,7 +35,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | search_course_files | Previously extracted authorized file text only; page passages, indexed count, unindexed documents and incomplete-coverage flags |
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
-| propose_study_plan | Stateless priorities/allocation; no calendar access or saved side effect |
+| propose_study_plan | Stateless priorities/allocation; date-only bounds require applicable per-work timezone; no calendar access or saved side effect |
 | get_saved_study_state | Local record versions for explicit later changes |
 | update_study_preferences | Persistent scoped preference write with expected version |
 | record_personal_progress | Persistent personal status/effort; never Canvas submission evidence |
@@ -48,6 +48,10 @@ midnight end excludes that end date. No 11:59 PM time is manufactured.
 Effort is not inferred from points. Unknown effort produces a bounded requirements
 review. Plans use upper effort bounds, reserve breaks/buffer and report unmet
 minutes. Unknown prerequisites keep otherwise fitting plans provisional.
+Date-only fields require `date_only_timezones` keyed by work ID; conservative
+bounds remain separate from source dates. Missing timing yields
+`timing_unresolved`, and durations use elapsed UTC minutes across DST. See
+[planning date boundaries](planning-date-bounds.md).
 Replanning accepts explicit busy intervals and pinned study blocks. Pins are
 preserved; conflicts with busy time, source deadlines or availability require a
 correction. Dependency completion must precede dependent sessions. Supplied

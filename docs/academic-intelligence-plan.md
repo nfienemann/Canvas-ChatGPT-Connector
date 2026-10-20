@@ -39,3 +39,12 @@ discussion-topic and Canvas-calendar GET collections. Existing workload and stud
 plan contracts are preserved. Explicit aliases, source dates, unknown completion,
 bounded continuation and authorization receive synthetic acceptance before a
 private read-only check. See [scope and limitations](course-obligations.md).
+
+
+## Follow-on timing correctness
+
+Before expanding new-activity planning, a baseline audit reproduced date-only
+deadline and DST capacity errors. The shared allocator now uses source-preserving
+conservative date bounds and elapsed instants across native planning, saved-plan
+validation and Calendar study proposals. Acceptance and limitations are recorded
+in [planning date boundaries](planning-date-bounds.md).
