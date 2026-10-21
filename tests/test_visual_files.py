@@ -142,7 +142,7 @@ BT /F1 16 Tf 320 525 Td (Quiz Four) Tj ET
         data, "pdf", tmp_path / "parser", ocr_root=ocr_root, visual={"page": 1, "rotation": 0}
     )
     image = Image.open(io.BytesIO(base64.b64decode(rendering["png"])))
-    assert any(r > b + 30 and g > b + 30 for r, g, b in image.getdata())
+    assert any(r > b + 30 and g > b + 30 for r, g, b in image.get_flattened_data())
     ocr = extract_isolated(
         data,
         "pdf",

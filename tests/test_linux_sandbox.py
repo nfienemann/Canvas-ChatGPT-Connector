@@ -159,7 +159,15 @@ def test_T23_linux_cpu_limit_and_corrupt_input(linux_root, tmp_path):
 @linux
 def test_T23_linux_runtime_contains_only_public_parser_code(linux_root):
     runtime = ensure_runtime(linux_root)
-    assert {p.name for p in (runtime / "site").iterdir()} == {"pypdf", "defusedxml"}
+    assert {p.name for p in (runtime / "site").iterdir()} == {
+        "pypdf",
+        "defusedxml",
+        "pypdfium2",
+        "pypdfium2_raw",
+        "pypdfium2_cfg",
+        "PIL",
+        "pillow.libs",
+    }
     assert not (runtime / "site/canvas_bridge").exists()
     assert (runtime / "stdlib.zip").is_file()
     assert list((runtime / "dynload").glob("*.so"))
