@@ -650,3 +650,34 @@ signed-URL rotation and literal Unicode offsets. Reconnect failures now discard
 prior cached-search hits; partially parsed cached documents report partial data.
 No test changes Canvas, grades or Calendar data. See
 [document search](../../docs/document-search.md) for scope and resource limits.
+
+Linux [CI run 39519468679](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39519468679)
+at `7bb80a8` passed **427 tests with four Windows-only skips in 43.76 seconds**,
+with **81% total statement coverage**. Lint, formatting, dependency auditing and
+the image build passed; the dependency audit found no known vulnerabilities.
+The restricted Linux image independently extracted PDF, TXT, Markdown, DOCX and
+PPTX fixtures and verified cleanup for each format.
+
+The existing private service was restarted through its scoped launcher. An
+authorized search of the selected Stem Cell Engineering course returned **20
+actual matching passages from a previously unindexed PDF**, including page
+references and content hashes, without a student upload. The first visited PDF
+was image-only and yielded no searchable text. The second had 32 PDF positions,
+including one position without a text layer. Both were explicitly partially
+parsed; only the second supplied those passages. The result was `partial_data`,
+`unread_documents_searched=true`, with continuation available. The bounded
+inventory reported partial page/file collections and complete module discovery.
+This proves on-demand authenticated PDF search, not exhaustive course coverage
+or OCR/figure understanding. Actual passages and account-specific proof remain
+outside Git in the private operator directory. No Canvas or Calendar data was
+changed and no grades were read.
+
+After refreshing the installed plugin catalog, a native ChatGPT conversation
+accepted `include_unread=true`, `max_documents=3` and `limit=5`. Two bounded
+search batches returned six matching passages from two documents, including an
+actual PDF-page citation. ChatGPT followed the continuation, reported
+`unread_documents_searched=true` for both batches, and retained `partial_data`
+and the remaining continuation. It explained unreadable text, denied inventory
+collections, unsearched figures and unfinished course coverage. The screenshot
+and conversation evidence remain private. This final evidence update changes
+documentation only; the unchanged full source suite was not rerun.

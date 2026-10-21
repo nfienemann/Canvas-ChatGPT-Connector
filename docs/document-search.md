@@ -91,3 +91,9 @@ failed files, disabled extraction, timeout, unversioned sources, cancellation
 boundaries, authorization loss, literal Unicode offsets and actual HTTP MCP calls.
 See the [verification ledger](../evidence/sanitized-results/verification.md) for
 executed checks and live private integration evidence.
+
+The deployed private connector passed a native ChatGPT test with two bounded
+search batches, actual PDF text and page citations, and successful continuation.
+Separate authorized service verification extracted matches from a previously
+unindexed scientific course PDF. Both tests explicitly reported partial coverage;
+they do not establish exhaustive course search or visual interpretation.
