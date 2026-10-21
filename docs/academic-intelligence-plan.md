@@ -59,3 +59,11 @@ Synthetic acceptance covers mixed activity allocation, partial/changed sources,
 unknown participation, permissions, date precision and MCP transport. Saved
 progress and Calendar synchronization for new activity types remain dependencies.
 See [activity study planning](activity-study-planning.md) for the precise scope.
+
+## Follow-on unread document search
+
+The confirmed unread-file search gap is addressed inside `search_course_files`
+through optional authenticated on-demand extraction. Bounded batches and encrypted
+continuation traverse document positions without repeating completed work. Source
+versions, selected scope, extraction limitations and failures remain explicit.
+Cached-only calls remain compatible. See [document search](document-search.md).

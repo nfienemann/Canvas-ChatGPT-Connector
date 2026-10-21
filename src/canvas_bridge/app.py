@@ -552,14 +552,31 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         course_id: Ref,
         query: Annotated[str, Field(min_length=1, max_length=200)],
         limit: Annotated[int, Field(ge=1, le=20)] = 10,
+        include_unread: bool = False,
+        cursor: Annotated[str | None, Field(max_length=4096)] = None,
+        max_documents: Annotated[int, Field(ge=1, le=3)] = 3,
     ) -> Result:
-        """Search previously extracted course documents for passages with PDF page references.
+        """Find cited passages in authorized course documents, including unread files.
 
-        Reports unindexed files separately. Read likely documents first to index
-        their text. Each returned match requires a fresh permission/version check.
+        Use include_unread=true for content questions about unread documents. It
+        reads/searches at most max_documents files per call using isolated extraction.
+        Follow next_cursor with the same course/query/limit and include_unread=true;
+        changed sources require restarting. Combine passages across response pages.
+        Default false preserves the existing cached-only search. Every returned
+        match gets a fresh permission/version check. Report extraction, inventory,
+        and continuation limits; no match is not proof of absence in unsearched
+        or visual content. Literal text search, not semantic or figure search.
         """
         return await search_files(
-            bridge, request_identity().owner, connection_id, course_id, query, limit
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            query,
+            limit,
+            include_unread=include_unread,
+            cursor=cursor,
+            max_documents=max_documents,
         )
 
     @register()

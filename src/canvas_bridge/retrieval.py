@@ -272,6 +272,7 @@ async def outline(
                                     "filename": plain_text(str(entry.get("filename", "")), 1000),
                                     "content_type": str(entry.get("content-type", ""))[:200],
                                     "size": entry.get("size"),
+                                    "source_version": file_version(entry),
                                 }
                                 if kind == "file"
                                 else {}

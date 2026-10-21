@@ -7,7 +7,7 @@ or grades, add write tools, or extend the selected-course boundary.
 
 | Finding | Classification and root cause | Resolution / honest remaining boundary |
 |---|---|---|
-| Scientific search misses unread PDFs | Expected index limitation; legacy `search_course_materials` covers pages. Dedicated file search covers previously extracted file text. | Both tools explicitly identify scope and unread exclusions. Discover files, read likely papers, then search the indexed text. No match never proves an unread document lacks the topic. Automatic whole-course/background indexing is not implemented. |
+| Scientific search misses unread PDFs | Original index limitation confirmed; legacy `search_course_materials` covers pages. The initial file search skipped documents unless already extracted. | `search_course_files(include_unread=true)` now reads/searches bounded batches with resumable page/file continuation and explicit failures. Cached-only behavior remains the default for compatibility. No match never proves absence in unsearched or visual content; background indexing is not implemented. |
 | Parent module ID cannot read one PDF | Expected identifier boundary; modules can contain multiple resources and their IDs are not file identities. Authenticated PDF reading was added in the preceding increment. | Outline File items return `material_ref`; pass it as `file_id` to `read_course_file`. Invalid references now explain this flow without leaking another owner's data. A narrow module query also resolves files outside the first 100 general inventory entries. |
 | Outline lists filenames without text | Expected metadata-only discovery behavior; listing is not extraction. | Explicit `document_content_included=false`, reader/search tool names, enabled state, format scope and per-collection failures. The existing authenticated reader returns actual PDF contents with pages and continuation. |
 | No history without complete baseline | Expected observation limit; Canvas assignment reads are current snapshots, not a historical event log. | Return precise missing-baseline reason, earliest complete observation, comparison interval, incomplete-observation count and freshness. A later partial observation cannot make an older complete comparison look current. Exact change times and pre-baseline history remain unknown. |
@@ -51,7 +51,8 @@ fields preserve existing fields and current code derives date coverage for older
 stored snapshots. Restart the private source service to load the updated adapter.
 
 OCR, visual interpretation, complete pre-connection history,
-and automatic unread-file indexing remain unsupported. See `file-reading.md`
+and autonomous background indexing remain unsupported. On-demand unread-file
+search is described in [document search](document-search.md). See `file-reading.md`
 and the release gates for platform and distribution boundaries.
 
 

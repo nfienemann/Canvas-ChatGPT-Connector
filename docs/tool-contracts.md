@@ -32,7 +32,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | fetch_course_material | Backward-compatible page or file text; fresh access checks, content-hash-bound continuation; files require enabled OS isolation |
 | list_course_files | Selected-course metadata with module associations, opaque file IDs, stable Canvas links and indexed state; resolves visible module files even when the Files collection is denied |
 | read_course_file | PDF/DOCX/PPTX/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
-| search_course_files | Previously extracted authorized file text only; page passages, indexed count, unindexed documents and incomplete-coverage flags |
+| search_course_files | Cached-only by default; `include_unread=true` reads/searches at most three files per request with encrypted version-bound continuation, page passages, extraction status and explicit coverage |
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; date-only bounds require applicable per-work timezone; no calendar access or saved side effect |
@@ -94,6 +94,7 @@ The file inventory requires explicit current-user visibility and excludes hidden
 or locked files. A module label can remain visible without a usable material
 reference when its resource is absent from the accessible bounded inventory.
 Module inclusion does not establish whether a reading is assigned or optional.
-Only previously extracted file bodies are searched by `search_course_files`;
+By default only previously extracted file bodies are searched by `search_course_files`;
+`include_unread=true` enables bounded on-demand extraction and continuation.
 `search_course_materials` retains its page-only behavior. Signed download URLs
 are never returned or persisted as sources. See [file reading](file-reading.md).

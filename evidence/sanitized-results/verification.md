@@ -621,3 +621,32 @@ those resource types at Rowan. No grades were read, no Canvas content was change
 and no plan or Calendar event was saved. Screenshots and aggregate proof remain
 in the private operator directory outside Git. The final proof-record update
 changes documentation only, so the unchanged full source suite is not rerun.
+
+## 2026-10-20: Authenticated search of unread documents
+
+The prior verified 391-test suite was reused as the unchanged baseline. The
+confirmed unread-file search gap is now addressed by optional
+`search_course_files(include_unread=true)`: authenticated discovery, bounded
+three-file batches, existing isolated extraction, and encrypted file/page
+continuation. Default cached-only behavior is preserved. The shared reader also
+preserves available Canvas modification timestamps in its source evidence.
+
+The increment adds **28 regression cases** in `tests/test_document_search.py`.
+The focused file/search/hardening run passed 77 tests before three additional
+continuation/Unicode cases; the final new-search-only run passed **28 tests in
+4.55 seconds**. After the final source-provenance and indexed-state corrections, the full
+Windows/PostgreSQL suite passed **419 tests, 12 Linux-only skips, in 58.50
+seconds**, with **83% total statement coverage**, **92% new search-module
+coverage** and **88% shared file-reader coverage**. Ruff and formatting passed.
+Actual HTTP MCP and Windows AppContainer tests were included.
+
+Synthetic acceptance found scientific text inside an unread PDF, returned its
+page and hash, and reused the extraction cache. Further cases cover multi-page
+and multi-document continuation without repeated downloads, query/scope/parser/
+inventory version binding, expired/tampered/foreign cursors, incomplete inventory,
+scanned/unsupported/failed files, disabled extraction, unknown versions, timeout,
+source changes during reading, hidden resources, cross-course duplicate names,
+signed-URL rotation and literal Unicode offsets. Reconnect failures now discard
+prior cached-search hits; partially parsed cached documents report partial data.
+No test changes Canvas, grades or Calendar data. See
+[document search](../../docs/document-search.md) for scope and resource limits.

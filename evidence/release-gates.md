@@ -22,7 +22,7 @@ OCR, visual interpretation and macOS parser workers remain unimplemented. Calend
 connection; actual writes still require explicit event approval and read-back.
 
 Additional gaps: comprehensive non-assignment obligations (classic quiz/topic and
-dated Canvas calendar inventory now has bounded tests; planner and group-child
+dated Canvas calendar inventory and selected activity planning now have bounded tests; Canvas Planner API and group-child
 coverage remain absent), advanced grade
 policies, fleet quotas,
 production key rotation, real mobile/screen-reader tests and license adoption.

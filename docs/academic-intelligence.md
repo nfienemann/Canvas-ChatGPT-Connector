@@ -26,6 +26,12 @@ it does not establish coverage of every natural-language policy or all universit
 
 ## Evidence and deterministic methods
 
+Content questions can now use `search_course_files(include_unread=true)` for
+bounded on-demand extraction and authenticated file/page continuation. The
+default remains cached-only for compatibility. Extraction failures, scanned pages,
+unknown source versions and incomplete inventories remain partial; see
+[document search](document-search.md).
+
 Selected activity planning now also uses `propose_course_study_plan`, backed by
 fresh course inventory versions. It supports explicit assignment, classic-quiz,
 discussion and event-preparation choices with shared capacity, unknown-state

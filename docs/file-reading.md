@@ -18,7 +18,7 @@ does not need IDs. A listing alone never counts as reading the paper.
 |---|---|
 | `list_course_files` | `connection_id`, `course_id`, optional `module_id`; file name/type/size, module associations, stable Canvas link, extraction state and opaque `file_id` |
 | `read_course_file` | `connection_id`, `file_id`, optional PDF `page_start`/`page_end`, `offset`, `length`, `expected_hash`; metadata, text, page passages, chunk ID, content hash, continuation and limitations |
-| `search_course_files` | `connection_id`, `course_id`, literal case-insensitive `query`, optional `limit`; matching indexed passages with PDF pages and explicit unindexed/incomplete coverage |
+| `search_course_files` | `connection_id`, `course_id`, literal case-insensitive `query`, optional `limit`; add `include_unread=true` to read/search bounded batches, then follow `next_cursor`; PDF pages and explicit extraction/inventory coverage |
 | `get_file_extraction_status` | `connection_id`, `file_id`; fresh access check and available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state, without downloading |
 
 `get_course_outline` joins File module items to opaque material references.
@@ -53,8 +53,9 @@ All returned content is marked untrusted source data, never executable instructi
   the operator must remove abandoned folders while the service is stopped.
   No raw-file public endpoint exists. Host/volume backups and previous ChatGPT
   responses have their own retention; database deletion is not forensic erasure.
-- Search covers previously extracted documents only. It reports unindexed files
-  separately and never claims that “no match” means an unindexed paper lacks a topic.
+- Search defaults to previously extracted documents. `include_unread=true`
+  enables bounded, resumable on-demand extraction. Both modes preserve incomplete
+  coverage; “no match” does not prove topic absence. See [document search](document-search.md).
 
 ## Windows deployment
 

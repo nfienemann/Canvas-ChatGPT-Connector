@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from canvas_bridge.domain import DomainError, Result, Source, utcnow
 from canvas_bridge.file_download import download_file, file_metadata, file_version
-from canvas_bridge.normalize import plain_text
+from canvas_bridge.normalize import fact_date, plain_text
 from canvas_bridge.parser_sandbox import extract_document
 from canvas_bridge.parser_worker import PARSER
 from canvas_bridge.storage import Course, Material, aware
@@ -17,6 +17,11 @@ from canvas_bridge.storage import Course, Material, aware
 def clear(row, stage="available", reason=None):
     row.text, row.locators, row.version_hash = "", [], ""
     row.file_state = {"stage": stage, "reason": reason} if reason else {"stage": stage}
+
+
+def modified_at(metadata):
+    value = fact_date(metadata, "updated_at").timestamp
+    return value.isoformat() if value else None
 
 
 def fresh_cache(row, metadata, settings):
@@ -67,6 +72,7 @@ async def authorized(bridge, owner, ref, material_id):
         ):
             clear(row)
         row.title = plain_text(str(metadata.get("display_name", "Untitled file")), 1000)
+        row.file_state = {**row.file_state, "source_updated_at": modified_at(metadata)}
     return row, course, metadata, epoch
 
 
@@ -85,6 +91,7 @@ def source(row, locator=None):
         title=row.title,
         url=row.url,
         retrieved_at=aware(row.retrieved_at),
+        source_updated_at=fact_date(row.file_state, "source_updated_at").timestamp,
         locator=locator,
         source_type="canvas_file",
         course_id=row.course_id,
@@ -143,6 +150,7 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
                     "filename": item.get("filename"),
                     "type": item.get("content_type"),
                     "size": item.get("size"),
+                    "source_version": item.get("source_version"),
                     "modules": related,
                     "url": row.url,
                     "extraction_state": row.file_state.get("stage", "available"),
@@ -262,6 +270,7 @@ async def read_file(
                         else "partially_parsed",
                         "coverage": extracted["coverage"],
                         "version": download.revision,
+                        "source_updated_at": modified_at(after),
                         "parser": extracted["parser"],
                         "metadata": extracted["metadata"],
                         "page_count": extracted["page_count"],
@@ -373,13 +382,35 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
     )
 
 
-async def search_files(bridge, owner, ref, course_id, query, limit=10):
+async def search_files(
+    bridge,
+    owner,
+    ref,
+    course_id,
+    query,
+    limit=10,
+    *,
+    include_unread=False,
+    cursor=None,
+    max_documents=3,
+):
     if not 1 <= len(query.strip()) <= 200 or not 1 <= limit <= 20:
         raise DomainError("needs_input", "Use a short search query and limit from 1 to 20.")
+    if include_unread:
+        from canvas_bridge.document_search import search_documents
+
+        return await search_documents(
+            bridge, owner, ref, course_id, query, limit, cursor, max_documents
+        )
+    if cursor:
+        raise DomainError(
+            "needs_input", "Document search continuation requires include_unread=true."
+        )
     inventory = await list_files(bridge, owner, ref, course_id)
+    connection, _ = bridge.selected(owner, ref, [course_id])
     results, sources, indexed, unindexed = [], [], 0, []
     started = asyncio.get_running_loop().time()
-    unavailable, budget_exhausted = 0, False
+    unavailable, partially_parsed, budget_exhausted = 0, 0, False
     # The inventory is bounded. Only previously extracted files are searched;
     # each candidate gets a fresh course-file permission/version check first.
     for file in inventory.data["files"]:
@@ -404,6 +435,11 @@ async def search_files(bridge, owner, ref, course_id, query, limit=10):
                 if not course.selected or not course.accessible:
                     raise DomainError("permission_denied", "Course selection changed.")
                 row = bridge.store.owned(session, Material, owner, ref, file["file_id"])
+                if row.version_hash != fresh.data["content_hash"]:
+                    raise DomainError(
+                        "source_changed", "Document text changed during search. Search again."
+                    )
+                partially_parsed += row.file_state.get("stage") == "partially_parsed"
                 for page in row.locators:
                     match = re.search(re.escape(query.strip()), page["text"], re.IGNORECASE)
                     if match is None or len(results) >= limit:
@@ -423,16 +459,23 @@ async def search_files(bridge, owner, ref, course_id, query, limit=10):
                     )
                     sources.append(source(row, page_label(row, page["page"])))
             indexed += 1
-        except DomainError:
+        except DomainError as exc:
+            if exc.status in {"reconnect_required", "source_changed"}:
+                raise
+            bridge.selected(owner, ref, [course_id])
             unavailable += 1
             continue
         except TimeoutError:
             budget_exhausted = True
             break
+    current, _ = bridge.selected(owner, ref, [course_id])
+    if current.epoch != connection.epoch:
+        raise DomainError("source_changed", "Course selection changed during document search.")
     return Result(
         status="partial_data"
         if unindexed
         or unavailable
+        or partially_parsed
         or budget_exhausted
         or len(results) == limit
         or inventory.status != "ok"
@@ -446,11 +489,12 @@ async def search_files(bridge, owner, ref, course_id, query, limit=10):
             "limit": limit,
             "limit_reached": len(results) == limit,
             "unavailable_documents": unavailable,
+            "partially_extracted_documents": partially_parsed,
             "request_budget_exhausted": budget_exhausted,
             "inventory_coverage": inventory.data["coverage"],
             "inventory_failures": inventory.data["inventory_failures"],
             "unread_documents_searched": False,
-            "next_step": "Read likely unindexed files with read_course_file, then search again. No match is not evidence that unread documents lack the topic.",
+            "next_step": "Use include_unread=true to read/search bounded batches and follow next_cursor, or read specific files with read_course_file. No match is not evidence that unread documents lack the topic.",
         },
         sources=sources,
         meta=bridge.meta(
