@@ -3,6 +3,7 @@ the validated numeric address while TLS verifies the original hostname.
 """
 
 import asyncio
+import logging
 import socket
 import ssl
 
@@ -101,6 +102,16 @@ class PublicTransport(httpx.AsyncBaseTransport):
 
 
 def public_client(timeout: float = 8) -> httpx.AsyncClient:
+    # MCP may configure the root logger at INFO. HTTPX logs full signed URLs
+    # there, and httpcore DEBUG may include private headers. Keep upstream
+    # wire diagnostics out of application logs; our own errors use safe types.
+    for name in ("httpx", "httpcore"):
+        wire_logger = logging.getLogger(name)
+        wire_logger.disabled = True
+        wire_logger.propagate = False
+        wire_logger.setLevel(logging.CRITICAL + 1)
+        if not wire_logger.handlers:
+            wire_logger.addHandler(logging.NullHandler())
     return httpx.AsyncClient(
         transport=PublicTransport(),
         timeout=timeout,

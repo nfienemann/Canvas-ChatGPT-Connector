@@ -71,7 +71,9 @@
         "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
-        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -866,7 +868,9 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
-        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T12_reader_resource_is_static_and_has_no_external_origins"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1117,7 +1121,9 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
-        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T12_reader_resource_is_static_and_has_no_external_origins"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1279,6 +1285,7 @@
         "src/canvas_bridge/visual_files.py",
         "src/canvas_bridge/visual_worker.py",
         "src/canvas_bridge/visual_schedule.py",
+        "src/canvas_bridge/visual_ui.py",
         "src/canvas_bridge/ocr_runtime.py",
         "src/canvas_bridge/ocr_worker.py",
         "src/canvas_bridge/windows_sandbox.py",
@@ -1741,7 +1748,9 @@
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
         "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
-        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -2019,7 +2028,9 @@
         "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
-        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"

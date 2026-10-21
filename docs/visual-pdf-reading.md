@@ -23,6 +23,17 @@ an old cached result could preserve the symptom but was not its underlying cause
   structured Result with stable Canvas citation, source hash/version, dimensions,
   next page and an encrypted one-hour review receipt. It does not return a public
   download URL or put arbitrary PDF bytes inside a text response.
+- The native page reader completes the MCP Apps handshake and receives either
+  image content or private metadata. Click **Read page in ChatGPT** to recheck
+  access/version, validate the PNG hash, and supply pixels to the next turn.
+  It negotiates image context support, with the documented ChatGPT file/imageIds
+  bridge as a fallback. There is no manual download/upload, external conversion
+  service or separate AI account. The view declares no external network origins.
+  A later visual question may require pressing the button again.
+- Sending a page into ChatGPT subjects that copy to ChatGPT chat/file retention,
+  separate from the connector's temporary-file cleanup. The view does not request
+  saving it to the user's file library. A sent image does not establish a correct
+  interpretation; the assistant must still examine it and disclose uncertainty.
 - `interpret_course_schedule(connection_id, render_receipt, rows, calendar=None)`
   validates ephemeral, model-supplied interpretations against the authorized
   rendered source version. Rows retain exact passage, normalized image bounding
@@ -92,13 +103,29 @@ document, image, private receipt or coursework transcription is committed here.
 | OCR text and indexing/search | Passed with partial coverage; roughly 3,000 characters, mean confidence 79/100, searchable content |
 | Native ChatGPT text delivery | Passed; ordinary conversation received OCR with page citation |
 | Standard MCP image transport | Passed in real HTTP MCP contract test with `ImageContent` |
-| Native ChatGPT visual delivery | Blocked in the tested connector surface: model received metadata but reported no inspectable pixels |
-| Structured visual schedule in native ChatGPT | Not completed; model correctly declined to invent image coordinates |
+| Native ChatGPT visual delivery | Passed through the native page-reader control; model inspected actual pixels |
+| Structured visual schedule in native ChatGPT | Seven entries were visually read correctly; submission to interpret_course_schedule was blocked by an expired/declined connector sign-in |
 | Source citations | Passed for page, stable Canvas URL, original-byte hash and version |
 
-The OCR misread a presenter name and the comprehensive exam's day. Local image
-inspection could resolve them, but this does not establish that the native
-ChatGPT model saw the image. The complete visual-schedule acceptance test remains
-partial. Future work must verify a supported image-delivery path on that surface;
-do not substitute public signed URLs or claim visual understanding from metadata.
+The OCR misread a presenter name and the comprehensive exam's day. In a blind
+native ChatGPT test (no expected dates supplied), the page reader delivered the
+actual image and ChatGPT resolved both errors. All seven requested acceptance
+entries matched the page, including the presenter column and undated TBD row.
+PDF page citations were returned. This establishes visual reading, not automatic
+or independently verified schedule reconstruction.
+
+The follow-up structured endpoint call returned `Session terminated`; after
+reloading, ChatGPT displayed an expired-connection notice and then an
+approval/login decline. No successful live structured validation is claimed.
+Local receipt/version/proposal tests pass. Sign-in renewal is needed to repeat
+that final live stage; no permissions or authorization code were changed here.
+
+The original gap had two layers: no server OCR, and a text-only model adapter
+that did not expose standard MCP image blocks. The native view now performs the
+initialization handshake and tolerates initial results without hidden image
+metadata, then obtains a fresh authorized image before model-context transfer.
+Outbound HTTP library wire logs are disabled to prevent signed URLs or headers
+from being recorded under MCP's INFO logging configuration. Safe application
+failure-type logging remains enabled.
+
 XLSX support is a separate increment and is not included in this patch.

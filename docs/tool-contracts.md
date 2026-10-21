@@ -34,7 +34,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | read_course_file | PDF/DOCX/PPTX/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
 | search_course_files | Cached-only by default; `include_unread=true` reads/searches at most three files per request with encrypted version-bound continuation, page passages, extraction status and explicit coverage |
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
-| render_course_file_page | Authorized PDF page as bounded MCP ImageContent, hash/version/page citation and one-hour owner-bound receipt; client must actually expose pixels before claiming visual inspection |
+| render_course_file_page | Authorized PDF page as bounded MCP ImageContent, hash/version/page citation and one-hour owner-bound receipt; native page-reader control supplies image context after a fresh access/version check; client must expose pixels before claiming visual inspection |
 | interpret_course_schedule | Ephemeral unverified visual rows bound to a rendered page receipt; exact date basis, coordinates and roles; optional confirmation-only Calendar proposals, never writes |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; date-only bounds require applicable per-work timezone; no calendar access or saved side effect |

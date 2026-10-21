@@ -100,10 +100,11 @@ DOCX sections and PPTX slides use the same isolated extraction path. Linux now
 has a Landlock/seccomp worker and an unprivileged container verification suite;
 see [Linux isolation](docs/linux-parser-isolation.md) for supported kernels and proof.
 Bounded English OCR now makes image-only PDF text searchable with explicit
-uncertainty. Page-image MCP responses are implemented, but the tested native
-ChatGPT surface did not expose pixels for model inspection; see
-[visual PDF reading](docs/visual-pdf-reading.md) for the partial acceptance result.
-Verified visual interpretation, macOS extraction, Calendar writes, automatic notifications, broad quiz/LTI
+uncertainty. The native **Read page in ChatGPT** control now sends a rendered
+page for visual interpretation without manual download/upload. The image-only
+schedule acceptance test passed; see [visual PDF reading](docs/visual-pdf-reading.md)
+for stage-specific results and the remaining structured-call sign-in limitation.
+Independently verified visual interpretation, macOS extraction, Calendar writes, automatic notifications, broad quiz/LTI
 ingestion, public onboarding and unsupported grade policies are not advertised.
 
 See [academic intelligence](docs/academic-intelligence.md) for deadline reconciliation,

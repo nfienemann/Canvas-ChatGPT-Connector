@@ -116,6 +116,14 @@ def build_bundle():
     ]
     # Explicit resources only. Never add the working directory, .env, .local or keys.
     args += ["--add-data", f"{ROOT / 'institutions.json'}:canvas_bridge/resources"]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/assets/page-reader.js'}:canvas_bridge/assets",
+    ]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/assets/page-reader-NOTICES.txt'}:canvas_bridge/assets",
+    ]
     for file in sorted((ROOT / "migrations").rglob("*")):
         if file.is_file() and file.suffix in {".py", ".mako"} and "__pycache__" not in file.parts:
             destination = (

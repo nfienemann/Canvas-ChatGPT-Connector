@@ -42,6 +42,7 @@ from canvas_bridge.synthetic import SyntheticProvider
 from canvas_bridge.vault import Vault
 from canvas_bridge.visual_files import render_file
 from canvas_bridge.visual_schedule import ScheduleRow, interpret_schedule
+from canvas_bridge.visual_ui import PAGE_URI, register_page_reader
 
 logger = logging.getLogger("canvas_bridge")
 Ref = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")]
@@ -105,6 +106,8 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         ),
     )
 
+    register_page_reader(mcp)
+
     def register(*, write: bool = False, image_result: bool = False):
         scope = WRITE_SCOPE if write else READ_SCOPE
 
@@ -126,6 +129,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                             )
                         return CallToolResult(
                             structuredContent=result.model_dump(mode="json"),
+                            _meta={"canvas_bridge_page": {"png": png}},
                             content=[
                                 TextContent(type="text", text=result.model_dump_json()),
                                 ImageContent(type="image", data=png, mimeType="image/png"),
@@ -156,9 +160,18 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                     openWorldHint=not write,
                 ),
                 meta={
+                    **(
+                        {
+                            "ui": {"resourceUri": PAGE_URI, "visibility": ["model", "app"]},
+                            "openai/outputTemplate": PAGE_URI,
+                            "openai/widgetAccessible": True,
+                        }
+                        if image_result
+                        else {}
+                    ),
                     "securitySchemes": [
                         {"type": "oauth2", "scopes": [READ_SCOPE, scope] if write else [READ_SCOPE]}
-                    ]
+                    ],
                 },
                 structured_output=True,
             )(guarded)
@@ -547,6 +560,9 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
         Resolve opaque file_id with list_course_files or get_course_outline first.
         Inspect the returned image itself; text-only hosts cannot interpret it.
+        If the pixels are unavailable to the model, show the native page reader
+        and ask the student to click Read page in ChatGPT. The image is supplied
+        to the next turn; do not claim visual reading before that.
         Preserve colors, row/column relationships and uncertainty. Never infer
         figure/table contents from filenames. Follow next_page with expected_hash
         for a version-consistent multi-page review. No server OCR is performed.

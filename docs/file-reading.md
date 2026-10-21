@@ -106,7 +106,7 @@ support, not a hosted-service deployment or institutional approval.
 
 Bounded English OCR and one-page MCP image responses are now available; see
 [scanned PDF reading](visual-pdf-reading.md) for deployment, limits and the
-remaining native ChatGPT image-delivery blocker. Live XLSX/CSV extraction,
+native ChatGPT page-reader control and stage-specific live results. Live XLSX/CSV extraction,
 verified image/figure interpretation, scientific chart analysis and faithful
 table/equation reconstruction are not implemented.
 Scanned or partly unreadable PDFs return explicit partial coverage/OCR limitations;

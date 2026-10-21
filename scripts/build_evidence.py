@@ -60,6 +60,7 @@ component_map = {
         "visual_files.py",
         "visual_worker.py",
         "visual_schedule.py",
+        "visual_ui.py",
         "ocr_runtime.py",
         "ocr_worker.py",
         "windows_sandbox.py",

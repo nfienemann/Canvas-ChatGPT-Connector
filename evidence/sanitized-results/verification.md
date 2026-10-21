@@ -769,3 +769,37 @@ No Canvas resources, grades or Calendar events were modified. No OAuth scope or
 Canvas API permission expansion was needed. Linux verification for this OCR
 increment must be established by its own CI run; the prior text-only run is not
 proof of the new native OCR libraries.
+
+
+## 2026-10-21: Native ChatGPT visual handoff
+
+The preceding OCR commit `a0e5e86` is on main. CI run `39629828257` passed:
+483 tests, four Windows-only skips, Python dependency audit, Docker build and
+restricted-container text/OCR/image proofs.
+
+This isolated follow-up completes the native MCP Apps handshake and supplies
+page pixels through a capability-negotiated image context or ChatGPT's
+uploadFile/imageIds bridge. The locked static UI requires no Node runtime on
+the deployed server and permits no external network origins. The same tool
+contracts and read-only authorization remain; no permission-audit changes are
+included. A library-logging regression prevents signed download URLs/headers
+from reaching logs under root INFO/DEBUG configuration.
+
+**Windows/PostgreSQL: 490 passed, 12 Linux-only skips, 165.44 seconds.**
+The UI cases cover missing initial private metadata, standard image content,
+failed handshake, unsupported host, denied fresh access, changed source, wrong
+image hash, oversized/missing pixels, upload failure and message failure.
+Coverage percentage from this run is not used: importing the module to prove
+its isolated worktree path preceded coverage initialization. The earlier mixed
+working-folder run is excluded because another task was editing that checkout.
+CI independently runs the exact isolated commit. Local npm audit encountered
+registry DNS failure; its result is not represented as a clean security audit.
+
+The authorized native ChatGPT test read all seven schedule acceptance entries
+from the actual rendered pixels, with the original page citation and no seeded
+answer dates. OCR errors in a presenter name and exam day were corrected by
+visual inspection. TBD remained undated. No Canvas or Calendar data changed.
+A follow-up structured interpretation hit `Session terminated`, then an expired
+connector session/login decline. Live structured endpoint acceptance therefore
+remains unverified; automated receipt validation and proposal tests pass.
+No private page image, receipt, credential or course transcription is committed.
