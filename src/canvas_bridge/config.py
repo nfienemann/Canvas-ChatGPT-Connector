@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     file_reading_enabled: bool = False
     parser_root: Path | None = None
     parser_runtime_root: Path | None = None
+    ocr_root: Path | None = None
     file_cache_hours: int = Field(default=24, ge=1, le=24)
 
     @property

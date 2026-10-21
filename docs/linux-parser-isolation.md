@@ -12,12 +12,14 @@ unsupported. This is server infrastructure, not a new student application or log
 
 ## Boundary
 
-Only a copied public runtime (standard library, pypdf, defusedxml, trusted bootstrap
-and parser) and the current private job directory are readable. The runtime is
+Only a copied public runtime (standard library, pypdf, defusedxml, PDFium, Pillow,
+optional trusted English OCR model, bootstrap and parsers) and the current private
+job directory are readable. The runtime is
 read-only to the child. Job inputs are also read-only; the only writable file is
 a single output precreated by the launcher. Creating additional files is denied. No host
 library directory, service package, database, credential file, other job or parent
-directory is granted. Standard-library native dependencies are loaded by the
+directory is granted. Standard-library, PDFium, Pillow and optional Tesseract
+native dependencies are loaded by the
 trusted bootstrap before restriction; their handles remain in memory. Existing
 package search paths are rebound to the copied runtime, without site initialization.
 

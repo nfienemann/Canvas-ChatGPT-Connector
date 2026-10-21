@@ -184,7 +184,7 @@ def test_T23_linux_no_unrestricted_fallback(tmp_path, monkeypatch):
     import canvas_bridge.parser_sandbox as sandbox
 
     monkeypatch.setattr(sandbox.sys, "platform", "linux")
-    monkeypatch.setattr(sandbox, "ensure_runtime", lambda root: tmp_path)
+    monkeypatch.setattr(sandbox, "ensure_runtime", lambda root, ocr_root=None: tmp_path)
     monkeypatch.setattr("canvas_bridge.linux_sandbox.private_root", lambda root: root)
 
     def unavailable(*args, **kwargs):

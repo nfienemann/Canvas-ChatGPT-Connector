@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import ToolAnnotations
+from mcp.types import CallToolResult, ImageContent, TextContent, ToolAnnotations
 from pydantic import AwareDatetime, Field
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
@@ -40,6 +40,8 @@ from canvas_bridge.service import Bridge
 from canvas_bridge.storage import Store, Work
 from canvas_bridge.synthetic import SyntheticProvider
 from canvas_bridge.vault import Vault
+from canvas_bridge.visual_files import render_file
+from canvas_bridge.visual_schedule import ScheduleRow, interpret_schedule
 
 logger = logging.getLogger("canvas_bridge")
 Ref = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")]
@@ -103,7 +105,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         ),
     )
 
-    def register(*, write: bool = False):
+    def register(*, write: bool = False, image_result: bool = False):
         scope = WRITE_SCOPE if write else READ_SCOPE
 
         def decorator(fn):
@@ -114,7 +116,22 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
             async def guarded(*args, **kwargs):
                 try:
                     request_identity(scope)
-                    result = attach(await fn(*args, **kwargs))
+                    returned = await fn(*args, **kwargs)
+                    if image_result:
+                        result, png = returned
+                        result = attach(result)
+                        if len(png) > 1_733_336 or len(result.model_dump_json().encode()) > 250_000:
+                            raise DomainError(
+                                "partial_data", "Page image exceeds the response budget."
+                            )
+                        return CallToolResult(
+                            structuredContent=result.model_dump(mode="json"),
+                            content=[
+                                TextContent(type="text", text=result.model_dump_json()),
+                                ImageContent(type="image", data=png, mimeType="image/png"),
+                            ],
+                        )
+                    result = attach(returned)
                     if len(result.model_dump_json().encode()) > 250_000:
                         return Result(
                             status="partial_data",
@@ -516,6 +533,46 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         """
         return await list_files(
             bridge, request_identity().owner, connection_id, course_id, module_id
+        )
+
+    @register(image_result=True)
+    async def render_course_file_page(
+        connection_id: Ref,
+        file_id: Ref,
+        page: Annotated[int, Field(ge=1, le=200)] = 1,
+        rotation: Literal[0, 90, 180, 270] = 0,
+        expected_hash: Annotated[str | None, Field(min_length=64, max_length=64)] = None,
+    ) -> Annotated[CallToolResult, Result]:
+        """Read a PDF visually as one bounded PNG image, including image-only scans.
+
+        Resolve opaque file_id with list_course_files or get_course_outline first.
+        Inspect the returned image itself; text-only hosts cannot interpret it.
+        Preserve colors, row/column relationships and uncertainty. Never infer
+        figure/table contents from filenames. Follow next_page with expected_hash
+        for a version-consistent multi-page review. No server OCR is performed.
+        """
+        return await render_file(
+            bridge, request_identity().owner, connection_id, file_id, page, rotation, expected_hash
+        )
+
+    @register()
+    async def interpret_course_schedule(
+        connection_id: Ref,
+        render_receipt: Annotated[str, Field(max_length=4096)],
+        rows: Annotated[list[ScheduleRow], Field(min_length=1, max_length=50)],
+        calendar: CalendarContext | None = None,
+    ) -> Result:
+        """Structure schedule rows AFTER inspecting render_course_file_page's image.
+
+        This tool validates provenance, not visual correctness. Transcribe exact
+        visible dates, columns, paper and presenter roles, Q&A leaders, colors,
+        merged rows and uncertainties. Use stable row_key for the same obligation
+        across versions. Coordinates are normalized to the returned rotated image.
+        TBD stays undated. Optional fresh Calendar context generates proposals
+        only. Require student review and explicit confirmation before writes.
+        """
+        return await interpret_schedule(
+            bridge, request_identity().owner, connection_id, render_receipt, rows, calendar
         )
 
     @register()

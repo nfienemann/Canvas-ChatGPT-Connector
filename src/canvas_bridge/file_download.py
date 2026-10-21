@@ -93,7 +93,7 @@ def download_destination(url: str, client, course: str, file: str) -> bool:
     return same_origin
 
 
-async def download_file(client, course: str, file: str, *, http=None) -> DownloadedFile:
+async def _download_once(client, course: str, file: str, *, http=None) -> DownloadedFile:
     """Only fresh metadata from a course-qualified API can supply a download URL.
 
     An injected HTTP client is for synthetic transport tests. Production creates
@@ -202,3 +202,24 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
         if owned_http:
             await download_http.aclose()
     raise DomainError("retry_later", "Course file download budget exhausted.")
+
+
+async def download_file(client, course: str, file: str, *, http=None) -> DownloadedFile:
+    """Renew an expired storage link once via freshly authorized Canvas metadata."""
+    try:
+        async with asyncio.timeout(client.settings.refresh_budget_seconds):
+            for attempt in range(2):
+                try:
+                    return await _download_once(client, course, file, http=http)
+                except DomainError as exc:
+                    if (
+                        attempt
+                        or exc.status != "permission_denied"
+                        or exc.message != "Course file download is unavailable."
+                    ):
+                        raise
+    except TimeoutError as exc:
+        raise DomainError(
+            "retry_later", "Course file download exceeded its total retry budget."
+        ) from exc
+    raise DomainError("retry_later", "Course file download did not complete.")

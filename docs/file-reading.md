@@ -65,7 +65,8 @@ private operator configuration set `BRIDGE_FILE_READING_ENABLED=true` and set
 feature disabled elsewhere. Restart the existing launcher. Refresh the installed
 custom connector's tools in ChatGPT if its catalog predates these tools.
 
-The service copies only Python standard-library/runtime, pypdf and defusedxml code into an
+The service copies only Python standard-library/runtime, pypdf, defusedxml,
+PDFium, Pillow and optionally trusted Tesseract libraries/models into an
 isolated runtime. Each job uses a unique Windows AppContainer SID, no network
 capabilities and write access only to its own temporary directory. The worker
 receives bytes and format only, not tokens, database access, service code or
@@ -103,8 +104,11 @@ support, not a hosted-service deployment or institutional approval.
 
 ## Remaining phases
 
-Live XLSX/CSV extraction, OCR, image/figure interpretation, scientific
-chart analysis and faithful table/equation reconstruction are not implemented.
+Bounded English OCR and one-page MCP image responses are now available; see
+[scanned PDF reading](visual-pdf-reading.md) for deployment, limits and the
+remaining native ChatGPT image-delivery blocker. Live XLSX/CSV extraction,
+verified image/figure interpretation, scientific chart analysis and faithful
+table/equation reconstruction are not implemented.
 Scanned or partly unreadable PDFs return explicit partial coverage/OCR limitations;
 unsupported/corrupt/time-limited documents return a reason instead of empty success.
 Multi-column reading order and mathematical notation may be imperfect.

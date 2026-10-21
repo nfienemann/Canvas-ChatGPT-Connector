@@ -12,19 +12,24 @@ import zipfile
 from pathlib import Path
 
 import defusedxml
+import PIL
 import pypdf
+import pypdfium2
+import pypdfium2_cfg
+import pypdfium2_raw
 
+from canvas_bridge import ocr_runtime
 from canvas_bridge.domain import DomainError
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
 
 _slot = threading.Lock()
 
 
-def ensure_runtime(root: Path) -> Path:
+def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     if sys.platform == "linux":
         from canvas_bridge.linux_sandbox import ensure_runtime as linux_runtime
 
-        return linux_runtime(root)
+        return linux_runtime(root, ocr_root)
     if os.name != "nt":
         raise DomainError(
             "unsupported_feature",
@@ -35,8 +40,17 @@ def ensure_runtime(root: Path) -> Path:
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
+    visual = Path(__file__).with_name("visual_worker.py")
+    ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + visual.read_bytes()
+        + PIL.__version__.encode()
+        + ocr.read_bytes()
+        + ocr_runtime.version(ocr_root)
+        + b"runtime-with-pdfium-cfg-v1"
+        + str(pypdfium2.PYPDFIUM_INFO).encode()
+        + str(pypdfium2.PDFIUM_INFO).encode()
         + sys.version.encode()
         + pypdf.__version__.encode()
         + defusedxml.__version__.encode()
@@ -75,6 +89,16 @@ def ensure_runtime(root: Path) -> Path:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     shutil.copy2(worker, runtime / "worker.py")
+    shutil.copy2(visual, runtime / "visual_worker.py")
+    shutil.copy2(ocr, runtime / "ocr_worker.py")
+    ocr_runtime.copy(ocr_root, runtime)
+    for package in (pypdfium2, pypdfium2_raw, pypdfium2_cfg, PIL):
+        shutil.copytree(
+            Path(package.__file__).parent,
+            runtime / "site" / package.__name__,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+        )
     shutil.copytree(
         Path(defusedxml.__file__).parent,
         runtime / "site/defusedxml",
@@ -129,7 +153,13 @@ def validate_result(result: dict, data: bytes) -> dict:
 
 
 def extract_isolated(
-    data: bytes, kind: str, root: Path, *, runtime_root: Path | None = None
+    data: bytes,
+    kind: str,
+    root: Path,
+    *,
+    runtime_root: Path | None = None,
+    visual: dict | None = None,
+    ocr_root: Path | None = None,
 ) -> dict:
     if len(data) > 10_000_000:
         raise DomainError("unsupported_feature", "File exceeds the extraction size limit.")
@@ -140,11 +170,11 @@ def extract_isolated(
             from canvas_bridge.linux_sandbox import private_root, run
 
             private_root(root)
-            runtime = ensure_runtime(runtime_root or root)
+            runtime = ensure_runtime(runtime_root or root, ocr_root)
         else:
             from canvas_bridge.windows_sandbox import run
 
-            runtime = ensure_runtime(root)
+            runtime = ensure_runtime(root, ocr_root)
 
         jobs = root.resolve() / "jobs"
         jobs.mkdir(exist_ok=True)
@@ -153,13 +183,19 @@ def extract_isolated(
             if not work.is_relative_to(jobs.resolve()):
                 raise RuntimeError("Invalid temporary extraction location.")
             (work / "input.bin").write_bytes(data)
-            (work / "request.json").write_text(json.dumps({"kind": kind}), encoding="utf-8")
-            run(runtime, work)
+            (work / "request.json").write_text(
+                json.dumps(visual if visual is not None else {"kind": kind}), encoding="utf-8"
+            )
+            run(runtime, work, script="visual_worker.py" if visual is not None else "worker.py")
             path = work / "result.json"
             with path.open("rb") as stream:
                 output = stream.read(2_000_001)
             if len(output) > 2_000_000:
                 raise ValueError("Extraction output exceeded its budget.")
+            if visual is not None:
+                from canvas_bridge.visual_files import validate_rendering
+
+                return validate_rendering(json.loads(output), data, visual)
             return validate_result(json.loads(output), data)
     except DomainError:
         raise
@@ -182,10 +218,67 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
         )
     # Each OS worker always has its own wall/CPU limit, even if this awaiting
     # task is cancelled. It cannot survive the bounded job cleanup.
-    return await asyncio.to_thread(
+    parsed = await asyncio.to_thread(
         extract_isolated,
         data,
         kind,
         settings.parser_root,
         runtime_root=settings.parser_runtime_root,
+        ocr_root=settings.ocr_root,
     )
+
+    if kind != "pdf" or settings.ocr_root is None:
+        return parsed
+    attempted = 0
+    for page in parsed["pages"]:
+        if len(page["text"].strip()) >= 40 or page["state"] in {"truncated", "resource_limit"}:
+            continue
+        if attempted >= 4:
+            parsed["warnings"].append(
+                f"Page {page['page']}: OCR batch limit (4 pages); use visual page reading."
+            )
+            parsed["coverage"] = "partial"
+            continue
+        attempted += 1
+        try:
+            visual = await asyncio.to_thread(
+                extract_isolated,
+                data,
+                "pdf",
+                settings.parser_root,
+                runtime_root=settings.parser_runtime_root,
+                ocr_root=settings.ocr_root,
+                visual={"page": page["page"], "rotation": 0, "ocr": True},
+            )
+            recognition = visual["ocr"]
+            text = recognition["text"].strip()
+            budget = MAX_TEXT - sum(len(p["text"]) + 2 for p in parsed["pages"])
+            if text and len(text) <= budget and recognition["mean_confidence"] >= 50:
+                page.update(
+                    text=text,
+                    state="ocr_extracted",
+                    extraction_method=recognition["method"],
+                    ocr_confidence=recognition["mean_confidence"],
+                    words=recognition["words"],
+                    image_pixels=visual["pixels"],
+                )
+                parsed["warnings"] = [
+                    w
+                    for w in parsed["warnings"]
+                    if not w.startswith(f"Page {page['page']}: no text layer")
+                    and w != "No readable text was extracted."
+                ]
+            else:
+                parsed["warnings"].append(
+                    f"Page {page['page']}: OCR returned no usable text, low-confidence text or exceeded the text budget."
+                )
+        except DomainError:
+            parsed["warnings"].append(
+                f"Page {page['page']}: OCR unavailable, failed or exceeded isolation limits. Visual reading may still work."
+            )
+        parsed["coverage"] = "partial"
+    if attempted:
+        parsed["warnings"].append(
+            "OCR is an uncertain English transcription, not a verified table. Check dates, numbers, names and merged cells against render_course_file_page; colors are not interpreted."
+        )
+    return parsed

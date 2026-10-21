@@ -727,3 +727,45 @@ pass is claimed. The same run must be observed to completion rather than
 restarted because of queue delay. The source is uploaded on
 `codex/deadline-date-evidence`; `main` remains at the preceding verified
 `f849182`. This final record-only update does not change the tested source.
+
+## 2026-10-21: Image-only PDF OCR and page transport
+
+The preceding deadline CI run `39616677866` subsequently completed successfully:
+458 tests passed with four Windows-only skips, and the dependency audit, image
+build and restricted five-format container proof passed. Main was advanced to
+`0af89b8` before starting this increment.
+
+The OCR increment preserves the existing download and isolation boundaries,
+adds bounded English Tesseract recognition and standard MCP page-image content,
+invalidates v3 extraction caches, and stops labeling whitespace-only text as
+indexed. Schedule interpretations retain unverified provenance and produce only
+optional Calendar proposals. XLSX changes were explicitly set aside and are
+excluded from this increment.
+
+The Windows/PostgreSQL full suite returned **472 passed, 12 Linux-only skips and
+two failed stale test expectations in 146.15 seconds**, with **82% total statement
+coverage**. The failures were the old read-only tool count (26 rather than 28)
+and a one-argument runtime mock after the optional OCR runtime argument was added.
+After updating those fixtures, both tests plus a new colored/merged-header scan
+test passed: **3 passed in 13.86 seconds**. Thus 475 distinct test cases passed
+across the full run and focused rechecks; no failure remains from that run.
+The 16-case focused OCR suite had also passed independently. OS-isolated workers
+are verified through output assertions; their execution is not included in
+parent-process statement coverage. Ruff, formatting and the Python dependency
+audit passed (no known dependency vulnerabilities; the local project is not a
+PyPI package and is excluded from that audit).
+
+Actual authorized binary retrieval, restricted rendering and OCR text delivery
+through native ChatGPT succeeded on the owner's one-page image-only schedule.
+OCR remained partial and misread a presenter and one exam date. A real HTTP MCP
+test verified an image block plus structured metadata. The native ChatGPT
+conversation received the OCR and page citations but explicitly reported that
+rendered pixels were not inspectable; it correctly refused visual schedule
+interpretation. Local visual inspection does not override that client limit.
+See [the stage-by-stage result](../../docs/visual-pdf-reading.md). Private images,
+receipts, exact course transcriptions and credentials remain outside Git.
+
+No Canvas resources, grades or Calendar events were modified. No OAuth scope or
+Canvas API permission expansion was needed. Linux verification for this OCR
+increment must be established by its own CI run; the prior text-only run is not
+proof of the new native OCR libraries.

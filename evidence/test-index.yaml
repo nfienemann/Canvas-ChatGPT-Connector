@@ -225,7 +225,14 @@
         "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_integration_findings.py::test_T11_narrow_module_resolves_pdf_outside_first_100_inventory_files",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
-        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read"
+        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T11_colored_table_with_merged_header_and_word_geometry",
+        "tests/test_visual_files.py::test_T11_render_failures_are_explicit",
+        "tests/test_visual_files.py::test_T11_whitespace_cache_not_indexed",
+        "tests/test_visual_files.py::test_T11_ocr_unavailable_preserves_text_and_explicit_failure",
+        "tests/test_visual_files.py::test_T11_ocr_batch_and_low_confidence_are_partial"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -248,7 +255,9 @@
         "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -285,7 +294,12 @@
         "tests/test_planning_dates.py::test_T04_T13_T20_snapshot_service_authorization_staleness_and_partial",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
         "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
-        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied"
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
+        "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
+        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -390,7 +404,8 @@
         "tests/test_mcp_contract.py::test_T18_T19_delete_account_requires_confirmation_and_revokes_session",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -451,7 +466,8 @@
         "tests/test_service_security.py::test_T21_invalid_token_rejected",
         "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
-        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied"
+        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",
@@ -546,7 +562,11 @@
         "tests/test_file_reading.py::test_T25_large_pdf_budget_includes_page_separators",
         "tests/test_linux_sandbox.py::test_T23_T25_linux_real_format_extraction",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
-        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version"
+        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
       "coverage": "partial_fixture_coverage",
       "actual_chatgpt": "not_run",

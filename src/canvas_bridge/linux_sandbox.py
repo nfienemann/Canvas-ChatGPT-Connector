@@ -15,8 +15,13 @@ import zipfile
 from pathlib import Path
 
 import defusedxml
+import PIL
 import pypdf
+import pypdfium2
+import pypdfium2_cfg
+import pypdfium2_raw
 
+from canvas_bridge import ocr_runtime
 from canvas_bridge.domain import DomainError
 
 
@@ -37,14 +42,23 @@ def private_root(root: Path) -> Path:
     return root
 
 
-def ensure_runtime(root: Path) -> Path:
+def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
+    visual = Path(__file__).with_name("visual_worker.py")
+    ocr = Path(__file__).with_name("ocr_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
     library = Path(sysconfig.get_path("stdlib"))
     native = Path(sysconfig.get_config_var("DESTSHARED") or library / "lib-dynload")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + visual.read_bytes()
+        + PIL.__version__.encode()
+        + ocr.read_bytes()
+        + ocr_runtime.version(ocr_root)
+        + b"runtime-with-pdfium-cfg-v1"
+        + str(pypdfium2.PYPDFIUM_INFO).encode()
+        + str(pypdfium2.PDFIUM_INFO).encode()
         + bootstrap.read_bytes()
         + sys.version.encode()
         + pypdf.__version__.encode()
@@ -75,13 +89,26 @@ def ensure_runtime(root: Path) -> Path:
         for source in native.glob("*.so"):
             if not source.name.startswith(("_test", "xx", "_tkinter", "_ctypes_test")):
                 shutil.copy2(source, stage / "dynload" / source.name)
-        for package in (pypdf, defusedxml):
+        for package in (
+            pypdf,
+            defusedxml,
+            pypdfium2,
+            pypdfium2_raw,
+            pypdfium2_cfg,
+            PIL,
+        ):
             shutil.copytree(
                 Path(package.__file__).parent,
                 stage / "site" / package.__name__,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
+        pillow_libs = Path(PIL.__file__).parent.parent / "pillow.libs"
+        if pillow_libs.is_dir():
+            shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
+        shutil.copy2(visual, stage / "visual_worker.py")
+        shutil.copy2(ocr, stage / "ocr_worker.py")
+        ocr_runtime.copy(ocr_root, stage)
         shutil.copy2(bootstrap, stage / "bootstrap.py")
         (stage / "ready").write_text(digest, encoding="ascii")
         try:
@@ -123,7 +150,7 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
     with subprocess.Popen(  # noqa: S603 - trusted executable/runtime and validated local script.
         command,
         cwd=work,
-        env={"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"},
+        env={"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "OMP_THREAD_LIMIT": "1"},
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

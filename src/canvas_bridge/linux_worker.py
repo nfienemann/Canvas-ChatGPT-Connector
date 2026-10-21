@@ -168,6 +168,14 @@ def main():
                 libraries.append(C.CDLL(str(path)))
             except OSError:
                 pass
+        # Load the trusted PDFium shared library before closing host library resolution.
+        # No document bytes are opened here; no filesystem or syscall grant is widened.
+        for path in (runtime / "site/pypdfium2_raw").glob("*.so"):
+            libraries.append(C.CDLL(str(path)))
+        if (runtime / "ocr/tessdata/eng.traineddata").is_file():
+            libraries.append(C.CDLL("libtesseract.so.5"))
+        for path in (runtime / "site/PIL").glob("_imaging.*.so"):
+            libraries.append(C.CDLL(str(path)))
         original_stdlib = str(Path(os.__file__).parent)
         archive = str(runtime / "stdlib.zip")
         for module in tuple(sys.modules.values()):

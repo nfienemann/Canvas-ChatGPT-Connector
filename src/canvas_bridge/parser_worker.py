@@ -18,7 +18,7 @@ from pypdf import PdfReader
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v3"
+PARSER = "canvas-bridge-documents-v4"
 
 
 def office(data: bytes, kind: str):
@@ -133,7 +133,7 @@ def extract(data: bytes, kind: str) -> dict:
                 warnings.append(f"Page {number}: content stream exceeds extraction limits.")
                 pages.append({"page": number, "text": "", "state": "resource_limit"})
                 continue
-            text = page.extract_text() or ""
+            text = (page.extract_text() or "").strip()
             state = "extracted" if text.strip() else "no_text"
             if not text.strip():
                 coverage = "partial"
@@ -145,7 +145,9 @@ def extract(data: bytes, kind: str) -> dict:
                 warnings.append(
                     f"Page {number}: text limit reached; remaining content was not extracted."
                 )
-            pages.append({"page": number, "text": text, "state": state})
+            pages.append(
+                {"page": number, "text": text, "state": state, "extraction_method": "embedded_text"}
+            )
             total += len(text) + separator
             if total >= MAX_TEXT:
                 break

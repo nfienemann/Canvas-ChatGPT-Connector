@@ -57,6 +57,11 @@ component_map = {
         "document_search.py",
         "parser_sandbox.py",
         "parser_worker.py",
+        "visual_files.py",
+        "visual_worker.py",
+        "visual_schedule.py",
+        "ocr_runtime.py",
+        "ocr_worker.py",
         "windows_sandbox.py",
         "linux_sandbox.py",
         "linux_worker.py",
@@ -89,7 +94,7 @@ for line in spec.splitlines():
     columns = [x.strip() for x in line.split("|")[1:-1]]
     ref, priority, requirement, gate, declared, _ = columns
     ids = set(re.findall(r"T\d{2}", declared))
-    for start, end in re.findall(r"T(\d{2})[–-]T(\d{2})", declared):
+    for start, end in re.findall(r"T(\d{2})[â€“-]T(\d{2})", declared):
         ids.update(f"T{n:02}" for n in range(int(start), int(end) + 1))
     tests = sorted({fn for test_id in ids for fn in test_functions.get(test_id, [])})
     requirements.append(

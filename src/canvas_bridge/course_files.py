@@ -30,6 +30,7 @@ def fresh_cache(row, metadata, settings):
         state.get("stage") in {"parsed", "partially_parsed"}
         and row.version_hash
         and state.get("parser") == PARSER
+        and state.get("ocr_enabled", False) == bool(settings.ocr_root)
         and file_version(metadata) is not None
         and state.get("version") == file_version(metadata)
         and state.get("expires_at")
@@ -154,7 +155,10 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
                     "modules": related,
                     "url": row.url,
                     "extraction_state": row.file_state.get("stage", "available"),
-                    "indexed": row.file_state.get("stage") in {"parsed", "partially_parsed"},
+                    "indexed": bool(row.text.strip())
+                    and row.file_state.get("parser") == PARSER
+                    and row.file_state.get("ocr_enabled", False) == bool(bridge.settings.ocr_root)
+                    and row.file_state.get("stage") in {"parsed", "partially_parsed"},
                 }
             )
     return Result(
@@ -189,7 +193,7 @@ async def status(bridge, owner, ref, file_id):
         data={
             "file_id": row.id,
             "state": state,
-            "indexed": fresh_cache(row, metadata, bridge.settings),
+            "indexed": bool(row.text.strip()) and fresh_cache(row, metadata, bridge.settings),
             "content_hash": row.version_hash or None,
             "page_count": row.file_state.get("page_count"),
             "limitations": row.limitations,
@@ -272,6 +276,7 @@ async def read_file(
                         "version": download.revision,
                         "source_updated_at": modified_at(after),
                         "parser": extracted["parser"],
+                        "ocr_enabled": bool(bridge.settings.ocr_root),
                         "metadata": extracted["metadata"],
                         "page_count": extracted["page_count"],
                         "format": extracted["format"],
@@ -330,6 +335,8 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
                     "page_offset": start - cursor,
                     "offset": start,
                     "text": page["text"][start - cursor : end - cursor],
+                    "extraction_method": page.get("extraction_method", "embedded_text"),
+                    "ocr_confidence": page.get("ocr_confidence"),
                 }
             )
         cursor += len(page["text"]) + 2
@@ -355,6 +362,19 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             "page_end": last,
             "page_count": row.file_state["page_count"],
             "total_extracted_characters": len(text),
+            "usable_text": bool(text.strip()),
+            "indexed": bool(row.text.strip()),
+            "page_extraction": [
+                {
+                    k: p[k]
+                    for k in ("page", "state", "extraction_method", "ocr_confidence")
+                    if k in p
+                }
+                for p in pages
+            ],
+            "visual_fallback_tool": "render_course_file_page"
+            if row.file_state.get("format") == "pdf"
+            else None,
             "coverage": row.file_state["coverage"],
             "parser": row.file_state["parser"],
             "format": row.file_state["format"],
@@ -373,7 +393,7 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
         sources=[
             source(
                 row,
-                f"{page_label(row, p['page'])}, characters {p['page_offset']}–{p['page_offset'] + len(p['text'])}",
+                f"{page_label(row, p['page'])}, characters {p['page_offset']}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“{p['page_offset'] + len(p['text'])}",
             )
             for p in passages
         ]
@@ -453,12 +473,19 @@ async def search_files(
                             "page": page["page"],
                             "page_offset": start,
                             "passage": page["text"][start : start + 600],
+                            "extraction_method": page.get("extraction_method", "text_extraction"),
+                            "ocr_confidence": page.get("ocr_confidence"),
                             "content_hash": row.version_hash,
                             "url": row.url,
                         }
                     )
                     sources.append(source(row, page_label(row, page["page"])))
-            indexed += 1
+            if row.text.strip():
+                indexed += 1
+            else:
+                unindexed.append(
+                    {"file_id": row.id, "title": row.title, "reason": "no_usable_text"}
+                )
         except DomainError as exc:
             if exc.status in {"reconnect_required", "source_changed"}:
                 raise

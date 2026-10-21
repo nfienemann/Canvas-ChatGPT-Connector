@@ -65,7 +65,13 @@
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
         "tests/test_service_security.py::test_T21_invalid_token_rejected",
         "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
-        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
+        "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
+        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -555,7 +561,14 @@
         "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_integration_findings.py::test_T11_narrow_module_resolves_pdf_outside_first_100_inventory_files",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
-        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read"
+        "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T11_colored_table_with_merged_header_and_word_geometry",
+        "tests/test_visual_files.py::test_T11_ocr_batch_and_low_confidence_are_partial",
+        "tests/test_visual_files.py::test_T11_ocr_unavailable_preserves_text_and_explicit_failure",
+        "tests/test_visual_files.py::test_T11_render_failures_are_explicit",
+        "tests/test_visual_files.py::test_T11_whitespace_cache_not_indexed"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -611,7 +624,8 @@
         "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
         "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority",
         "tests/test_service_security.py::test_T22_no_generic_academic_route",
-        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -762,7 +776,8 @@
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
         "tests/test_service_security.py::test_T21_invalid_token_rejected",
-        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email"
+        "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -849,7 +864,9 @@
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
-        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer"
+        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1018,7 +1035,8 @@
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1048,71 +1066,28 @@
       ],
       "test_refs": [
         "T01",
-        "T02",
-        "T03",
         "T04",
         "T12",
-        "T13",
-        "T14",
-        "T15",
         "T16",
         "T29"
       ],
       "automated_test_functions": [
-        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
-        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
-        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
-        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
-        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
-        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
         "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
         "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
         "tests/test_activity_planning.py::test_T04_event_preparation_past_dst_and_missing_target_are_not_due_dates",
-        "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
-        "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
-        "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
-        "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
-        "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
-        "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
         "tests/test_course_files.py::test_T12_T13_file_refs_are_course_scoped_and_join_module_items",
-        "tests/test_course_files.py::test_T13_fresh_file_denial_clears_any_cached_text",
-        "tests/test_course_files.py::test_T13_hidden_or_unknown_file_visibility_is_not_indexed",
         "tests/test_desktop.py::test_T01_T35_desktop_ignores_operator_environment_and_working_directory",
         "tests/test_document_search.py::test_T11_T12_T13_unread_pdf_search_returns_actual_scientific_passage",
         "tests/test_document_search.py::test_T12_T25_T36_native_http_search_reads_unread_pdf",
-        "tests/test_document_search.py::test_T13_T25_T26_incomplete_extraction_never_means_empty_success",
-        "tests/test_document_search.py::test_T13_T25_continuation_binding",
-        "tests/test_document_search.py::test_T13_T43_selection_race_discards_search",
-        "tests/test_document_search.py::test_T13_cursor_tampering_expiry_and_other_owner_rejected",
-        "tests/test_document_search.py::test_T13_hidden_file_and_same_title_in_other_course_never_leak",
-        "tests/test_document_search.py::test_T13_unicode_offsets_and_literal_regex_query",
-        "tests/test_document_search.py::test_T14_T43_expired_connection_discards_prior_hits",
-        "tests/test_document_search.py::test_T15_T25_partial_inventory_remains_partial_after_search",
-        "tests/test_document_search.py::test_T15_inventory_timeout_is_retry_not_empty_success",
         "tests/test_domain_planning.py::test_T02_T04_effective_dates_preserve_dst_offsets",
-        "tests/test_domain_planning.py::test_T03_missing_and_explicit_null_are_distinct",
         "tests/test_domain_planning.py::test_T04_date_only_does_not_gain_time",
         "tests/test_domain_planning.py::test_T12_html_is_data_and_scripts_removed",
-        "tests/test_domain_planning.py::test_T13_ids_include_user_connection_and_course",
         "tests/test_file_reading.py::test_T11_T12_T25_pdf_read_pages_chunks_and_cache",
         "tests/test_file_reading.py::test_T12_module_files_resolve_when_canvas_files_tab_is_disabled",
-        "tests/test_file_reading.py::test_T13_T26_search_is_current_scoped_and_distinguishes_unindexed",
-        "tests/test_file_reading.py::test_T13_duplicate_names_and_other_owner_cannot_share_cache",
-        "tests/test_file_reading.py::test_T13_unicode_search_offsets_use_original_text",
-        "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
         "tests/test_file_reading_contract.py::test_T11_T12_actual_mcp_file_tools_return_pdf_content",
-        "tests/test_grade_audit.py::test_T08_T02_deselection_during_audit_prevents_response",
-        "tests/test_grade_audit.py::test_T08_T02_hidden_totals_not_reconstructed_and_cross_user_denied",
-        "tests/test_grade_audit.py::test_T08_T02_score_visibility_and_identity",
         "tests/test_grade_audit.py::test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal",
-        "tests/test_integration_findings.py::test_T03_T06_eleven_undated_assessments_are_not_upcoming",
-        "tests/test_integration_findings.py::test_T03_T20_undated_records_need_relevance_before_automatic_allocation",
-        "tests/test_integration_findings.py::test_T11_T13_unread_pdf_search_and_module_reference_boundaries",
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
-        "tests/test_oauth.py::test_T14_expired_state_cannot_link",
-        "tests/test_oauth.py::test_T14_oauth_state_bound_to_browser_and_one_use",
-        "tests/test_oauth.py::test_T14_refresh_race_only_one_provider_exchange",
         "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes",
         "tests/test_obligations.py::test_T01_T15_pagination_version_and_changed_source",
         "tests/test_obligations.py::test_T01_T23_calendar_pagination_cannot_widen_context",
@@ -1120,13 +1095,6 @@
         "tests/test_obligations.py::test_T04_T10_conflicting_dates_do_not_override_effective_assignment",
         "tests/test_obligations.py::test_T04_T46_all_day_precision_and_section_scope",
         "tests/test_obligations.py::test_T04_calendar_half_open_window_across_dst",
-        "tests/test_obligations.py::test_T13_T21_calendar_other_scope_and_reservations_omitted",
-        "tests/test_obligations.py::test_T13_user_and_course_isolation_and_stale_lease_refresh",
-        "tests/test_obligations.py::test_T14_T43_expired_authorization_discards_all_inventory",
-        "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
-        "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice",
-        "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
-        "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin",
         "tests/test_planning_dates.py::test_T04_T13_T20_snapshot_service_authorization_staleness_and_partial",
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns",
         "tests/test_planning_dates.py::test_T04_T20_calendar_composition_uses_same_date_boundaries",
@@ -1143,19 +1111,13 @@
         "tests/test_planning_dates.py::test_T04_date_timezone_validation",
         "tests/test_planning_dates.py::test_T04_repeated_midnight_uses_earliest_safe_boundary",
         "tests/test_planning_dates.py::test_T04_skipped_date_or_nonexistent_midnight_stays_unresolved",
-        "tests/test_planning_dates.py::test_T13_foreign_work_timezone_input_rejected",
-        "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
-        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
-        "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
-        "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
-        "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
-        "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
-        "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
-        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer"
+        "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1314,6 +1276,11 @@
         "src/canvas_bridge/document_search.py",
         "src/canvas_bridge/parser_sandbox.py",
         "src/canvas_bridge/parser_worker.py",
+        "src/canvas_bridge/visual_files.py",
+        "src/canvas_bridge/visual_worker.py",
+        "src/canvas_bridge/visual_schedule.py",
+        "src/canvas_bridge/ocr_runtime.py",
+        "src/canvas_bridge/ocr_worker.py",
         "src/canvas_bridge/windows_sandbox.py",
         "src/canvas_bridge/linux_sandbox.py",
         "src/canvas_bridge/linux_worker.py"
@@ -1359,7 +1326,17 @@
         "tests/test_linux_sandbox.py::test_T23_T25_linux_real_format_extraction",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
         "tests/test_retrieval_lifecycle.py::test_T11_scan_never_claimed_fully_read",
-        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version"
+        "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version",
+        "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T11_colored_table_with_merged_header_and_word_geometry",
+        "tests/test_visual_files.py::test_T11_ocr_batch_and_low_confidence_are_partial",
+        "tests/test_visual_files.py::test_T11_ocr_unavailable_preserves_text_and_explicit_failure",
+        "tests/test_visual_files.py::test_T11_render_failures_are_explicit",
+        "tests/test_visual_files.py::test_T11_whitespace_cache_not_indexed",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
+        "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -1758,7 +1735,13 @@
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
+        "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
+        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -2030,7 +2013,13 @@
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
         "tests/test_service_security.py::test_T21_invalid_token_rejected",
         "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
-        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
+        "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access",
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
+        "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
+        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -2142,7 +2131,8 @@
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns",
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_browser_oauth_pkce_exact_redirect_and_replay",
-        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state"
+        "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"
@@ -2363,7 +2353,11 @@
         "tests/test_linux_sandbox.py::test_T23_T25_linux_real_format_extraction",
         "tests/test_retrieval_lifecycle.py::test_T11_T25_docx_scientific_text_and_content_hash",
         "tests/test_retrieval_lifecycle.py::test_T25_material_continuation_requires_version",
-        "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search"
+        "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
+        "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache"
       ],
       "test_results": [
         "evidence/sanitized-results/verification.md"

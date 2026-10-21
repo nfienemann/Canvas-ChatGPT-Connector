@@ -34,6 +34,8 @@ response size is 250 KB; callers must narrow excessive requests.
 | read_course_file | PDF/DOCX/PPTX/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
 | search_course_files | Cached-only by default; `include_unread=true` reads/searches at most three files per request with encrypted version-bound continuation, page passages, extraction status and explicit coverage |
 | get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
+| render_course_file_page | Authorized PDF page as bounded MCP ImageContent, hash/version/page citation and one-hour owner-bound receipt; client must actually expose pixels before claiming visual inspection |
+| interpret_course_schedule | Ephemeral unverified visual rows bound to a rendered page receipt; exact date basis, coordinates and roles; optional confirmation-only Calendar proposals, never writes |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
 | propose_study_plan | Stateless priorities/allocation; date-only bounds require applicable per-work timezone; no calendar access or saved side effect |
 | propose_course_study_plan | Fresh inventory/version-bound planning for selected assignments, quizzes, discussions and event preparation; suggested activities need review; no save or Calendar write |
@@ -98,3 +100,8 @@ By default only previously extracted file bodies are searched by `search_course_
 `include_unread=true` enables bounded on-demand extraction and continuation.
 `search_course_materials` retains its page-only behavior. Signed download URLs
 are never returned or persisted as sources. See [file reading](file-reading.md).
+
+Image responses have a separate 1.3 MB PNG budget alongside the existing 250 KB
+structured-result limit. OCR text remains in the original text response budget;
+whitespace-only extraction is never indexed. See [visual PDF reading](visual-pdf-reading.md)
+for the observed native-client image limitation and partial live acceptance.

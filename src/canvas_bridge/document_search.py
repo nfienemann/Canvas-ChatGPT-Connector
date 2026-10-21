@@ -130,9 +130,11 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                 raise DomainError(
                     "source_changed", "Extracted document positions changed. Restart the search."
                 )
-            indexed += 1
+            indexed += bool(fresh.data.get("usable_text", fresh.data.get("text", "").strip()))
             unread_searched |= not file["indexed"]
-            file["indexed"] = True
+            file["indexed"] = bool(
+                fresh.data.get("usable_text", fresh.data.get("text", "").strip())
+            )
             state["unversioned"] |= file["source_version"] is None
             first_page = state["page"]
             state["hash"] = row.version_hash
@@ -151,6 +153,8 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                         "locator": page_label(row, page["page"]),
                         "page_offset": at,
                         "passage": page["text"][at : at + 600],
+                        "extraction_method": page.get("extraction_method", "text_extraction"),
+                        "ocr_confidence": page.get("ocr_confidence"),
                         "content_hash": row.version_hash,
                         "url": row.url,
                     }

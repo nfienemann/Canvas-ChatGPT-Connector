@@ -9,8 +9,10 @@ from pathlib import Path
 def prepare(root):
     from tests.test_academic_intelligence import ooxml
     from tests.test_file_reading import scientific_pdf
+    from tests.test_visual_files import scanned_pdf
 
     root.mkdir(parents=True, exist_ok=True)
+    (root / "scan.pdf").write_bytes(scanned_pdf(mixed=True))
     for kind in ("pdf", "txt", "md", "docx", "pptx"):
         data = (
             scientific_pdf()
@@ -40,6 +42,14 @@ async def verify(root):
                 assert "Conclusions" in result["pages"][2]["text"]
             assert not list((settings.parser_root / "jobs").iterdir())
             print(f"Verified {kind} extraction and cleanup in restricted Linux image")
+        from canvas_bridge.visual_files import render_document
+
+        image = await render_document((root / "synthetic.pdf").read_bytes(), settings)
+        assert image["png"] and image["page_count"] == 3
+        scan = await extract_document((root / "scan.pdf").read_bytes(), "pdf", settings)
+        assert scan["pages"][1]["extraction_method"] == "tesseract_english_ocr"
+        assert "October" in scan["pages"][1]["text"]
+        print("Verified page-image rendering and scanned-PDF OCR in restricted Linux image")
 
 
 if __name__ == "__main__":

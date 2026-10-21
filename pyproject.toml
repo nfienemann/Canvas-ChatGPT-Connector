@@ -21,6 +21,8 @@ dependencies = [
   "defusedxml>=0.7",
   "pypdf>=6",
   "tzdata>=2025",
+  "pypdfium2>=5.14,<6",
+  "pillow>=13,<14",
 ]
 
 [dependency-groups]
