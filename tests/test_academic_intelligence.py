@@ -57,6 +57,7 @@ def ooxml(kind, texts=None):
     ]
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_DEFLATED) as archive:
+        office_manifest(archive, kind)
         if kind == "docx":
             archive.writestr(
                 "word/document.xml",
@@ -88,6 +89,29 @@ def ooxml(kind, texts=None):
                     + "</a:t></a:r></a:p></p:sld>",
                 )
     return stream.getvalue()
+
+
+def office_manifest(archive, kind):
+    # Standards-shaped synthetic package declarations; no real coursework.
+    main, media = {
+        "docx": ("word/document.xml", "wordprocessingml.document"),
+        "pptx": ("ppt/presentation.xml", "presentationml.presentation"),
+        "xlsx": ("xl/workbook.xml", "spreadsheetml.sheet"),
+    }[kind]
+    archive.writestr(
+        "[Content_Types].xml",
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        f'<Override PartName="/{main}" ContentType="application/vnd.openxmlformats-officedocument.{media}.main+xml"/>'
+        "</Types>",
+    )
+    archive.writestr(
+        "_rels/.rels",
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rMain" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
+        f'Target="{main}"/></Relationships>',
+    )
 
 
 @pytest.fixture
@@ -459,6 +483,7 @@ def test_zip_expansion_and_external_slide_fail_closed():
         extract(data.getvalue(), "docx")
     data = io.BytesIO()
     with zipfile.ZipFile(data, "w") as archive:
+        office_manifest(archive, "pptx")
         archive.writestr(
             "ppt/presentation.xml",
             '<p:presentation xmlns:p="urn:p" xmlns:r="urn:r"><p:sldId r:id="r1"/></p:presentation>',

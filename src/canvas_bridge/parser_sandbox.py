@@ -20,6 +20,7 @@ import pypdfium2_raw
 
 from canvas_bridge import ocr_runtime
 from canvas_bridge.domain import DomainError
+from canvas_bridge.office_package import OFFICE_ERRORS
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
 
 _slot = threading.Lock()
@@ -40,10 +41,12 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
+    office = Path(__file__).with_name("office_package.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + office.read_bytes()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -89,6 +92,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     shutil.copy2(worker, runtime / "worker.py")
+    shutil.copy2(office, runtime / "office_package.py")
     shutil.copy2(visual, runtime / "visual_worker.py")
     shutil.copy2(ocr, runtime / "ocr_worker.py")
     ocr_runtime.copy(ocr_root, runtime)
@@ -124,10 +128,8 @@ def validate_result(result: dict, data: bytes) -> dict:
             "unsupported_format",
             "corrupt_or_unreadable",
             "output_limit",
-            "office_resource_limit",
-            "active_office_content",
             "invalid_slide_reference",
-        }
+        } | OFFICE_ERRORS
         raise DomainError(
             "unsupported_feature",
             "File extraction could not finish: "

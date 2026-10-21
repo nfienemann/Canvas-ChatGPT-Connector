@@ -45,6 +45,7 @@ def private_root(root: Path) -> Path:
 def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
+    office = Path(__file__).with_name("office_package.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
@@ -52,6 +53,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     native = Path(sysconfig.get_config_var("DESTSHARED") or library / "lib-dynload")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + office.read_bytes()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -106,6 +108,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         if pillow_libs.is_dir():
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
+        shutil.copy2(office, stage / "office_package.py")
         shutil.copy2(visual, stage / "visual_worker.py")
         shutil.copy2(ocr, stage / "ocr_worker.py")
         ocr_runtime.copy(ocr_root, stage)

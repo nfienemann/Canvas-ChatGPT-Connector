@@ -7,42 +7,26 @@ import hashlib
 import io
 import json
 import logging
-import posixpath
 import sys
-import zipfile
 from pathlib import Path
 
-from defusedxml import ElementTree as ET
 from pypdf import PdfReader
+
+if globals().get("__package__"):
+    from .office_package import OFFICE_ERRORS, OfficePackage
+else:
+    from office_package import OFFICE_ERRORS, OfficePackage
 
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v4"
+PARSER = "canvas-bridge-documents-v5"
 
 
 def office(data: bytes, kind: str):
     """Bounded OOXML text only. Never extract files or resolve external relations."""
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-        entries = archive.infolist()
-        if (
-            len(entries) > 1000
-            or sum(e.file_size for e in entries) > 20_000_000
-            or len({e.filename for e in entries}) != len(entries)
-            or any(
-                e.file_size > 10_000_000
-                or e.file_size > max(1, e.compress_size) * 200
-                or e.flag_bits & 1
-                for e in entries
-            )
-        ):
-            raise ValueError("office_resource_limit")
-        names = {e.filename for e in entries}
-        if any("vbaproject" in n.lower() or "/embeddings/" in n.lower() for n in names):
-            raise ValueError("active_office_content")
-
-        def xml(name):
-            return ET.fromstring(archive.read(name), forbid_dtd=True, forbid_entities=True)
+    with OfficePackage(data, kind) as package:
+        xml, names = package.xml, package.names
 
         def tag(element):
             return element.tag.rsplit("}", 1)[-1]
@@ -78,20 +62,16 @@ def office(data: bytes, kind: str):
                 else:
                     grouped[-1] += "\n" + text
             return metadata, grouped, "section"
-        relationships = {
-            e.attrib["Id"]: e.attrib.get("Target", "")
-            for e in xml("ppt/_rels/presentation.xml.rels")
-            if e.attrib.get("TargetMode", "Internal") != "External"
-            and e.attrib.get("Type", "").endswith("/slide")
-        }
         texts = []
         for e in xml("ppt/presentation.xml").iter():
             if tag(e) != "sldId":
                 continue
             relation = next((v for k, v in e.attrib.items() if k.endswith("}id")), None)
-            target = relationships.get(relation, "")
-            path = posixpath.normpath("ppt/" + target)
-            if not target or not path.startswith("ppt/slides/") or path not in names:
+            try:
+                path = package.related_part(package.format.main_part, relation, "slide")
+            except ValueError:
+                raise ValueError("invalid_slide_reference") from None
+            if not path.startswith("ppt/slides/"):
                 raise ValueError("invalid_slide_reference")
             texts.append(
                 "\n".join(
@@ -222,10 +202,8 @@ def main():
             "too_many_pages",
             "active_pdf_content",
             "unsupported_format",
-            "office_resource_limit",
-            "active_office_content",
             "invalid_slide_reference",
-        }
+        } | OFFICE_ERRORS
         reason = (
             str(exc)
             if isinstance(exc, ValueError) and str(exc) in known
