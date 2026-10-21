@@ -707,3 +707,23 @@ skips in 60.39 seconds**, at **83% total statement coverage**. Windows AppContai
 tests were included. Ruff and formatting passed for 119 Python files. No new
 OAuth scope, endpoint, credential, database table, Calendar action or Canvas write
 was introduced. Actual course dates were not modified for acceptance tests.
+
+The existing private service was restarted using its scoped launcher. Its active
+connection was checked through the installed connector, then a read-only live
+`reconcile_course_deadlines` call inspected the selected Stem Cell Engineering
+course. It returned the new grammar limitations and comparison field, zero
+recognized obligations, and `partial_data`: assignments were complete, the
+bounded announcement check was partial, and material discovery was partial.
+The only inspected policy document was the available syllabus HTML. No absence
+of course deadlines or agreement between sources can be inferred from that
+result. Positive date-format and midnight/DST acceptance remains synthetic.
+This is a deployed authenticated connector proof; no new ordinary-ChatGPT UI
+conversation or Calendar operation was performed for this increment.
+
+Linux [CI run 39616677866](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39616677866)
+for source commit `d807a0df23c4301e2c73dd909acb51b6d83be86c` was **queued** at
+the last authoritative check; job `119279506600` had no executed steps. No Linux
+pass is claimed. The same run must be observed to completion rather than
+restarted because of queue delay. The source is uploaded on
+`codex/deadline-date-evidence`; `main` remains at the preceding verified
+`f849182`. This final record-only update does not change the tested source.
