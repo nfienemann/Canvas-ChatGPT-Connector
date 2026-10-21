@@ -67,3 +67,12 @@ through optional authenticated on-demand extraction. Bounded batches and encrypt
 continuation traverse document positions without repeating completed work. Source
 versions, selected scope, extraction limitations and failures remain explicit.
 Cached-only calls remain compatible. See [document search](document-search.md).
+
+## Follow-on deadline evidence
+
+The next critical reconciliation gap is addressed by a shared date parser and
+precision-aware comparisons. Common abbreviated-month and day-first statements
+retain clock/zone evidence, unsupported assumptions remain explicit, and either
+timestamp is converted correctly when comparing to a course calendar date.
+Stable candidate IDs support repeatable rereads. See
+[deadline date evidence](deadline-date-evidence.md) for tests and remaining scope.

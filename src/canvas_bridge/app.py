@@ -357,6 +357,9 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
         Discovers syllabus/schedule titles, or reads up to three explicit material IDs.
         Only exact unique assessment titles support a match; fuzzy titles remain ambiguous.
+        Preserves English abbreviated-month dates and explicit clock/zone evidence.
+        Missing years/zones, numeric date order and DST ambiguity remain unresolved.
+        Calendar-date agreement never establishes agreement on a time of day.
         Missing Canvas dates do not mean unscheduled/upcoming. Cite passages and precision;
         never presume that a syllabus, announcement or newer version supersedes another.
         """

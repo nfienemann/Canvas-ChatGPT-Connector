@@ -23,7 +23,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | calculate_course_grade | Deterministic current/syllabus/projected/required-score modes; refuses unsupported or incomplete policy inputs |
 | audit_course_grade | Reported/reproduced/syllabus estimates remain distinct; neutral reconciliation and explicit insufficient evidence |
 | simulate_grade_scenario | Conditional visible-work simulations only; no Canvas What-If writes or inferred future scores |
-| reconcile_course_deadlines | Quoted dated obligations and exact-title matches; ambiguous matches, precision, timezone and source precedence remain explicit |
+| reconcile_course_deadlines | Quoted dated obligations and exact-title matches; additive comparison evidence, stable version-bound candidate IDs, explicit unresolved years/zones/date order/DST. See [date evidence](deadline-date-evidence.md); no source precedence or inferred time |
 | review_assignment_requirements | Instructions/rubric/related passages; deterministic numeric conflicts and ephemeral draft word count, no grade prediction |
 | prepare_for_assessment | Cited bounded reading pack; explicitly assigned versus inferred relevance; no invented next quiz or coverage |
 | propose_calendar_sync | Fresh conversation-supplied native Calendar context; deduplicated confirmation-only create/update proposals; provider-held mapping markers |

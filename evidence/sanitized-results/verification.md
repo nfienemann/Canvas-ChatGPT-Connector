@@ -681,3 +681,29 @@ and the remaining continuation. It explained unreadable text, denied inventory
 collections, unsearched figures and unfinished course coverage. The screenshot
 and conversation evidence remain private. This final evidence update changes
 documentation only; the unchanged full source suite was not rerun.
+
+## 2026-10-21: Deadline date precision and reproducible evidence
+
+The preceding verified 419-test source baseline was not rerun unchanged. A
+shared source-date parser now supports abbreviated English months, day-first
+forms and explicit clock/zone evidence. It leaves numeric date order, missing
+years/zones, invalid dates and DST ambiguity unresolved. Comparison now converts
+either timestamp to the verified course zone when the other side is date-only;
+this fixes false conflicts around midnight. Unchanged source passages retain
+stable obligation IDs while retrieval timestamps remain available separately.
+See [deadline date evidence](../../docs/deadline-date-evidence.md).
+
+The existing academic-intelligence suite passed **35 tests in 29.83 seconds**.
+The new date suite passed **31 tests in 2.17 seconds**, with **100% statement
+coverage** of the new date module (not a claim of exhaustive language support).
+An initial fixture assertion expected capitalized PDF `Page`; it was corrected
+to respect the established `PDF page 1` locator. No source correction was needed
+for that assertion. Tests cover real synthetic PDF/DOCX extraction through mocked
+authenticated Canvas routes, HTML, source updates, denied/paginated inventories,
+cross-course/user boundaries and the actual HTTP MCP tool contract.
+
+The full Windows/PostgreSQL suite then passed **450 tests with 12 Linux-only
+skips in 60.39 seconds**, at **83% total statement coverage**. Windows AppContainer
+tests were included. Ruff and formatting passed for 119 Python files. No new
+OAuth scope, endpoint, credential, database table, Calendar action or Canvas write
+was introduced. Actual course dates were not modified for acceptance tests.

@@ -6,39 +6,11 @@ the student. A detected inconsistency is not proof of an instructor mistake.
 
 import re
 from collections import Counter
-from datetime import date, datetime
 from difflib import SequenceMatcher
-from zoneinfo import ZoneInfo
 
+from canvas_bridge.academic_dates import DATES, compare_deadline, parse_candidate
 from canvas_bridge.evidence import fingerprint
 
-MONTHS = {
-    name: i
-    for i, name in enumerate(
-        (
-            "january",
-            "february",
-            "march",
-            "april",
-            "may",
-            "june",
-            "july",
-            "august",
-            "september",
-            "october",
-            "november",
-            "december",
-        ),
-        1,
-    )
-}
-MONTH_PATTERN = "|".join(MONTHS)
-DATES = re.compile(
-    r"\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2}))?\b|\b(?:"
-    + MONTH_PATTERN
-    + r")\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s+\d{4})?\b",
-    re.I,
-)
 ASSESSMENT = re.compile(
     r"\b(exam|quiz|paper|essay|project|assignment|presentation|lab|report|test|final|midterm)\b",
     re.I,
@@ -73,7 +45,7 @@ def passages(document):
         for match in re.finditer(r"[^\n]+", part["text"]):
             line = match.group().strip()
             if line:
-                yield part, line, match.start()
+                yield part, line, match.start() + len(match.group()) - len(match.group().lstrip())
 
 
 def dated_obligations(documents):
@@ -83,34 +55,7 @@ def dated_obligations(documents):
             if not ASSESSMENT.search(line):
                 continue
             for match in DATES.finditer(line):
-                raw = match.group()
-                parsed, precision, zone, uncertainty = None, "date", None, []
-                try:
-                    if re.match(r"\d{4}-", raw):
-                        if "T" in raw:
-                            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00")).isoformat()
-                            precision, zone = (
-                                "timestamp",
-                                raw[-6:] if not raw.endswith("Z") else "UTC",
-                            )
-                        else:
-                            parsed = date.fromisoformat(raw).isoformat()
-                    else:
-                        m = re.fullmatch(
-                            r"([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?", raw, re.I
-                        )
-                        if m.group(3):
-                            parsed = date(
-                                int(m.group(3)), MONTHS[m.group(1).lower()], int(m.group(2))
-                            ).isoformat()
-                        else:
-                            uncertainty.append(
-                                "Year is not stated in this passage; no year was inferred."
-                            )
-                except ValueError:
-                    uncertainty.append("The stated date could not be normalized.")
-                if precision == "date":
-                    uncertainty.append("Date only; time of day and source timezone are not stated.")
+                parsed = parse_candidate(match)
                 title = (line[: match.start()] + line[match.end() :]).strip(" :–—-.,")
                 title = re.sub(r"\b(?:due|on|date|scheduled for)\b", "", title, flags=re.I).strip(
                     " :–—-.,"
@@ -118,14 +63,20 @@ def dated_obligations(documents):
                 source = citation(document, part, line, offset)
                 results.append(
                     {
-                        "id": fingerprint([source, raw]),
+                        "id": fingerprint(
+                            [
+                                document["course_id"],
+                                document["id"],
+                                document["version"],
+                                part["locator"],
+                                offset + match.start(),
+                                match.group(),
+                            ]
+                        ),
                         "title": title[:500],
-                        "raw_date": raw,
-                        "date": parsed,
-                        "precision": precision,
-                        "timezone": zone,
+                        **parsed,
+                        "date_offset": offset + match.start(),
                         "evidence": source,
-                        "uncertainty": uncertainty,
                         "interpretation_status": "deterministic_candidate",
                         "student_confirmation_needed": True,
                     }
@@ -156,7 +107,7 @@ def match_obligation(obligation, items):
 
 
 def deadline_findings(documents, items, timezone, assignments_complete):
-    findings, obligations = [], dated_obligations(documents)
+    findings, obligations, comparisons = [], dated_obligations(documents), []
     for obligation in obligations:
         item, match, candidates = match_obligation(obligation, items)
         base = {
@@ -203,44 +154,32 @@ def deadline_findings(documents, items, timezone, assignments_complete):
                     "next_action": "Refresh or inspect the assignment.",
                 }
             )
-        elif obligation["date"]:
-            if obligation["precision"] == "timestamp" and due["kind"] == "timestamp":
-                different = datetime.fromisoformat(obligation["date"]) != datetime.fromisoformat(
-                    due["timestamp"]
+        else:
+            comparison = compare_deadline(obligation, due, timezone)
+            comparisons.append(
+                {"obligation_id": obligation["id"], "work_id": item["id"], **comparison}
+            )
+            base["comparison"] = comparison
+            if comparison["outcome"] == "indeterminate":
+                findings.append(
+                    {
+                        **base,
+                        "kind": "timezone_unresolved"
+                        if comparison.get("timezone_required")
+                        else "source_date_unresolved",
+                        "certainty": "insufficient_evidence",
+                        "impact": comparison["reason"],
+                        "next_action": "Review the cited date, year and timezone before comparing deadlines.",
+                    }
                 )
-                comparison_zone = "explicit source offsets"
-            else:
-                # Course timezone must be established before reducing a timed
-                # Canvas deadline to a local calendar date.
-                if due["kind"] == "timestamp" and not timezone:
-                    findings.append(
-                        {
-                            **base,
-                            "kind": "timezone_unresolved",
-                            "certainty": "insufficient_evidence",
-                            "impact": "Date-only comparison needs the course timezone.",
-                            "next_action": "Confirm the course timezone.",
-                        }
-                    )
-                    continue
-                canvas_day = (
-                    datetime.fromisoformat(due["timestamp"])
-                    .astimezone(ZoneInfo(timezone))
-                    .date()
-                    .isoformat()
-                    if due["kind"] == "timestamp"
-                    else due["local_date"]
-                )
-                different = canvas_day != obligation["date"][:10]
-                comparison_zone = timezone
-            if different:
+            elif comparison["outcome"] == "different":
                 findings.append(
                     {
                         **base,
                         "kind": "conflicting_deadlines",
                         "certainty": "supported_source_difference",
                         "canvas_date": due,
-                        "comparison_timezone": comparison_zone,
+                        "comparison_timezone": comparison["timezone"],
                         "impact": "The sources report different dates; applicability or an amendment may explain this.",
                         "next_action": "Check the cited versions and ask which deadline applies.",
                     }
@@ -248,8 +187,9 @@ def deadline_findings(documents, items, timezone, assignments_complete):
     return {
         "obligations": obligations,
         "findings": findings,
+        "comparisons": comparisons,
         "limitations": [
-            "Only explicit ISO or English full-month dates near an assessment term are recognized.",
+            "Recognizes ISO and English full/abbreviated month dates near an assessment term; numeric month/day order, missing years, ambiguous zones and DST transitions require review.",
             "Missing matches do not prove an assessment is absent. Ambiguous titles and missing years require review.",
             "Date-only passages do not establish a time or timezone. No source automatically overrides another.",
         ],

@@ -21,6 +21,7 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
         "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
         "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
         "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
@@ -100,6 +101,7 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
         "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
@@ -223,6 +225,7 @@
         "src/canvas_bridge/domain.py",
         "src/canvas_bridge/evidence.py",
         "src/canvas_bridge/academic_rules.py",
+        "src/canvas_bridge/academic_dates.py",
         "src/canvas_bridge/academic_intelligence.py"
       ],
       "test_refs": [
@@ -288,7 +291,8 @@
       "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
       "implementation_refs": [
         "src/canvas_bridge/normalize.py",
-        "src/canvas_bridge/planning_dates.py"
+        "src/canvas_bridge/planning_dates.py",
+        "src/canvas_bridge/academic_dates.py"
       ],
       "test_refs": [
         "T06",
@@ -529,6 +533,15 @@
         "T45"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
+        "tests/test_academic_dates.py::test_T11_authenticated_schedule_document_dates",
+        "tests/test_academic_dates.py::test_T11_date_only_comparison_does_not_invent_clock_agreement",
+        "tests/test_academic_dates.py::test_T11_stable_obligation_identity_and_exact_offsets",
         "tests/test_course_files.py::test_T11_file_fetch_is_explicitly_gated_and_never_parsed",
         "tests/test_document_search.py::test_T11_T12_T13_unread_pdf_search_returns_actual_scientific_passage",
         "tests/test_document_search.py::test_T11_T25_page_and_file_continuation_never_redownloads_or_skips",
@@ -577,6 +590,7 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
         "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
         "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_activity_planning.py::test_T20_T21_override_and_duplicate_scope_validation",
@@ -632,6 +646,7 @@
         "T43"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
         "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
         "tests/test_account_deletion.py::test_T43_account_revocation_timeout_does_not_delay_local_deletion",
         "tests/test_account_deletion.py::test_T43_corrupt_local_credential_does_not_hide_completed_disconnect",
@@ -721,6 +736,7 @@
         "T35"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
         "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
         "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
@@ -868,6 +884,11 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
         "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
         "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
@@ -1038,6 +1059,12 @@
         "T29"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
         "tests/test_activity_planning.py::test_T04_T10_conflict_preserves_both_source_dates",
         "tests/test_activity_planning.py::test_T04_T46_all_day_event_requires_explicit_timezone_and_keeps_date",
@@ -1164,6 +1191,11 @@
         "T40"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_account_deletion.py::test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_connection",
         "tests/test_account_deletion.py::test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete",
         "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
@@ -1292,6 +1324,15 @@
         "T45"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
+        "tests/test_academic_dates.py::test_T11_authenticated_schedule_document_dates",
+        "tests/test_academic_dates.py::test_T11_date_only_comparison_does_not_invent_clock_agreement",
+        "tests/test_academic_dates.py::test_T11_stable_obligation_identity_and_exact_offsets",
         "tests/test_course_files.py::test_T11_file_fetch_is_explicitly_gated_and_never_parsed",
         "tests/test_document_search.py::test_T11_T12_T13_unread_pdf_search_returns_actual_scientific_passage",
         "tests/test_document_search.py::test_T11_T25_page_and_file_continuation_never_redownloads_or_skips",
@@ -1483,6 +1524,11 @@
         "T32"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_account_deletion.py::test_T07_T18_term_retirement_purges_course_history",
         "tests/test_account_deletion.py::test_T18_T43_delete_all_institutions_before_remote_revocation_and_preserve_foreign",
         "tests/test_account_deletion.py::test_T18_delete_during_profile_read_fences_final_insert",
@@ -1606,6 +1652,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
         "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_document_search.py::test_T14_T43_expired_connection_discards_prior_hits",
         "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
@@ -1745,6 +1792,11 @@
         "T40"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T15_equal_instants_and_source_zone_preserved",
+        "tests/test_academic_dates.py::test_T11_T15_explicit_date_grammar",
+        "tests/test_academic_dates.py::test_T11_T15_html_schedule_missing_due_and_refreshed_versions",
+        "tests/test_academic_dates.py::test_T11_T15_uncertainty_is_not_a_date",
+        "tests/test_academic_dates.py::test_T15_midnight_date_comparison_normalizes_either_timestamp",
         "tests/test_activity_planning.py::test_T15_T20_stale_inventory_refuses_plan",
         "tests/test_activity_planning.py::test_T15_T35_timeout_cancels_refresh_and_large_response_refuses",
         "tests/test_activity_planning.py::test_T15_partial_coverage_keeps_known_selection_provisional",
@@ -1936,6 +1988,7 @@
         "T39"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T21_http_mcp_date_evidence",
         "tests/test_activity_planning.py::test_T01_T13_same_title_across_courses_and_later_inventory_page",
         "tests/test_activity_planning.py::test_T07_T13_personal_progress_is_scoped_and_not_written",
         "tests/test_activity_planning.py::test_T13_T21_foreign_scope_and_alias_ids_rejected",
@@ -2155,6 +2208,7 @@
         "T44"
       ],
       "automated_test_functions": [
+        "tests/test_academic_dates.py::test_T11_T14_schedule_pagination_denied_source_and_duplicate_course",
         "tests/test_activity_planning.py::test_T14_T21_failed_authorization_discards_plan",
         "tests/test_document_search.py::test_T14_T43_expired_connection_discards_prior_hits",
         "tests/test_file_reading.py::test_T14_file_read_reuses_existing_oauth_renewal",
