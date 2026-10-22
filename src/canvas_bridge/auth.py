@@ -1,8 +1,10 @@
 import asyncio
 import hashlib
 import json
+import logging
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import httpx
 import jwt
@@ -17,6 +19,17 @@ from canvas_bridge.policy import validate_https
 READ_SCOPE = "academic:read"
 WRITE_SCOPE = "preferences:write"
 SETTINGS_SCOPE = "settings:write"
+logger = logging.getLogger(__name__)
+
+
+def _reject_token(reason: str) -> None:
+    # Operator-only, fixed reason codes. Never log tokens, claims, key IDs,
+    # exception messages, request headers or URLs at this boundary.
+    logger.warning(
+        "mcp_auth_rejected %s",
+        json.dumps({"reason_code": reason, "timestamp": datetime.now(UTC).isoformat()}),
+    )
+    return None
 
 
 def principal_id(issuer: str, subject: str) -> str:
@@ -76,11 +89,11 @@ class JWTVerifier(TokenVerifier):
 
     async def verify_token(self, token: str) -> AccessToken | None:
         if not token or len(token) > 16_384:
-            return None
+            return _reject_token("MCP_TOKEN_FORMAT_INVALID")
         try:
             header = jwt.get_unverified_header(token)
             if header.get("alg") != "RS256" or not isinstance(header.get("kid"), str):
-                return None
+                return _reject_token("MCP_TOKEN_HEADER_REJECTED")
             candidates = [
                 key
                 for key in await self._keys()
@@ -90,7 +103,7 @@ class JWTVerifier(TokenVerifier):
                 and key.get("alg", "RS256") == "RS256"
             ]
             if len(candidates) != 1:
-                return None
+                return _reject_token("MCP_SIGNING_KEY_UNRESOLVED")
             claims = jwt.decode(
                 token,
                 jwt.PyJWK.from_dict(candidates[0]).key,
@@ -101,15 +114,15 @@ class JWTVerifier(TokenVerifier):
             )
             subject = claims["sub"]
             if not isinstance(subject, str) or not 1 <= len(subject) <= 256:
-                return None
+                return _reject_token("MCP_SUBJECT_INVALID")
             if self.settings.profile == "personal" and subject != self.settings.personal_subject:
-                return None
+                return _reject_token("MCP_PERSONAL_SUBJECT_MISMATCH")
             scope = claims.get("scope", "")
             if not isinstance(scope, str):
-                return None
+                return _reject_token("MCP_SCOPE_CLAIM_INVALID")
             scopes = scope.split()
             if READ_SCOPE not in scopes:
-                return None
+                return _reject_token("MCP_REQUIRED_SCOPE_MISSING")
             return AccessToken(
                 token=token,
                 client_id=str(claims.get("azp", claims.get("client_id", "oauth"))),
@@ -127,6 +140,21 @@ class JWTVerifier(TokenVerifier):
             OSError,
             httpx.HTTPError,
             DomainError,
-        ):
+        ) as exc:
             # Fail closed, including when a key cache has expired and the issuer is down.
-            return None
+            reason = "MCP_TOKEN_VALIDATION_FAILED"
+            for kind, code in (
+                (jwt.ExpiredSignatureError, "MCP_TOKEN_EXPIRED"),
+                (jwt.ImmatureSignatureError, "MCP_TOKEN_NOT_YET_VALID"),
+                (jwt.InvalidSignatureError, "MCP_SIGNATURE_INVALID"),
+                (jwt.InvalidIssuerError, "MCP_ISSUER_MISMATCH"),
+                (jwt.InvalidAudienceError, "MCP_AUDIENCE_MISMATCH"),
+                (jwt.MissingRequiredClaimError, "MCP_REQUIRED_CLAIM_MISSING"),
+                (OSError, "MCP_KEY_SOURCE_UNAVAILABLE"),
+                (httpx.HTTPError, "MCP_KEY_SOURCE_UNAVAILABLE"),
+                (DomainError, "MCP_KEY_SOURCE_UNAVAILABLE"),
+            ):
+                if isinstance(exc, kind):
+                    reason = code
+                    break
+            return _reject_token(reason)

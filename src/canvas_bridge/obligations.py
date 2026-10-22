@@ -366,7 +366,7 @@ async def collect_inventory(
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise DomainError("needs_input", "Choose a valid IANA timezone.") from exc
     if refresh_courses:
-        await bridge.list_courses(owner, ref)
+        await bridge.refresh_course_access(owner, ref)
     conn, courses = bridge.selected(owner, ref, [course_id])
     course, now = courses[0], utcnow()
     async with bridge.client(owner, ref) as client:
@@ -392,7 +392,10 @@ async def collect_inventory(
             )
         if collections["assignments"].failure == "permission_denied":
             raise DomainError(
-                "permission_denied", "The course assignment scope could not be verified."
+                "permission_denied",
+                "The course assignment scope could not be verified.",
+                reason_code=collections["assignments"].reason_code,
+                upstream_http_status=collections["assignments"].upstream_http_status,
             )
         work_items = {}
         items, sources, omitted = build_inventory(
