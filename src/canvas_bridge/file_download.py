@@ -1,13 +1,15 @@
 """Course-scoped file metadata and bounded, credential-separated downloads.
 
-This transport never parses documents. Binary MCP retrieval remains gated on an
-OS-isolated parser. Signed download URLs stay transient and never become sources.
+This transport never parses documents. Text extraction remains gated on an
+OS-isolated parser; original delivery streams separately into private staging.
+Signed download URLs stay transient and never become sources.
 """
 
 import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
+from typing import BinaryIO
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -22,11 +24,28 @@ FILE_TYPES = {
     "application/pdf": ("pdf", ".pdf"),
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ("docx", ".docx"),
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": ("pptx", ".pptx"),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ("xlsx", ".xlsx"),
     "text/plain": ("txt", ".txt"),
     "text/markdown": ("md", ".md"),
     "text/x-markdown": ("md", ".md"),
     "text/html": ("html", ".html"),
 }
+
+
+def file_format(metadata: dict) -> str | None:
+    """One metadata allowlist shared by status and the authenticated download."""
+    mime = str(metadata.get("content-type", "")).split(";", 1)[0].strip().lower()
+    name = metadata.get("filename")
+    if not isinstance(name, str):
+        return None
+    supported = FILE_TYPES.get(mime)
+    if mime in {"text/plain", "application/octet-stream"} and name.lower().endswith(".md"):
+        supported = ("md", ".md")
+    # Canvas sometimes uses the generic binary MIME for an OOXML workbook.
+    # The ZIP signature and workbook structure are checked before accepting text.
+    if mime == "application/octet-stream" and name.lower().endswith(".xlsx"):
+        supported = ("xlsx", ".xlsx")
+    return supported[0] if supported and name.lower().endswith(supported[1]) else None
 
 
 def file_version(metadata: dict) -> str | None:
@@ -54,8 +73,22 @@ def file_visible(metadata: dict) -> bool:
 async def file_metadata(client, course: str, file: str) -> dict:
     course, file = source_id(course), source_id(file)
     metadata = await client.one(Endpoint.FILE, course=course, file=file)
-    if source_id(metadata.get("id", "")) != file or not file_visible(metadata):
-        raise DomainError("permission_denied", "The course file is currently unavailable.")
+    if str(metadata.get("id", "")) != file:
+        raise DomainError(
+            "permission_denied",
+            "The course file is unavailable; its reference could not be verified.",
+            reason_code="IDENTIFIER_MAPPING_FAILURE",
+        )
+    if not file_visible(metadata):
+        denied = any(
+            metadata.get(flag) is True
+            for flag in ("locked_for_user", "hidden_for_user", "locked", "hidden")
+        )
+        raise DomainError(
+            "permission_denied",
+            "The course file is currently unavailable.",
+            reason_code="RESOURCE_PERMISSION_DENIED" if denied else "UNKNOWN_AUTHORIZATION_FAILURE",
+        )
     return metadata
 
 
@@ -65,6 +98,9 @@ class DownloadedFile:
     data: bytes
     kind: str
     revision: str | None = None
+    byte_size: int = 0
+    bytes_sha256: str | None = None
+    upstream_validator: str | None = None
 
 
 def download_destination(url: str, client, course: str, file: str) -> bool:
@@ -93,7 +129,17 @@ def download_destination(url: str, client, course: str, file: str) -> bool:
     return same_origin
 
 
-async def _download_once(client, course: str, file: str, *, http=None) -> DownloadedFile:
+async def _download_once(
+    client,
+    course: str,
+    file: str,
+    *,
+    http=None,
+    sink: BinaryIO | None = None,
+    metadata: dict | None = None,
+    max_bytes=MAX_FILE_BYTES,
+    budget=None,
+) -> DownloadedFile:
     """Only fresh metadata from a course-qualified API can supply a download URL.
 
     An injected HTTP client is for synthetic transport tests. Production creates
@@ -103,26 +149,29 @@ async def _download_once(client, course: str, file: str, *, http=None) -> Downlo
     owned_http = http is None
     download_http = http or public_client(client.settings.request_timeout_seconds)
     try:
-        async with asyncio.timeout(client.settings.refresh_budget_seconds):
-            metadata = await file_metadata(client, course, file)
+        async with asyncio.timeout(budget or client.settings.refresh_budget_seconds):
+            metadata = (
+                metadata if metadata is not None else await file_metadata(client, course, file)
+            )
             mime = str(metadata.get("content-type", "")).split(";", 1)[0].strip().lower()
-            supported = FILE_TYPES.get(mime)
-            name = metadata.get("filename")
-            if (
-                mime in {"text/plain", "application/octet-stream"}
-                and isinstance(name, str)
-                and name.lower().endswith(".md")
-            ):
-                supported = ("md", ".md")
-            if (
-                not supported
-                or not isinstance(name, str)
-                or not name.lower().endswith(supported[1])
-            ):
-                raise DomainError("unsupported_feature", "The course file format is unsupported.")
+            kind = file_format(metadata)
+            if not kind and sink is None:
+                raise DomainError(
+                    "unsupported_feature",
+                    "The course file format is unsupported.",
+                    reason_code="UNSUPPORTED_FILE_FORMAT",
+                )
             size = metadata.get("size")
-            if type(size) is not int or not 0 <= size <= MAX_FILE_BYTES:
-                raise DomainError("unsupported_feature", "The course file exceeds download limits.")
+            if type(size) is not int or not 0 <= size <= max_bytes:
+                raise DomainError(
+                    "unsupported_feature",
+                    "The course file exceeds download limits.",
+                    reason_code="FILE_TOO_LARGE",
+                    details={
+                        "limit_bytes": max_bytes,
+                        "observed_size": size if type(size) is int else None,
+                    },
+                )
             url = metadata.get("url")
             if not isinstance(url, str):
                 raise DomainError(
@@ -160,40 +209,103 @@ async def _download_once(client, course: str, file: str, *, http=None) -> Downlo
                             "permission_denied", "Course file download is unavailable."
                         )
                     if response.status_code != 200:
-                        raise DomainError("retry_later", "Course file download did not complete.")
+                        retry = response.headers.get("retry-after", "")
+                        raise DomainError(
+                            "retry_later",
+                            "Course file download did not complete.",
+                            reason_code="RATE_LIMITED"
+                            if response.status_code == 429
+                            else "UPSTREAM_UNAVAILABLE",
+                            details={"retry_after_seconds": min(int(retry), 3600)}
+                            if retry.isdecimal()
+                            else {},
+                        )
                     if response.headers.get("content-encoding", "identity").lower() != "identity":
                         raise DomainError(
-                            "unsupported_feature", "Encoded file transfers are unsupported."
+                            "unsupported_feature",
+                            "Encoded file transfers are unsupported.",
+                            reason_code="UNEXPECTED_UPSTREAM_CONTENT",
                         )
                     actual_type = (
                         response.headers.get("content-type", "").split(";", 1)[0].lower().strip()
                     )
-                    if actual_type not in {mime, "application/octet-stream"}:
+                    expected_types = {mime, "application/octet-stream"}
+                    if kind == "xlsx":
+                        expected_types.add(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    if actual_type not in expected_types:
                         raise DomainError(
-                            "source_changed", "File type differs from its current metadata."
+                            "source_changed",
+                            "File type differs from its current metadata.",
+                            reason_code="UNEXPECTED_UPSTREAM_CONTENT",
                         )
                     declared = response.headers.get("content-length")
                     if declared is not None and (not declared.isdecimal() or int(declared) != size):
                         raise DomainError(
-                            "source_changed", "File size differs from its current metadata."
+                            "source_changed",
+                            "File size differs from its current metadata.",
+                            reason_code="INCOMPLETE_TRANSFER",
                         )
                     data = bytearray()
+                    prefix = bytearray()
+                    digest = hashlib.sha256()
+                    count = 0
                     async for chunk in response.aiter_raw():
-                        if len(data) + len(chunk) > min(size, MAX_FILE_BYTES):
-                            raise DomainError("source_changed", "File exceeded its declared size.")
-                        data.extend(chunk)
-                    if len(data) != size:
+                        if count + len(chunk) > min(size, max_bytes):
+                            raise DomainError(
+                                "source_changed",
+                                "File exceeded its declared size.",
+                                reason_code="INCOMPLETE_TRANSFER",
+                            )
+                        prefix.extend(chunk[: max(0, 1024 - len(prefix))])
+                        digest.update(chunk)
+                        count += len(chunk)
+                        if sink is None:
+                            data.extend(chunk)
+                        else:
+                            sink.write(chunk)
+                    if count != size:
                         raise DomainError(
-                            "source_changed", "The course file transfer is incomplete."
+                            "source_changed",
+                            "The course file transfer is incomplete.",
+                            reason_code="INCOMPLETE_TRANSFER",
                         )
-                    kind = supported[0]
-                    if (kind == "pdf" and not data.startswith(b"%PDF-")) or (
-                        kind in {"docx", "pptx"} and not data.startswith(b"PK\x03\x04")
+                    start = bytes(prefix).lstrip().lower()
+                    # Detect mislabelled login/error bodies without parsing or repairing
+                    # legitimate HTML, JSON, malformed or encrypted originals.
+                    binary_document = kind in {"pdf", "docx", "pptx", "xlsx"} or str(
+                        metadata.get("filename", "")
+                    ).lower().endswith(
+                        (".pdf", ".docx", ".pptx", ".xlsx", ".xlsm", ".docm", ".pptm")
+                    )
+                    if binary_document and start.startswith(
+                        (b"<!doctype html", b"<html", b"{", b"[")
+                    ):
+                        raise DomainError(
+                            "source_changed",
+                            "Unexpected upstream error content.",
+                            reason_code="UNEXPECTED_UPSTREAM_CONTENT",
+                        )
+                    if sink is None and (
+                        (kind == "pdf" and not data.startswith(b"%PDF-"))
+                        or (kind in {"docx", "pptx", "xlsx"} and not data.startswith(b"PK\x03\x04"))
                     ):
                         raise DomainError(
                             "unsupported_feature", "The file signature is unsupported."
                         )
-                    return DownloadedFile(bytes(data), kind, file_version(metadata))
+                    validator = response.headers.get("etag") or response.headers.get(
+                        "last-modified"
+                    )
+                    # Keep only a fingerprint of untrusted upstream validators in diagnostics.
+                    return DownloadedFile(
+                        bytes(data),
+                        kind or "opaque",
+                        file_version(metadata),
+                        count,
+                        digest.hexdigest(),
+                        hashlib.sha256(validator.encode()).hexdigest() if validator else None,
+                    )
                 finally:
                     await response.aclose()
     except (httpx.HTTPError, TimeoutError, ValueError) as exc:
@@ -202,6 +314,35 @@ async def _download_once(client, course: str, file: str, *, http=None) -> Downlo
         if owned_http:
             await download_http.aclose()
     raise DomainError("retry_later", "Course file download budget exhausted.")
+
+
+async def stream_original(client, course, file, metadata, sink, *, max_bytes, budget, http=None):
+    """Stream authorized original bytes using the reader's credential-separated transport.
+
+    The caller owns the private sink and deletes it on any failure/cancellation.
+    Metadata is supplied only by the authorization service, never tool arguments.
+    No parser, signature repair, content decoder or extraction cache is involved.
+    """
+    try:
+        return await _download_once(
+            client,
+            course,
+            file,
+            http=http,
+            sink=sink,
+            metadata=metadata,
+            max_bytes=max_bytes,
+            budget=budget,
+        )
+    except DomainError as exc:
+        if exc.reason_code is None:
+            exc.reason_code = (
+                "UNSAFE_UPSTREAM_LOCATION"
+                if exc.status == "permission_denied" and "unavailable" not in exc.message.lower()
+                else "UPSTREAM_UNAVAILABLE"
+            )
+        exc.processing_stage = "file_download"
+        raise
 
 
 async def download_file(client, course: str, file: str, *, http=None) -> DownloadedFile:
@@ -218,8 +359,22 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
                         or exc.message != "Course file download is unavailable."
                     ):
                         raise
+    except DomainError as exc:
+        if exc.processing_stage is None:
+            exc.processing_stage = "file_download"
+        if exc.reason_code is None:
+            exc.reason_code = "DOCUMENT_DOWNLOAD_FAILED"
+        raise
     except TimeoutError as exc:
         raise DomainError(
-            "retry_later", "Course file download exceeded its total retry budget."
+            "retry_later",
+            "Course file download exceeded its total retry budget.",
+            reason_code="DOCUMENT_DOWNLOAD_TIMEOUT",
+            processing_stage="file_download",
         ) from exc
-    raise DomainError("retry_later", "Course file download did not complete.")
+    raise DomainError(
+        "retry_later",
+        "Course file download did not complete.",
+        reason_code="DOCUMENT_DOWNLOAD_FAILED",
+        processing_stage="file_download",
+    )

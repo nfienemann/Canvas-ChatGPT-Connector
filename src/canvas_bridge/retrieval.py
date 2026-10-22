@@ -20,6 +20,7 @@ from canvas_bridge.canvas import Collection
 from canvas_bridge.domain import DomainError, Model, Result, Source, utcnow
 from canvas_bridge.file_download import file_metadata, file_version, file_visible
 from canvas_bridge.normalize import canonical_id, plain_text
+from canvas_bridge.parser_worker import PARSER, SUPPORTED_FORMATS
 from canvas_bridge.policy import Endpoint, source_id
 from canvas_bridge.storage import Material, aware
 
@@ -147,12 +148,13 @@ def extract_synthetic(
 async def outline(
     bridge, owner: str, ref: str, course_ref: str, module_filter: str | None = None
 ) -> Result:
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     _, courses = bridge.selected(owner, ref, [course_ref])
     course = courses[0]
     modules, resources, warnings = [], [], []
     collection, pages, files = (Collection(failure="request_budget") for _ in range(3))
     raw_modules = []
+    denied_files = set()
     async with bridge.client(owner, ref) as client:
         # One budget covers the entire outline, not a fresh budget per module.
         try:
@@ -163,6 +165,7 @@ async def outline(
                     if module_filter
                     else await client.collection(Endpoint.FILES, course=course.source_id)
                 )
+                denied_files.update(str(f.get("id")) for f in files.items if not file_visible(f))
                 collection = await client.collection(Endpoint.MODULES, course=course.source_id)
                 for module in collection.items[:30]:
                     if module.get("published") is False or module.get("state") == "locked":
@@ -199,6 +202,8 @@ async def outline(
                         except DomainError as exc:
                             if exc.status == "reconnect_required":
                                 raise
+                            if exc.status == "permission_denied":
+                                denied_files.add(file_id)
                             continue
                         files.items.insert(0, metadata)
                         known.add(file_id)
@@ -233,22 +238,21 @@ async def outline(
                     url = f"{client.institution.origin}/courses/{course.source_id}/{path}"
                     material = session.get(Material, material_id)
                     if material is None:
-                        session.add(
-                            Material(
-                                id=material_id,
-                                owner=owner,
-                                connection_id=ref,
-                                course_id=course_ref,
-                                source_id=upstream,
-                                kind=kind,
-                                title=title,
-                                url=url,
-                                version_hash="",
-                                text="",
-                                locators=[],
-                                limitations=["Not fetched."],
-                            )
+                        material = Material(
+                            id=material_id,
+                            owner=owner,
+                            connection_id=ref,
+                            course_id=course_ref,
+                            source_id=upstream,
+                            kind=kind,
+                            title=title,
+                            url=url,
+                            version_hash="",
+                            text="",
+                            locators=[],
+                            limitations=["Not fetched."],
                         )
+                        session.add(material)
                     else:
                         material.title, material.url = title, url
                         if kind == "file" and (
@@ -259,6 +263,17 @@ async def outline(
                             from canvas_bridge.course_files import clear
 
                             clear(material)
+                    if kind == "file":
+                        material.file_state = {
+                            **(material.file_state or {}),
+                            "inventory": {
+                                "filename": plain_text(str(entry.get("filename", "")), 1000),
+                                "content_type": str(entry.get("content-type", ""))[:200],
+                                "size": entry.get("size"),
+                                "source_version": file_version(entry),
+                            },
+                            "inventory_checked_at": utcnow().isoformat(),
+                        }
                     references[lookup] = material_id
                     resources.append(
                         {
@@ -279,6 +294,52 @@ async def outline(
                             ),
                         }
                     )
+            # A partial inventory cannot revoke a previously returned reference.
+            # Reuse only the owned, course-bound reference for a currently visible
+            # module item. This is a lookup hint, not a fresh access grant; every
+            # read/status/search still requires course-qualified file metadata.
+            for _, _, items in raw_modules:
+                for item in items.items[:100]:
+                    if (
+                        item.get("type") != "File"
+                        or item.get("published") is False
+                        or item.get("locked_for_user") is True
+                    ):
+                        continue
+                    upstream = source_id(item.get("content_id", ""))
+                    lookup = ("File", upstream)
+                    if lookup in references or upstream in denied_files:
+                        continue
+                    if sum(r["kind"] == "file" for r in resources) >= 100:
+                        continue
+                    identity = canonical_id(owner, ref, "file", f"{course.source_id}:{upstream}")
+                    cached = session.get(Material, identity)
+                    if (
+                        cached is None
+                        or cached.owner != owner
+                        or cached.connection_id != ref
+                        or cached.course_id != course_ref
+                        or cached.kind != "file"
+                        or cached.source_id != upstream
+                        or cached.file_state.get("stage") == "inaccessible"
+                    ):
+                        continue
+                    references[lookup] = identity
+                    resources.append(
+                        {
+                            "id": identity,
+                            "title": cached.title,
+                            "url": cached.url,
+                            "kind": "file",
+                            "reading_status": "not_established",
+                            "access_state": "not_rechecked",
+                            "reference_origin": "previously_discovered_module_file",
+                            **cached.file_state.get("inventory", {}),
+                        }
+                    )
+                    warnings.append(
+                        "A previously discovered module file reference was retained; current file access must be checked by the reader."
+                    )
         for module_id, module, items in raw_modules:
             visible_items = []
             for item in items.items[:100]:
@@ -291,8 +352,19 @@ async def outline(
                 lookup = (item.get("type"), str(item.get("content_id") or item.get("page_url", "")))
                 if material_ref := references.get(lookup):
                     visible["material_ref"] = material_ref
+                    if any(
+                        r["id"] == material_ref and r.get("access_state") == "not_rechecked"
+                        for r in resources
+                    ):
+                        visible["material_availability"] = (
+                            "previously_discovered_access_not_rechecked"
+                        )
                 elif item.get("type") in {"File", "Page"}:
-                    visible["material_availability"] = "not_in_accessible_inventory"
+                    visible["material_availability"] = (
+                        "inaccessible"
+                        if lookup[0] == "File" and lookup[1] in denied_files
+                        else "not_resolved_in_this_inventory"
+                    )
                 visible_items.append(visible)
             modules.append(
                 {
@@ -336,7 +408,8 @@ async def outline(
                 "read_tool": "read_course_file",
                 "search_tool": "search_course_files",
                 "reference": "Use the File item's material_ref as file_id, never the parent module ID.",
-                "formats": ["pdf", "docx", "pptx", "txt", "md"],
+                "formats": list(SUPPORTED_FORMATS),
+                "parser": PARSER,
             },
             "inventory_coverage": {
                 name: "complete" if c.complete and len(c.items) <= limit else "partial"
@@ -350,6 +423,11 @@ async def outline(
                 name: c.failure
                 for name, c in (("pages", pages), ("files", files), ("modules", collection))
                 if c.failure
+            },
+            "inventory_reason_codes": {
+                name: {"reason_code": c.reason_code, "upstream_http_status": c.upstream_http_status}
+                for name, c in (("pages", pages), ("files", files), ("modules", collection))
+                if c.reason_code
             },
             "limitations": [
                 "Use read_course_file or fetch_course_material to read file text when isolated extraction is enabled.",
@@ -385,8 +463,8 @@ async def fetch_material(
         from canvas_bridge.course_files import read_file
 
         return await read_file(bridge, owner, ref, material_ref, offset, length, expected_hash)
-    await bridge.list_courses(owner, ref)
-    _, courses = bridge.selected(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
+    _, courses = bridge.selected(owner, ref, resource_type="pages", operation=Endpoint.PAGE)
     with bridge.store.transaction() as session:
         material = bridge.store.owned(session, Material, owner, ref, material_ref)
         course = next((c for c in courses if c.id == material.course_id), None)
@@ -447,8 +525,8 @@ async def fetch_material(
 async def search_materials(bridge, owner: str, ref: str, query: str, limit: int = 10) -> Result:
     if not 1 <= len(query.strip()) <= 200 or not 1 <= limit <= 20:
         raise DomainError("needs_input", "Search requires a short query and a limit from 1 to 20.")
-    await bridge.list_courses(owner, ref)
-    _, courses = bridge.selected(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
+    _, courses = bridge.selected(owner, ref, resource_type="pages", operation=Endpoint.PAGE)
     with bridge.store.transaction() as session:
         # ACLs precede matching, counts, snippets and ranking.
         rows = session.scalars(

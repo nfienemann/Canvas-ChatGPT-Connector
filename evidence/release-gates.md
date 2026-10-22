@@ -48,3 +48,25 @@ zone, linked to Canvas and stated assignment-only coverage limits. No grades or
 writes were requested in this proof. Mobile and broader study workflows remain unverified. Calendar read/proposal
 composition was subsequently verified; see the current validation record.
 This does not change the hosted-pilot or public-distribution gates above.
+# Original-file delivery gate — October 22, 2026
+
+Original acquisition, private staging, authenticated/bearer HTTP redemption and
+the optional MCP Apps download card now have synthetic implementation checks.
+A private operator test against one authorized current workbook verified identical
+reference, staged and HTTP-delivered bytes. This was an in-process HTTP test,
+not a deployed MCP tool or ChatGPT client download. The available browser test
+profile was signed out. A subsequent October 22 owner report confirms that the
+browser fallback worked after selecting **Visit Site** on an ngrok interstitial;
+the supplied screenshot confirms that warning page. This is user-reported private
+success, with client/build and saved-byte verification unrecorded. Formal
+web/desktop/mobile acceptance and native attachment remain unverified; see
+[the verification record](sanitized-results/original-file-delivery.md) and
+[the delivery contract](../docs/original-file-delivery.md).
+
+The [C12-D01–C12-D06 public-release roadmap](implementation-tickets.md#public-release-download-roadmap--october-22-2026)
+tracks removal of the development interstitial, capability-aware UI, native
+attachment feasibility, private-link lifecycle, production availability and
+client acceptance. D01/D02/D04/D05/D06 must pass for the applicable advertised
+public download scope; D03 may remain explicitly deferred if native attachment
+is not advertised. The owner accepts the current fallback for private use only.
+This does not upgrade the broader gates above or authorize deployment.

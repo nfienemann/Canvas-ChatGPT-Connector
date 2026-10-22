@@ -103,8 +103,24 @@ def main():
                 data, request["page"], request["rotation"], request.get("ocr", False)
             ),
         }
-    except Exception:
-        result = {"ok": False, "reason": "unreadable_or_rendering_limit"}
+    except Exception as exc:
+        allowed = {
+            "file_size_or_signature",
+            "invalid_page_or_rotation",
+            "page_limit_or_range",
+            "page_dimensions",
+            "image_output_limit",
+        }
+        reason = (
+            "memory_limit"
+            if isinstance(exc, MemoryError)
+            else "dependency_unavailable"
+            if isinstance(exc, ImportError)
+            else str(exc)
+            if isinstance(exc, ValueError) and str(exc) in allowed
+            else "unreadable_or_rendering_limit"
+        )
+        result = {"ok": False, "reason": reason}
     output = json.dumps(result).encode()
     if len(output) > 2_000_000:
         output = b'{"ok":false,"reason":"image_output_limit"}'

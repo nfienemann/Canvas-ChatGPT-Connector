@@ -13,6 +13,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | Tool | Result boundary |
 |---|---|
 | get_connection_status | Owned identity/scope/capability state; fictional profile visibly labeled |
+| audit_permission_consistency | Read-only exact-ID, ownership, selection, authorization-lease and capability diagnostics; all selected courses by default; optional bounded metadata probes without body reads, credential refresh or state repair |
 | list_courses | Active student courses; staff/mixed roles excluded; does not select courses |
 | get_course_obligations | Assignment/quiz/topic/event source aliases, bounded calendar window, visible instructions and hash-bound continuation; candidates never imply required or unfinished work |
 | get_workload | Explicit <=31-day window; max 100 items/page; course coverage and encrypted bound cursor |
@@ -31,9 +32,9 @@ response size is 250 KB; callers must narrow excessive requests.
 | get_course_outline | Bounded modules/items/pages/files with one overall time budget; course-bound material references join visible module items; listing never proves a reading was accessed |
 | fetch_course_material | Backward-compatible page or file text; fresh access checks, content-hash-bound continuation; files require enabled OS isolation |
 | list_course_files | Selected-course metadata with module associations, opaque file IDs, stable Canvas links and indexed state; resolves visible module files even when the Files collection is denied |
-| read_course_file | PDF/DOCX/PPTX/TXT/Markdown text windows, PDF page ranges/locators, metadata, hashes and explicit extraction limits; max 16,000 characters per window |
+| read_course_file | PDF/DOCX/PPTX/XLSX/TXT/Markdown text windows, page/slide/section/sheet ranges and locators, metadata, hashes and explicit extraction limits; XLSX preserves stored cells and formula/cache distinctions; max 16,000 characters per window |
 | search_course_files | Cached-only by default; `include_unread=true` reads/searches at most three files per request with encrypted version-bound continuation, page passages, extraction status and explicit coverage |
-| get_file_extraction_status | Fresh authorization without downloading; available/downloaded/parsed/partially_parsed/unsupported/failed/inaccessible state and reason |
+| get_file_extraction_status | Fresh authorization without downloading; legacy state plus separate access_state, format_supported, extraction_outcome, parser version and reason |
 | render_course_file_page | Authorized PDF page as bounded MCP ImageContent, hash/version/page citation and one-hour owner-bound receipt; client must actually expose pixels before claiming visual inspection |
 | interpret_course_schedule | Ephemeral unverified visual rows bound to a rendered page receipt; exact date basis, coordinates and roles; optional confirmation-only Calendar proposals, never writes |
 | search_course_materials | Previously fetched page index only; fresh access recheck before returned hits |
@@ -86,6 +87,15 @@ it cannot reconstruct pre-baseline history or exact change times.
 
 See [live findings and root causes](live-integration-findings.md).
 
+Permission diagnostics use the existing schema 1.0 status enum. Safe machine
+reasons are additive in `data.reason_code` for errors, in each audit check, and
+in file listings' `inventory_reason_codes`. Connection status distinguishes
+stored selection from `scope_authorized`, reports credential evidence separately,
+and includes a connection correlation ID and scope snapshot version. A stored
+`active` state is not a successful live authentication check. See the
+[permission troubleshooting guide](permission-consistency.md) for the request
+schema, reason codes, limits and the verified exact-ID incident reproduction.
+
 Grade tools add no new identity scope or persistence. Syllabus candidates require
 actual student review tied to the returned policy version; the assistant cannot
 manufacture that review. Unsupported rules, missing eligibility, hidden scores,
@@ -105,3 +115,19 @@ Image responses have a separate 1.3 MB PNG budget alongside the existing 250 KB
 structured-result limit. OCR text remains in the original text response budget;
 whitespace-only extraction is never indexed. See [visual PDF reading](visual-pdf-reading.md)
 for the observed native-client image limitation and partial live acceptance.
+
+Document errors add `processing_stage` alongside `reason_code`, and an observed
+worker exit adds `worker_exit_code`. These safe fields also appear in text failure
+status and unread-search document failures. Stages do not assert success of any
+later step. The status tool identifies its scope as text extraction and explicitly
+reports that rendering history is not tracked. See [file reading](file-reading.md).
+# Original file delivery
+
+`prepare_course_file_download(connection_id, file_id, expected_source_version?,
+expected_bytes_sha256?)` prepares exact authorized original bytes independently
+of extraction. `ok` means prepared, never saved or attached. The download card
+uses the app-visible `get_course_file_download_payload(connection_id, delivery_id)`
+to recheck permission/version and receive bytes or an expiring link in private
+tool metadata. Current machine clients can use the authenticated binary endpoint.
+See [original-file-delivery.md](original-file-delivery.md) for schemas, HTTP routes,
+limits, failure states and the unresolved actual-ChatGPT download gate.

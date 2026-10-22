@@ -1006,6 +1006,15 @@ Resolve public connector eligibility; obtain required provider/institution autho
 
 **Exit:** R26–R31 pass for the advertised scope; G2 resolved for the exact route; advertised multi-school support has independently authorized tests at more than one institution; demo/reviewer access uses synthetic sample data, never a real student's account. Source release is not directory approval. Calendar may stay disabled if its gate is unmet; listing text must say so.
 
+**Original-file delivery follow-up (22 October 2026):** Complete the applicable
+[C12-D01–C12-D06 public-release download tickets](evidence/implementation-tickets.md#public-release-download-roadmap--october-22-2026)
+before advertising original-file downloads. These cover the development-tunnel
+interstitial, capability-aware download actions, native attachment feasibility,
+private-link lifecycle, production availability, and actual client acceptance.
+The owner's reported browser download is bounded private-use evidence. Native
+attachment may remain deferred with truthful scope; a working, verified browser
+fallback is required wherever advertised. These tickets do not resolve G1 or G2.
+
 ### M5 — Evidence-led expansion
 
 Add R32–R33 capabilities only after feedback shows useful demand and sustainable operation. Possible extensions: calibrated effort estimates, source-backed spaced practice, additional calendar providers, multilingual support, more institutions, or separately authorized roles. No extension may reintroduce a standalone chatbot, academic dashboard, student AI subscription, or generic privileged Canvas proxy.

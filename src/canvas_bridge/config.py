@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     parser_runtime_root: Path | None = None
     ocr_root: Path | None = None
     file_cache_hours: int = Field(default=24, ge=1, le=24)
+    file_delivery_enabled: bool = True
+    file_delivery_root: Path | None = None
+    file_delivery_max_bytes: int = Field(default=50 * 1024 * 1024, ge=1, le=50 * 1024 * 1024)
+    file_delivery_inline_bytes: int = Field(default=128 * 1024, ge=0, le=128 * 1024)
+    file_delivery_ttl_seconds: int = Field(default=300, ge=1, le=900)
+    file_delivery_staging_bytes: int = Field(default=512 * 1024 * 1024, ge=1, le=512 * 1024 * 1024)
+    file_delivery_budget_seconds: float = Field(default=90, gt=0, le=90)
 
     @property
     def browser_callback_url(self) -> str:

@@ -198,7 +198,40 @@ class Result(Model):
 
 
 class DomainError(Exception):
-    def __init__(self, status: str, message: str):
+    def __init__(
+        self,
+        status: str,
+        message: str,
+        *,
+        reason_code: str | None = None,
+        upstream_http_status: int | None = None,
+        processing_stage: str | None = None,
+        worker_exit_code: int | None = None,
+        details: dict | None = None,
+    ):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.reason_code = reason_code
+        self.upstream_http_status = upstream_http_status
+        self.processing_stage = processing_stage
+        self.worker_exit_code = worker_exit_code
+        self.details = details or {}
+
+    @property
+    def data(self):
+        return {
+            **self.details,
+            **({"reason_code": self.reason_code} if self.reason_code else {}),
+            **({"processing_stage": self.processing_stage} if self.processing_stage else {}),
+            **(
+                {"worker_exit_code": self.worker_exit_code}
+                if self.worker_exit_code is not None
+                else {}
+            ),
+            **(
+                {"upstream_http_status": self.upstream_http_status}
+                if self.upstream_http_status is not None
+                else {}
+            ),
+        }

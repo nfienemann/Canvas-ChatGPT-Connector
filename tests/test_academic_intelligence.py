@@ -60,7 +60,7 @@ def ooxml(kind, texts=None):
         if kind == "docx":
             archive.writestr(
                 "word/document.xml",
-                '<w:document xmlns:w="urn:word"><w:body>'
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
                 + "".join("<w:p><w:r><w:t>" + t + "</w:t></w:r></w:p>" for t in texts)
                 + "</w:body></w:document>",
             )

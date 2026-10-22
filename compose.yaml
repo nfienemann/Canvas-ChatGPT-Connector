@@ -7,6 +7,9 @@ x-bridge: &bridge
     BRIDGE_PROFILE: hosted
     BRIDGE_VAULT_KEY_FILE: /run/secrets/vault_key
     BRIDGE_DELETION_JOURNAL: /fences/deletions.jsonl
+    BRIDGE_FILE_DELIVERY_ROOT: /tmp/canvas-originals
+    # Leave space for parser jobs in the existing 128 MiB temporary filesystem.
+    BRIDGE_FILE_DELIVERY_STAGING_BYTES: 67108864
   secrets: [vault_key]
   volumes:
     - ./institutions.json:/app/institutions.json:ro

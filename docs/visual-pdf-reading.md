@@ -2,7 +2,7 @@
 
 The existing authenticated file reader now falls back to isolated English OCR
 for PDF pages containing fewer than 40 non-whitespace text characters. The parser
-version is `canvas-bridge-documents-v4`. Old v3 cache entries and entries created
+version is returned by the reader and status tools. Older parser cache entries and entries created
 with a different OCR-enabled setting are reprocessed on the next authorized read.
 Whitespace-only output is never reported as indexed. The former scan failure
 was an absent OCR implementation, compounded by that incorrect indexed flag;
@@ -51,6 +51,20 @@ distribution, not a course attachment. Restart the existing service after
 configuration. The Linux image includes libtesseract5 and the English model;
 file reading still requires its existing explicit enablement and OS isolation.
 No extra student setup or token is needed on the configured personal service.
+
+Ordinary embedded-text extraction and page-image rendering use a runtime without
+OCR dependencies. Only low-text pages selected for OCR require that installation.
+If OCR setup fails, the text reader returns available embedded text with explicit
+partial coverage and `page_extraction[].ocr_failure`; rendering remains available.
+Rendering failures now report a safe stage/reason code independently of the text
+cache. The extraction-status tool explicitly says that render history is not tracked.
+
+For a service launched outside a packaged Windows host, configure the actual
+physical OCR installation path. A logical AppData path visible through package
+redirection may not exist for the service process. Verify both the English model
+and native library at that location; do not download or install course-supplied
+executables. A missing installation reports `OCR_INSTALLATION_UNAVAILABLE`.
+Correcting the OCR location and restarting invalidates cached partial OCR results.
 
 PDFium renders without forms, annotations, JavaScript, actions or attachments.
 Tesseract runs through its C API inside the same Windows AppContainer or Linux

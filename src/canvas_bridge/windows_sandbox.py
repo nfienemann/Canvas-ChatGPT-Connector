@@ -11,6 +11,8 @@ from ctypes import wintypes as W
 from pathlib import Path
 from uuid import uuid4
 
+from canvas_bridge.domain import DomainError
+
 
 def acl(path: Path, *arguments: str):
     result = subprocess.run(  # noqa: S603 - fixed system utility, structured trusted paths.
@@ -20,7 +22,12 @@ def acl(path: Path, *arguments: str):
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
     if result.returncode:
-        raise RuntimeError("Sandbox permissions could not be established.")
+        raise DomainError(
+            "retry_later",
+            "Sandbox permissions could not be established.",
+            reason_code="DOCUMENT_SANDBOX_SETUP_FAILED",
+            processing_stage="sandbox_setup",
+        )
 
 
 def run(
@@ -157,9 +164,21 @@ def run(
         function = getattr(dll, name)
         function.restype, function.argtypes = result, args
 
+    stage = "sandbox_setup"
+
+    def failure(message, reason):
+        return DomainError("retry_later", message, reason_code=reason, processing_stage=stage)
+
     def checked(value):
         if not value:
-            raise OSError(C.get_last_error(), "Sandbox operation failed.")
+            raise failure(
+                "The isolated document worker could not complete an OS operation.",
+                "DOCUMENT_WORKER_START_FAILED"
+                if stage == "worker_start"
+                else "DOCUMENT_SANDBOX_SETUP_FAILED"
+                if stage == "sandbox_setup"
+                else "DOCUMENT_WORKER_FAILED",
+            )
         return value
 
     profile = "CanvasBridge.Parser." + uuid4().hex
@@ -170,7 +189,7 @@ def run(
             profile, "Canvas Bridge parser", "Isolated course file parser", None, 0, C.byref(sid)
         )
         if result < 0:
-            raise RuntimeError("AppContainer creation failed.")
+            raise failure("AppContainer creation failed.", "DOCUMENT_SANDBOX_SETUP_FAILED")
         created_profile = True
         sid_string = W.LPWSTR()
         checked(advapi.ConvertSidToStringSidW(sid, C.byref(sid_string)))
@@ -227,6 +246,7 @@ def run(
         environment = C.create_unicode_buffer(
             "\0".join(f"{k}={v}" for k, v in sorted(env.items())) + "\0\0"
         )
+        stage = "worker_start"
         checked(
             kernel.CreateProcessW(
                 str(executable),
@@ -243,7 +263,8 @@ def run(
         )
         checked(kernel.AssignProcessToJobObject(job, process.process))
         if kernel.ResumeThread(process.thread) == 0xFFFFFFFF:
-            raise RuntimeError("Sandbox could not resume.")
+            raise failure("Sandbox could not resume.", "DOCUMENT_WORKER_START_FAILED")
+        stage = "worker_execution"
         waited = kernel.WaitForSingleObject(process.process, int(timeout * 1000))
         if waited == 0x102:
             raise TimeoutError("Document extraction exceeded its time budget.")
@@ -251,7 +272,20 @@ def run(
         code = W.DWORD()
         checked(kernel.GetExitCodeProcess(process.process, C.byref(code)))
         if code.value:
-            raise RuntimeError(f"Parser sandbox terminated ({code.value}).")
+            # Only numeric OS status is exposed, never stderr or document text.
+            reason = {
+                0xC0000017: "DOCUMENT_WORKER_MEMORY_LIMIT",
+                0xC000012D: "DOCUMENT_WORKER_MEMORY_LIMIT",
+                0xC0000135: "DOCUMENT_WORKER_DEPENDENCY_UNAVAILABLE",
+                0xC000007B: "DOCUMENT_WORKER_DEPENDENCY_UNAVAILABLE",
+            }.get(code.value, "DOCUMENT_WORKER_EXITED")
+            raise DomainError(
+                "retry_later",
+                "The isolated document worker exited without a complete result.",
+                reason_code=reason,
+                processing_stage=stage,
+                worker_exit_code=code.value,
+            )
     finally:
         # Kill even a suspended process if job assignment/any later step failed.
         if process.process:

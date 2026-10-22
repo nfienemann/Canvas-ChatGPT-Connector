@@ -198,10 +198,16 @@ class Store:
             query = query.with_for_update()
         row = session.scalar(query)
         if row is None:
-            raise DomainError("permission_denied", "Connection unavailable.")
+            raise DomainError(
+                "permission_denied",
+                "Connection unavailable.",
+                reason_code="CONNECTION_OWNERSHIP_MISMATCH",
+            )
         if row.state != "active" or session.get(Tombstone, ref):
             raise DomainError(
-                "reconnect_required", "This connection is disabled. Reconnect in settings."
+                "reconnect_required",
+                "This connection is disabled. Reconnect in settings.",
+                reason_code="CONNECTION_INACTIVE",
             )
         return row
 

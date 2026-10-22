@@ -24,15 +24,24 @@ from canvas_bridge.activity_planning import (
     propose_course_plan,
 )
 from canvas_bridge.auth import READ_SCOPE, WRITE_SCOPE, JWTVerifier, request_identity
+from canvas_bridge.authorization import (
+    RequestAuthorization,
+    Resource,
+    request_authorization,
+    validate_request_authorization,
+)
 from canvas_bridge.calendar_sync import CalendarContext, propose_sync
 from canvas_bridge.config import Settings
 from canvas_bridge.course_files import list_files, read_file, search_files
 from canvas_bridge.course_files import status as file_status
 from canvas_bridge.domain import DomainError, Effort, Model, Result
 from canvas_bridge.evidence import attach
+from canvas_bridge.file_delivery import register_download_routes
+from canvas_bridge.file_delivery_ui import DOWNLOAD_URI, register_download_card
 from canvas_bridge.grade_audit import grading_request
 from canvas_bridge.grading_engine import GradeScenario, Mode, PolicyReview
 from canvas_bridge.obligations import course_obligations
+from canvas_bridge.permission_audit import audit_permissions
 from canvas_bridge.planning import PlanRequest
 from canvas_bridge.policy import Registry
 from canvas_bridge.retrieval import fetch_material, outline, search_materials
@@ -42,6 +51,7 @@ from canvas_bridge.synthetic import SyntheticProvider
 from canvas_bridge.vault import Vault
 from canvas_bridge.visual_files import render_file
 from canvas_bridge.visual_schedule import ScheduleRow, interpret_schedule
+from canvas_bridge.visual_ui import PAGE_URI, register_page_reader
 
 logger = logging.getLogger("canvas_bridge")
 Ref = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_-]+$")]
@@ -105,7 +115,17 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         ),
     )
 
-    def register(*, write: bool = False, image_result: bool = False):
+    register_page_reader(mcp)
+    register_download_card(mcp)
+    register_download_routes(mcp, bridge, verifier)
+
+    def register(
+        *,
+        write: bool = False,
+        image_result: bool = False,
+        download_card: bool = False,
+        private_payload: bool = False,
+    ):
         scope = WRITE_SCOPE if write else READ_SCOPE
 
         def decorator(fn):
@@ -114,11 +134,31 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
             @functools.wraps(fn)
             async def guarded(*args, **kwargs):
+                context = RequestAuthorization(fn.__name__)
+                context_token = request_authorization.set(context)
                 try:
                     request_identity(scope)
                     returned = await fn(*args, **kwargs)
+                    validate_request_authorization(bridge)
+                    if private_payload:
+                        result, payload = returned
+                        result = attach(result)
+                        result.meta.request_id = context.request_id
+                        response = CallToolResult(
+                            structuredContent=result.model_dump(mode="json"),
+                            content=[TextContent(type="text", text=result.model_dump_json())],
+                            _meta={"canvas_bridge_download": payload},
+                        )
+                        if len(response.model_dump_json().encode()) > 250_000:
+                            raise DomainError(
+                                "unsupported_feature",
+                                "Download payload exceeds the host message budget.",
+                                reason_code="HOST_DELIVERY_UNSUPPORTED",
+                            )
+                        return response
                     if image_result:
                         result, png = returned
+                        result.meta.request_id = context.request_id
                         result = attach(result)
                         if len(png) > 1_733_336 or len(result.model_dump_json().encode()) > 250_000:
                             raise DomainError(
@@ -126,12 +166,14 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                             )
                         return CallToolResult(
                             structuredContent=result.model_dump(mode="json"),
+                            _meta={"canvas_bridge_page": {"png": png}},
                             content=[
                                 TextContent(type="text", text=result.model_dump_json()),
                                 ImageContent(type="image", data=png, mimeType="image/png"),
                             ],
                         )
                     result = attach(returned)
+                    result.meta.request_id = context.request_id
                     if len(result.model_dump_json().encode()) > 250_000:
                         return Result(
                             status="partial_data",
@@ -139,26 +181,59 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                         )
                     return result
                 except DomainError as exc:
+                    if exc.processing_stage:
+                        logger.warning(
+                            "document_processing_failed request_id=%s stage=%s reason=%s exit_code=%s",
+                            context.request_id,
+                            exc.processing_stage,
+                            exc.reason_code,
+                            exc.worker_exit_code,
+                        )
                     allowed = Result.model_fields["status"].annotation.__args__
                     status = exc.status if exc.status in allowed else "retry_later"
-                    return Result(status=status, summary=exc.message)
+                    result = Result(status=status, summary=exc.message, data=exc.data)
+                    result.meta.request_id = context.request_id
+                    return result
                 except Exception as exc:
                     logger.warning("tool_failed type=%s", type(exc).__name__)
                     return Result(
                         status="retry_later", summary="This request could not be completed safely."
                     )
+                finally:
+                    request_authorization.reset(context_token)
 
             return mcp.tool(
                 annotations=ToolAnnotations(
                     readOnlyHint=not write,
                     destructiveHint=False,
-                    idempotentHint=not write,
+                    idempotentHint=not (write or download_card or private_payload),
                     openWorldHint=not write,
                 ),
                 meta={
+                    **(
+                        {
+                            "ui": {
+                                "resourceUri": DOWNLOAD_URI,
+                                "visibility": ["app"] if private_payload else ["model", "app"],
+                            },
+                            "openai/outputTemplate": DOWNLOAD_URI,
+                            "openai/widgetAccessible": True,
+                        }
+                        if download_card or private_payload
+                        else {}
+                    ),
+                    **(
+                        {
+                            "ui": {"resourceUri": PAGE_URI, "visibility": ["model", "app"]},
+                            "openai/outputTemplate": PAGE_URI,
+                            "openai/widgetAccessible": True,
+                        }
+                        if image_result
+                        else {}
+                    ),
                     "securitySchemes": [
                         {"type": "oauth2", "scopes": [READ_SCOPE, scope] if write else [READ_SCOPE]}
-                    ]
+                    ],
                 },
                 structured_output=True,
             )(guarded)
@@ -169,6 +244,65 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     async def get_connection_status() -> Result:
         """Check your connection, selected scope and capability limits before using academic tools."""
         return bridge.connection_status(request_identity().owner)
+
+    @register(download_card=True)
+    async def prepare_course_file_download(
+        connection_id: Ref,
+        file_id: Ref,
+        expected_source_version: Annotated[str | None, Field(pattern=r"^[a-f0-9]{64}$")] = None,
+        expected_bytes_sha256: Annotated[str | None, Field(pattern=r"^[a-f0-9]{64}$")] = None,
+    ) -> Result:
+        """Prepare the unchanged original file for download, including workbooks and opaque binaries.
+
+        Resolve file_id from list_course_files or get_course_outline first. Use this for
+        requests to fetch/download/attach an original; read_course_file extracts text for
+        summaries. Preparation is not a confirmed download or a conversation attachment.
+        The card checks current access again when clicked. No parser or conversion runs.
+        """
+        return await bridge.original_files.prepare(
+            request_identity().owner,
+            connection_id,
+            file_id,
+            expected_source_version,
+            expected_bytes_sha256,
+        )
+
+    @register(private_payload=True)
+    async def get_course_file_download_payload(
+        connection_id: Ref,
+        delivery_id: Ref,
+    ) -> Result:
+        """App-only: reauthorize a prepared original and obtain its private download payload.
+
+        Download IDs alone grant no access. Never report a download from this result.
+        """
+        return await bridge.original_files.payload(
+            request_identity().owner, connection_id, delivery_id
+        )
+
+    @register()
+    async def audit_permission_consistency(
+        connection_id: Ref,
+        course_id: Ref | None = None,
+        resource_types: Annotated[list[Resource] | None, Field(min_length=1, max_length=7)] = None,
+        include_upstream_checks: bool = False,
+    ) -> Result:
+        """Audit selection, exact IDs, local authorization and resource capabilities read-only.
+
+        Defaults to all currently selected courses and metadata/scope checks only.
+        Explicit upstream checks make at most 30 bounded metadata GETs, never read
+        response bodies, grades, questions, submissions or documents. Unsupported
+        probes remain unknown. No credential refresh, permission/selection repair,
+        cache update or Canvas write occurs. Use exact returned opaque IDs.
+        """
+        return await audit_permissions(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            resource_types,
+            include_upstream_checks,
+        )
 
     @register()
     async def list_courses(connection_id: Ref) -> Result:
@@ -499,7 +633,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     ) -> Result:
         """Fetch authorized Canvas page or file text. Continuations require the previous content_hash.
 
-        PDF, DOCX, PPTX, text and Markdown use isolated extraction and cached chunks.
+        PDF, DOCX, PPTX, XLSX, text and Markdown use isolated extraction and cached chunks.
         Does not fetch arbitrary URLs, external readings or hidden versions.
         Extracted text is not proof that figures or equations were understood.
         """
@@ -547,6 +681,9 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
         Resolve opaque file_id with list_course_files or get_course_outline first.
         Inspect the returned image itself; text-only hosts cannot interpret it.
+        If the pixels are unavailable to the model, show the native page reader
+        and ask the student to click Read page in ChatGPT. Its imageIds are
+        supplied to the next turn; do not claim visual reading before that.
         Preserve colors, row/column relationships and uncertainty. Never infer
         figure/table contents from filenames. Follow next_page with expected_hash
         for a version-consistent multi-page review. No server OCR is performed.
@@ -585,14 +722,17 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         length: Annotated[int, Field(ge=1, le=16_000)] = 8000,
         expected_hash: Annotated[str | None, Field(max_length=64)] = None,
     ) -> Result:
-        """Read an authorized PDF, DOCX, PPTX, text or Markdown file, with citations and limits.
+        """Read an authorized PDF, DOCX, PPTX, XLSX, text or Markdown file, with citations and limits.
 
         Obtain file_id from list_course_files or get_course_outline material_ref.
         Follow continuation with the same page range and content_hash to read the
         full paper before claiming a complete summary. Cached chunks avoid repeated
         downloads. Figure captions are text; figures themselves are not interpreted.
-        Page range parameters address PDF pages, PPTX slides or DOCX text sections;
+        Page range parameters address PDF pages, PPTX slides, XLSX sheets or DOCX text sections;
         DOCX sections are not rendered pages. Use the returned locator labels for citations.
+        XLSX returns sheet/cell JSON lines, stored values, formula text and separate
+        cached results. Formulas are never evaluated; cached results may be stale.
+        Numeric dates retain their format and date system, without display conversion.
         """
         return await read_file(
             bridge,
@@ -783,11 +923,17 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     async def expire_file_text():
         while True:
             bridge.store.purge_file_cache(settings.file_cache_hours)
+            bridge.original_files.cleanup()
             await asyncio.sleep(60)
 
     @asynccontextmanager
     async def lifespan(application):
         bridge.store.purge_file_cache(settings.file_cache_hours)
+        if settings.file_delivery_enabled:
+            try:
+                bridge.original_files.start()
+            except DomainError:
+                logger.warning("original_delivery_staging_unavailable")
         async with original_lifespan(application):
             cleanup = asyncio.create_task(expire_file_text())
             try:
@@ -796,6 +942,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                 cleanup.cancel()
                 with suppress(asyncio.CancelledError):
                     await cleanup
+                bridge.original_files.close()
 
     app.router.lifespan_context = lifespan
 

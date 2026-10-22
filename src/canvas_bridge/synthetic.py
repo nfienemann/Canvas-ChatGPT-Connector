@@ -148,7 +148,7 @@ class SyntheticProvider:
                         )
                     },
                 )
-                if body
+                if body is not None
                 else httpx.Response(404)
             )
         if path == "/api/v1/users/self/profile":

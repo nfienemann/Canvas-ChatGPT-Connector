@@ -13,6 +13,7 @@ from canvas_bridge.linux_sandbox import ensure_runtime, run
 from canvas_bridge.parser_sandbox import extract_isolated
 from tests.test_academic_intelligence import ooxml
 from tests.test_file_reading import scientific_pdf
+from tests.test_spreadsheet_reading import workbook
 
 linux = pytest.mark.skipif(
     sys.platform != "linux",
@@ -28,18 +29,20 @@ def linux_root(tmp_path_factory):
 
 
 @linux
-@pytest.mark.parametrize("kind", ["pdf", "txt", "md", "docx", "pptx"])
+@pytest.mark.parametrize("kind", ["pdf", "txt", "md", "docx", "pptx", "xlsx"])
 def test_T23_T25_linux_real_format_extraction(linux_root, kind):
     data = (
         scientific_pdf()
         if kind == "pdf"
         else ooxml(kind)
         if kind in {"docx", "pptx"}
+        else workbook()
+        if kind == "xlsx"
         else "Methods: synthetic controlled cultures, μM units.".encode()
     )
     result = extract_isolated(data, kind, linux_root)
     assert result["coverage"] == "text_only"
-    assert any("controlled" in p["text"] for p in result["pages"])
+    assert any(("00123" if kind == "xlsx" else "controlled") in p["text"] for p in result["pages"])
     if kind == "pdf":
         assert result["page_count"] == 3
         assert "Conclusions" in result["pages"][2]["text"]

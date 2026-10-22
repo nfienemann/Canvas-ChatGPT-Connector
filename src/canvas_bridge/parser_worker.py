@@ -15,10 +15,73 @@ from pathlib import Path
 from defusedxml import ElementTree as ET
 from pypdf import PdfReader
 
+if __package__:
+    from canvas_bridge.spreadsheet_worker import extract_workbook
+else:
+    from spreadsheet_worker import extract_workbook
+
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v4"
+PARSER = "canvas-bridge-documents-v6-docx"
+SUPPORTED_FORMATS = ("pdf", "docx", "pptx", "txt", "md", "xlsx")
+
+
+def word_paragraphs(root):
+    """Read each Word text node once, in XML order, without resolving links.
+
+    Nested text boxes have their own paragraphs. Walking every paragraph's
+    descendants independently duplicates their contents in the enclosing run.
+    Use boundary events instead; surrounding runs remain separate text blocks.
+    """
+    namespace = root.tag.removesuffix("document")
+    if namespace not in {
+        "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}",
+        "{http://purl.oclc.org/ooxml/wordprocessingml/main}",
+    }:
+        raise ValueError("invalid_docx_structure")
+    bodies = root.findall(namespace + "body")
+    if len(bodies) != 1:
+        raise ValueError("invalid_docx_structure")
+    compatibility = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+    text, paragraphs = [], []
+    stack = [bodies[0]]
+    while stack:
+        element = stack.pop()
+        if element is None:
+            if text:
+                paragraphs.append("".join(text))
+                text = []
+            continue
+        if element.tag in {namespace + "del", namespace + "moveFrom"}:
+            continue
+        if element.tag == compatibility + "AlternateContent":
+            # Do not concatenate mutually exclusive representations. We do not
+            # implement extension namespaces, so use only the portable fallback.
+            fallback = element.find(compatibility + "Fallback")
+            if fallback is not None:
+                stack.append(fallback)
+            continue
+        if element.tag == namespace + "p":
+            if text:
+                paragraphs.append("".join(text))
+                text = []
+            stack.append(None)
+        if element.tag == namespace + "t":
+            text.append(element.text or "")
+        elif element.tag in {namespace + "br", namespace + "cr"}:
+            text.append("\n")
+        elif element.tag == namespace + "tab":
+            text.append("\t")
+        elif element.tag == namespace + "noBreakHyphen":
+            text.append("\u2011")
+        elif element.tag == namespace + "softHyphen":
+            text.append("\u00ad")
+        stack.extend(reversed(element))
+    if text:
+        paragraphs.append("".join(text))
+    # Even an empty document needs a valid section for a partial/no-text read.
+    return paragraphs or [""]
 
 
 def office(data: bytes, kind: str):
@@ -53,27 +116,16 @@ def office(data: bytes, kind: str):
                 if tag(e) in {"title", "creator", "subject"}:
                     metadata[{"creator": "author"}.get(tag(e), tag(e))] = (e.text or "")[:1000]
         if kind == "docx":
+            if "word/document.xml" not in names:
+                raise ValueError("invalid_docx_structure")
             root = xml("word/document.xml")
             # Paragraph sections are stable within this document version. Word
             # pagination depends on the renderer, fonts and printer settings.
-            texts = [
-                "".join(
-                    (e.text or "")
-                    if tag(e) == "t"
-                    else "\t"
-                    if tag(e) == "tab"
-                    else "\n"
-                    if tag(e) == "br"
-                    else ""
-                    for e in p.iter()
-                )
-                for p in root.iter()
-                if tag(p) == "p"
-            ]
+            texts = word_paragraphs(root)
             # Bound section count while preserving complete paragraph order.
             grouped = []
             for text in texts:
-                if not grouped or len(grouped[-1]) + len(text) > 8000:
+                if not grouped or len(grouped[-1]) + 1 + len(text) > 8000:
                     grouped.append(text)
                 else:
                     grouped[-1] += "\n" + text
@@ -171,6 +223,11 @@ def extract(data: bytes, kind: str) -> dict:
             )
             total += len(text) + (2 if index > 1 else 0)
             if total >= MAX_TEXT:
+                if state == "truncated" or index < page_count:
+                    coverage = "partial"
+                    warnings.append(
+                        f"{locator_kind.capitalize()} {index}: text limit reached; remaining content was not extracted."
+                    )
                 break
         warnings.append(
             "Word references identify text sections, not rendered pages."
@@ -178,8 +235,24 @@ def extract(data: bytes, kind: str) -> dict:
             else "Slide numbers follow presentation order. Speaker notes, animations and image text are not extracted."
         )
         warnings.append(
-            "Headers, footers, comments, tracked changes, embedded objects and layout are not interpreted; table text may lose structure."
+            "Headers, footers, footnotes/endnotes, comments, equations, embedded objects and layout are not interpreted; table text may lose structure."
         )
+        if kind == "docx":
+            warnings.extend(
+                [
+                    "DOCX text uses XML order, including text boxes once; visual placement, heading hierarchy and automatic list numbering are not reconstructed. Empty paragraphs are omitted.",
+                    "Inserted and moved-to text is included; deleted and moved-from text is omitted. Revision history and formatting changes are not interpreted.",
+                    "Compatibility content uses its fallback only; extension-only content is omitted. Hyperlink labels and stored field results are text only; links are not followed and fields are not evaluated.",
+                ]
+            )
+    elif kind == "xlsx":
+        workbook = extract_workbook(data, MAX_TEXT)
+        return {
+            "format": kind,
+            "content_hash": hashlib.sha256(data).hexdigest(),
+            "parser": PARSER,
+            **workbook,
+        }
     elif kind in {"txt", "md"}:
         raw = data.decode("utf-8-sig")
         if len(raw) > MAX_TEXT:
@@ -225,9 +298,18 @@ def main():
             "office_resource_limit",
             "active_office_content",
             "invalid_slide_reference",
+            "invalid_docx_structure",
+            "invalid_workbook_structure",
+            "invalid_workbook_reference",
+            "unsupported_workbook_cell_type",
+            "workbook_resource_limit",
         }
         reason = (
-            str(exc)
+            "memory_limit"
+            if isinstance(exc, MemoryError)
+            else "dependency_unavailable"
+            if isinstance(exc, ImportError)
+            else str(exc)
             if isinstance(exc, ValueError) and str(exc) in known
             else "corrupt_or_unreadable"
         )

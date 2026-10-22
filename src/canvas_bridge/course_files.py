@@ -7,16 +7,42 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta
 
 from canvas_bridge.domain import DomainError, Result, Source, utcnow
-from canvas_bridge.file_download import download_file, file_metadata, file_version
+from canvas_bridge.file_download import download_file, file_format, file_metadata, file_version
 from canvas_bridge.normalize import fact_date, plain_text
 from canvas_bridge.parser_sandbox import extract_document
-from canvas_bridge.parser_worker import PARSER
+from canvas_bridge.parser_worker import PARSER, SUPPORTED_FORMATS
+from canvas_bridge.policy import Endpoint
 from canvas_bridge.storage import Course, Material, aware
 
 
 def clear(row, stage="available", reason=None):
+    inventory = {
+        k: row.file_state[k] for k in ("inventory", "inventory_checked_at") if k in row.file_state
+    }
     row.text, row.locators, row.version_hash = "", [], ""
-    row.file_state = {"stage": stage, "reason": reason} if reason else {"stage": stage}
+    row.file_state = {**inventory, "stage": stage, **({"reason": reason} if reason else {})}
+    row.limitations = [reason] if reason else ["Not fetched."]
+
+
+def failure_state(exc):
+    """Keep a supported parser's processing failure distinct from a capability limit."""
+    if exc.status == "permission_denied":
+        return "inaccessible"
+    if exc.status != "unsupported_feature":
+        return "failed"
+    if exc.processing_stage in {
+        "text_extraction",
+        "result_read",
+        "result_validation",
+    } and exc.reason_code not in {
+        "EXTRACTION_UNSUPPORTED_FORMAT",
+        "EXTRACTION_ENCRYPTED_PDF",
+        "EXTRACTION_ACTIVE_PDF_CONTENT",
+        "EXTRACTION_ACTIVE_OFFICE_CONTENT",
+        "EXTRACTION_UNSUPPORTED_WORKBOOK_CELL_TYPE",
+    }:
+        return "failed"
+    return "unsupported"
 
 
 def modified_at(metadata):
@@ -31,6 +57,7 @@ def fresh_cache(row, metadata, settings):
         and row.version_hash
         and state.get("parser") == PARSER
         and state.get("ocr_enabled", False) == bool(settings.ocr_root)
+        and state.get("ocr_configuration") == ocr_configuration(settings)
         and file_version(metadata) is not None
         and state.get("version") == file_version(metadata)
         and state.get("expires_at")
@@ -39,8 +66,16 @@ def fresh_cache(row, metadata, settings):
     )
 
 
+def ocr_configuration(settings):
+    # Keep operator paths private while invalidating cached OCR failures/results
+    # when the service is restarted with a corrected installation location.
+    return (
+        hashlib.sha256(str(settings.ocr_root).encode()).hexdigest() if settings.ocr_root else None
+    )
+
+
 async def authorized(bridge, owner, ref, material_id):
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     _, courses = bridge.selected(owner, ref)
     with bridge.store.transaction() as session:
         conn = bridge.store.connection(session, owner, ref)
@@ -52,8 +87,15 @@ async def authorized(bridge, owner, ref, material_id):
                 "File reference unavailable. Use a file_id from list_course_files or a File item's material_ref from get_course_outline; a parent module ID cannot identify one document.",
             ) from exc
         course = next((c for c in courses if c.id == row.course_id), None)
+        bridge.authorize(
+            owner, ref, row.course_id, "files", Endpoint.FILE, session=session
+        ).require()
         if not course or row.kind != "file":
-            raise DomainError("permission_denied", "File is outside the selected course scope.")
+            raise DomainError(
+                "permission_denied",
+                "File is outside the selected course scope.",
+                reason_code="IDENTIFIER_MAPPING_FAILURE",
+            )
         epoch = conn.epoch
     try:
         async with bridge.client(owner, ref) as client:
@@ -66,10 +108,18 @@ async def authorized(bridge, owner, ref, material_id):
     with bridge.store.transaction() as session:
         row = checked_row(bridge, session, owner, ref, material_id, epoch)
         if (
-            row.file_state.get("stage") in {"parsed", "partially_parsed"}
-            and not fresh_cache(row, metadata, bridge.settings)
-        ) or (
-            row.file_state.get("version") and row.file_state["version"] != file_version(metadata)
+            (
+                row.file_state.get("stage") in {"parsed", "partially_parsed"}
+                and not fresh_cache(row, metadata, bridge.settings)
+            )
+            or (
+                row.file_state.get("version")
+                and row.file_state["version"] != file_version(metadata)
+            )
+            or (
+                row.file_state.get("stage") in {"unsupported", "failed"}
+                and row.file_state.get("parser") != PARSER
+            )
         ):
             clear(row)
         row.title = plain_text(str(metadata.get("display_name", "Untitled file")), 1000)
@@ -81,8 +131,13 @@ def checked_row(bridge, session, owner, ref, material_id, epoch):
     conn = bridge.store.connection(session, owner, ref, lock=True)
     row = bridge.store.owned(session, Material, owner, ref, material_id)
     course = bridge.store.owned(session, Course, owner, ref, row.course_id)
+    bridge.authorize(owner, ref, course.id, "files", Endpoint.FILE, session=session).require()
     if conn.epoch != epoch or not course.selected or not course.accessible:
-        raise DomainError("permission_denied", "File scope changed during this request.")
+        raise DomainError(
+            "permission_denied",
+            "File scope changed during this request.",
+            reason_code="STALE_SCOPE_SNAPSHOT",
+        )
     return row
 
 
@@ -105,11 +160,30 @@ def source(row, locator=None):
 
 def page_label(row, number):
     kind = row.file_state.get("format")
+    if kind == "xlsx":
+        page = next((p for p in row.locators if p["page"] == number), {})
+        return f"Sheet {number} '{page.get('sheet_name', '')}'"
     return {
         "pdf": f"PDF page {number}",
         "pptx": f"Slide {number}",
         "docx": f"Section {number} (not a rendered page)",
     }.get(kind, "Text document")
+
+
+def cell_references(page, start, end):
+    return [s["cell"] for s in page.get("cell_spans", []) if s["start"] < end and s["end"] > start]
+
+
+def passage_label(row, page, start, end):
+    cells = cell_references(page, start, end)
+    label = page_label(row, page["page"])
+    if cells:
+        label += (
+            ", cell " + cells[0]
+            if len(cells) == 1
+            else ", cells " + cells[0] + " through " + cells[-1]
+        )
+    return label
 
 
 async def list_files(bridge, owner, ref, course_id, module_id=None):
@@ -155,6 +229,7 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
                     "modules": related,
                     "url": row.url,
                     "extraction_state": row.file_state.get("stage", "available"),
+                    "access_state": item.get("access_state", "available_at_inventory_check"),
                     "indexed": bool(row.text.strip())
                     and row.file_state.get("parser") == PARSER
                     and row.file_state.get("ocr_enabled", False) == bool(bridge.settings.ocr_root)
@@ -169,6 +244,7 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
             "modules": [{"id": m["id"], "title": m["title"]} for m in modules],
             "coverage": result.data["inventory_coverage"],
             "inventory_failures": result.data["inventory_failures"],
+            "inventory_reason_codes": result.data["inventory_reason_codes"],
             "document_content_included": False,
         },
         sources=result.sources,
@@ -184,7 +260,15 @@ async def status(bridge, owner, ref, file_id):
             return Result(
                 status="permission_denied",
                 summary="This file is inaccessible in the current selected scope.",
-                data={"file_id": file_id, "state": "inaccessible", "indexed": False},
+                data={
+                    "file_id": file_id,
+                    "state": "inaccessible",
+                    "access_state": "inaccessible",
+                    "format_supported": None,
+                    "extraction_outcome": "not_checked",
+                    "indexed": False,
+                    **exc.data,
+                },
             )
         raise
     state = row.file_state.get("stage", "available")
@@ -193,11 +277,21 @@ async def status(bridge, owner, ref, file_id):
         data={
             "file_id": row.id,
             "state": state,
+            "access_state": "available",
+            "format": file_format(metadata),
+            "format_supported": file_format(metadata) in SUPPORTED_FORMATS,
+            "extraction_outcome": "not_attempted" if state == "available" else state,
+            "parser": PARSER,
             "indexed": bool(row.text.strip()) and fresh_cache(row, metadata, bridge.settings),
             "content_hash": row.version_hash or None,
             "page_count": row.file_state.get("page_count"),
             "limitations": row.limitations,
             "reason": row.file_state.get("reason"),
+            "reason_code": row.file_state.get("reason_code"),
+            "processing_stage": row.file_state.get("processing_stage"),
+            "worker_exit_code": row.file_state.get("worker_exit_code"),
+            "status_scope": "text_extraction",
+            "rendering_outcome": "not_tracked",
             "extraction_enabled": bridge.settings.file_reading_enabled,
         },
         sources=[source(row)],
@@ -223,9 +317,18 @@ async def read_file(
     if (page_start is not None and not 1 <= page_start <= 200) or (
         page_end is not None and (page_start is None or not page_start <= page_end <= 200)
     ):
-        raise DomainError("needs_input", "Use an ordered PDF page range starting at page 1.")
+        raise DomainError(
+            "needs_input", "Use an ordered page, slide, section or sheet range starting at 1."
+        )
     async with bridge.lock("file:" + ref + ":" + file_id):
         row, course, metadata, epoch = await authorized(bridge, owner, ref, file_id)
+        if offset and not expected_hash:
+            raise DomainError(
+                "source_changed",
+                "Continuation requires the current content_hash; the file may have changed.",
+                reason_code="CONTINUATION_HASH_REQUIRED",
+                processing_stage="input_validation",
+            )
         if not fresh_cache(row, metadata, bridge.settings):
             if index_only:
                 return None
@@ -269,6 +372,11 @@ async def read_file(
                     current.limitations = extracted["warnings"]
                     current.retrieved_at = utcnow()
                     current.file_state = {
+                        **{
+                            k: current.file_state[k]
+                            for k in ("inventory", "inventory_checked_at")
+                            if k in current.file_state
+                        },
                         "stage": "parsed"
                         if extracted["coverage"] == "text_only"
                         else "partially_parsed",
@@ -277,6 +385,7 @@ async def read_file(
                         "source_updated_at": modified_at(after),
                         "parser": extracted["parser"],
                         "ocr_enabled": bool(bridge.settings.ocr_root),
+                        "ocr_configuration": ocr_configuration(bridge.settings),
                         "metadata": extracted["metadata"],
                         "page_count": extracted["page_count"],
                         "format": extracted["format"],
@@ -290,14 +399,17 @@ async def read_file(
                     current = checked_row(bridge, session, owner, ref, file_id, epoch)
                     clear(
                         current,
-                        "inaccessible"
-                        if exc.status == "permission_denied"
-                        else "unsupported"
-                        if exc.status == "unsupported_feature"
-                        else "failed",
+                        failure_state(exc),
                         exc.message,
                     )
-                    current.file_state = {**current.file_state, "version": file_version(metadata)}
+                    current.file_state = {
+                        **current.file_state,
+                        "version": file_version(metadata),
+                        "parser": PARSER,
+                        "reason_code": exc.reason_code,
+                        "processing_stage": exc.processing_stage,
+                        "worker_exit_code": exc.worker_exit_code,
+                    }
                     current.limitations = [exc.message]
                 raise
             except asyncio.CancelledError:
@@ -331,7 +443,16 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             passages.append(
                 {
                     "page": page["page"],
-                    "locator": page_label(row, page["page"]),
+                    "locator": passage_label(row, page, start - cursor, end - cursor),
+                    **(
+                        {
+                            "sheet_name": page["sheet_name"],
+                            "sheet_state": page["sheet_state"],
+                            "cell_references": cell_references(page, start - cursor, end - cursor),
+                        }
+                        if "sheet_name" in page
+                        else {}
+                    ),
                     "page_offset": start - cursor,
                     "offset": start,
                     "text": page["text"][start - cursor : end - cursor],
@@ -367,7 +488,15 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             "page_extraction": [
                 {
                     k: p[k]
-                    for k in ("page", "state", "extraction_method", "ocr_confidence")
+                    for k in (
+                        "page",
+                        "state",
+                        "extraction_method",
+                        "ocr_confidence",
+                        "ocr_failure",
+                        "sheet_name",
+                        "sheet_state",
+                    )
                     if k in p
                 }
                 for p in pages
@@ -393,7 +522,7 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
         sources=[
             source(
                 row,
-                f"{page_label(row, p['page'])}, characters {p['page_offset']}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“{p['page_offset'] + len(p['text'])}",
+                f"{p['locator']}, characters {p['page_offset']}-{p['page_offset'] + len(p['text'])}",
             )
             for p in passages
         ]
@@ -472,6 +601,17 @@ async def search_files(
                             "title": row.title,
                             "page": page["page"],
                             "page_offset": start,
+                            "locator": passage_label(row, page, match.start(), match.end()),
+                            **(
+                                {
+                                    "sheet_name": page["sheet_name"],
+                                    "cell_references": cell_references(
+                                        page, match.start(), match.end()
+                                    ),
+                                }
+                                if "sheet_name" in page
+                                else {}
+                            ),
                             "passage": page["text"][start : start + 600],
                             "extraction_method": page.get("extraction_method", "text_extraction"),
                             "ocr_confidence": page.get("ocr_confidence"),
@@ -479,7 +619,9 @@ async def search_files(
                             "url": row.url,
                         }
                     )
-                    sources.append(source(row, page_label(row, page["page"])))
+                    sources.append(
+                        source(row, passage_label(row, page, match.start(), match.end()))
+                    )
             if row.text.strip():
                 indexed += 1
             else:

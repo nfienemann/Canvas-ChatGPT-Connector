@@ -45,6 +45,7 @@ def private_root(root: Path) -> Path:
 def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
+    spreadsheet = Path(__file__).with_name("spreadsheet_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
@@ -52,6 +53,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     native = Path(sysconfig.get_config_var("DESTSHARED") or library / "lib-dynload")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + spreadsheet.read_bytes()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -106,6 +108,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         if pillow_libs.is_dir():
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
+        shutil.copy2(spreadsheet, stage / "spreadsheet_worker.py")
         shutil.copy2(visual, stage / "visual_worker.py")
         shutil.copy2(ocr, stage / "ocr_worker.py")
         ocr_runtime.copy(ocr_root, stage)
@@ -167,6 +170,16 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
         raise DomainError(
             "unsupported_feature",
             "Linux document isolation could not be established. Landlock ABI 3+ and libseccomp are required; no unrestricted extraction was attempted.",
+            reason_code="DOCUMENT_SANDBOX_SETUP_FAILED",
+            processing_stage="sandbox_setup",
         )
     if code:
-        raise RuntimeError("Isolated extraction failed or exceeded resource limits.")
+        raise DomainError(
+            "retry_later",
+            "The isolated document worker exited without a complete result.",
+            reason_code="DOCUMENT_WORKER_CPU_LIMIT"
+            if code == -signal.SIGXCPU
+            else "DOCUMENT_WORKER_EXITED",
+            processing_stage="worker_execution",
+            worker_exit_code=code,
+        )

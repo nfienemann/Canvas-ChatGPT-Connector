@@ -1,7 +1,8 @@
 # Course document reading — text extraction
 
 The private Windows source deployment can read actual authorized PDF, UTF-8 text
-Markdown, DOCX and PPTX files without asking the student to download/upload them. On
+Markdown, DOCX and PPTX files without asking the student to download/upload them. XLSX
+now uses the same isolated reader; see [workbook semantics and limits](xlsx-reading.md). On
 2026-10-20 the installed connector resolved a module PDF, downloaded it through
 three approved storage redirects and returned all 15 PDF pages in five bounded
 MCP responses. The actual paper contained 74,408 extracted characters, including
@@ -27,10 +28,35 @@ resolved using fresh course-qualified file metadata. Coverage remains partial
 for denied/truncated collections. `fetch_course_material` remains compatible
 and delegates file references to the same reader. Existing page search is unchanged.
 
+`get_file_extraction_status` describes **text extraction**, explicitly identified
+by `status_scope=text_extraction`. `rendering_outcome=not_tracked` means that a
+render request is not represented in this cache; “Not fetched” is not evidence
+that no rendering was attempted. Rendering returns its own success/error result.
+
+Processing errors include safe `reason_code` and `processing_stage` fields.
+Stages distinguish file download, runtime/workspace setup, sandbox setup, worker
+startup/execution, output reading/validation, text extraction, rendering and OCR.
+An observed worker exit also includes a numeric `worker_exit_code`; an unknown
+exit is not labelled memory exhaustion. Server logs correlate these fields with
+the MCP request ID without stderr, document content, signed URLs or local paths.
+The existing status enum and public tool inputs are unchanged. Setup, startup,
+timeout and malformed worker output use `retry_later`; unsupported/corrupt content
+keeps `unsupported_feature`. Search failures retain the same diagnostic fields.
+
+If worker code changes while the service is running, a mismatched parser version
+is rejected as `DOCUMENT_PARSER_VERSION_CHANGED`. Restart the service to load
+the matching reader and worker; the version check is never bypassed.
+
+A continuation with a nonzero offset requires `expected_hash` before download or
+parsing, following the normal access check. Failed extraction is retried on the
+next authorized read; it is not cached as an empty successful document.
+
 Page numbers are PDF positions, including cover/correction pages, not necessarily
 printed journal numbers. TXT/Markdown use one artificial page, stated as a limit.
 DOCX range indices refer to stable text sections, not rendered pages. PPTX indices
 follow the presentation slide order. Speaker notes and image text are not extracted.
+See [DOCX semantics and diagnostics](docx-reading.md) for revision/text-box policy,
+partial coverage and the distinction between processing failure and format support.
 Text and figure captions may be extracted; figure images are not interpreted.
 All returned content is marked untrusted source data, never executable instructions.
 
@@ -44,6 +70,9 @@ All returned content is marked untrusted source data, never executable instructi
 - Current course selection and fresh course-qualified file permission checks run
   for every read/status/search hit, including cache hits. Download and post-parse
   metadata versions must agree. Version or parser changes invalidate cached text.
+  Changing the configured OCR installation also invalidates cached results,
+  including partial results from an unavailable OCR runtime. Only a hash of that
+  configuration is stored with the cache; operator paths are never returned.
 - Previously extracted text is cached for 24 hours by default (configurable 1–24).
   A running service purges expired text at startup and every 60 seconds. When
   stopped, cleanup occurs at the next startup. Access denial, deselection and
@@ -73,6 +102,14 @@ receives bytes and format only, not tokens, database access, service code or
 inherited handles. A Job Object limits it to one process, 384 MiB memory,
 10 seconds CPU and 15 seconds wall time, and kills it on cleanup. Worker output
 is capped at 2 MB. One extraction at a time runs per server process.
+
+On packaged Windows hosts, AppData may resolve a new job folder to a different
+physical spelling than its parent. The safety check compares the resolved job's
+immediate parent with the intended jobs directory by filesystem identity. An
+escaping path is still rejected before input bytes are written. Text extraction
+and pixel rendering do not depend on the optional OCR installation. Only OCR
+jobs include its libraries/model; an OCR failure leaves available embedded text
+intact and reports partial coverage with per-page `ocr_failure` diagnostics.
 
 The downloader accepts only operator-reviewed exact HTTPS origins and optional
 exact hostname templates with one numeric `{file_id}` substitution. Every hop
@@ -106,7 +143,7 @@ support, not a hosted-service deployment or institutional approval.
 
 Bounded English OCR and one-page MCP image responses are now available; see
 [scanned PDF reading](visual-pdf-reading.md) for deployment, limits and the
-remaining native ChatGPT image-delivery blocker. Live XLSX/CSV extraction,
+remaining native ChatGPT image-delivery blocker. CSV extraction,
 verified image/figure interpretation, scientific chart analysis and faithful
 table/equation reconstruction are not implemented.
 Scanned or partly unreadable PDFs return explicit partial coverage/OCR limitations;
@@ -119,3 +156,11 @@ reads there remain untested. Existing native installers remain fictional preview
 is enabled in the owner's private Windows source service. This service must be
 running, with its PC awake and HTTPS connection active. No reinstall or new student
 token is needed for the already configured personal connection.
+# Downloading an unchanged original
+
+Use `prepare_course_file_download` for an original workbook/document download;
+`read_course_file` continues to provide extracted text. The download path is
+independent of parser support and does not rewrite source bytes. Preparation and
+host handoff are separate from a verified local save or conversation attachment.
+See [original-file-delivery.md](original-file-delivery.md) for access checks,
+retention, configuration and current client-validation limits.

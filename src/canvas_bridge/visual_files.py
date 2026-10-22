@@ -17,9 +17,24 @@ from canvas_bridge.visual_worker import MAX_PNG, RENDERER
 
 def validate_rendering(result, data, request):
     if not result.get("ok"):
+        reason = result.get("reason")
+        allowed = {
+            "file_size_or_signature",
+            "invalid_page_or_rotation",
+            "page_limit_or_range",
+            "page_dimensions",
+            "image_output_limit",
+            "memory_limit",
+            "dependency_unavailable",
+            "unreadable_or_rendering_limit",
+        }
         raise DomainError(
-            "unsupported_feature",
+            "retry_later"
+            if reason in {"memory_limit", "dependency_unavailable"}
+            else "unsupported_feature",
             "PDF page could not be rendered within the sandbox limits; no visual interpretation is available.",
+            reason_code="RENDER_" + (reason.upper() if reason in allowed else "FAILED"),
+            processing_stage="ocr" if request.get("ocr") else "page_rendering",
         )
     r = result["rendering"]
     if (
@@ -88,7 +103,8 @@ async def render_document(data, settings, page=1, rotation=0):
         "pdf",
         settings.parser_root,
         runtime_root=settings.parser_runtime_root,
-        ocr_root=settings.ocr_root,
+        # Rendering pixels is independent of the optional OCR installation.
+        ocr_root=None,
         visual={"page": page, "rotation": rotation},
     )
 

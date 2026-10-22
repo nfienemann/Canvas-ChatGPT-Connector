@@ -1,0 +1,350 @@
+{
+  "fixture_only": true,
+  "description": "Executed synthetic audit outputs; no production identities, records or credentials.",
+  "cases": {
+    "exact_id_local_only": {
+      "schema_version": "1.0",
+      "status": "ok",
+      "summary": "Local permission checks agree; upstream permissions are reported only where checked.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "present_not_verified",
+        "scope_consistency": "consistent",
+        "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "current_scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": "2a26a383a99116d866805a5663dbc7d2406dccb4",
+            "resource": "files",
+            "advertised_selected": true,
+            "connection_owned": true,
+            "identifier_state": "canonical",
+            "scope_authorized": true,
+            "resource_capability": "allowlisted_upstream_unverified",
+            "authorization_freshness": "within_lease",
+            "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+            "upstream_permission": "not_checked",
+            "upstream_http_status": null,
+            "result": "consistent",
+            "reason_code": "AUTHORIZED_LOCAL_SCOPE",
+            "recommended_action": "none"
+          }
+        ],
+        "recommended_action": "none",
+        "recommended_actions": [],
+        "upstream_checks_requested": false,
+        "upstream_requests": 0,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "cc46abaa4f6644d382e564896d01e7e0",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.316955Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    },
+    "truncated_id": {
+      "schema_version": "1.0",
+      "status": "permission_denied",
+      "summary": "Permission consistency audit completed with restrictions or unresolved evidence.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "present_not_verified",
+        "scope_consistency": "indeterminate",
+        "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "current_scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": null,
+            "resource": "files",
+            "advertised_selected": false,
+            "connection_owned": true,
+            "identifier_state": "invalid_format",
+            "scope_authorized": false,
+            "resource_capability": "unknown",
+            "authorization_freshness": "within_lease",
+            "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+            "upstream_permission": "not_checked",
+            "upstream_http_status": null,
+            "result": "indeterminate",
+            "reason_code": "IDENTIFIER_MAPPING_FAILURE",
+            "recommended_action": "investigate_canonical_id_mapping"
+          }
+        ],
+        "recommended_action": "investigate_canonical_id_mapping",
+        "recommended_actions": [
+          "investigate_canonical_id_mapping"
+        ],
+        "upstream_checks_requested": false,
+        "upstream_requests": 0,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "81c2720cdda34c729f182553b4937013",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.319074Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    },
+    "files_metadata_allowed": {
+      "schema_version": "1.0",
+      "status": "ok",
+      "summary": "Local permission checks agree; upstream permissions are reported only where checked.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "accepted_for_metadata_request",
+        "scope_consistency": "consistent",
+        "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "current_scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": "2a26a383a99116d866805a5663dbc7d2406dccb4",
+            "resource": "files",
+            "advertised_selected": true,
+            "connection_owned": true,
+            "identifier_state": "canonical",
+            "scope_authorized": true,
+            "resource_capability": "allowlisted_upstream_unverified",
+            "authorization_freshness": "within_lease",
+            "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+            "upstream_permission": "allowed",
+            "upstream_http_status": 200,
+            "result": "consistent",
+            "reason_code": "UPSTREAM_METADATA_ACCESS_CONFIRMED",
+            "recommended_action": "none"
+          }
+        ],
+        "recommended_action": "none",
+        "recommended_actions": [],
+        "upstream_checks_requested": true,
+        "upstream_requests": 1,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "9728a84a17aa41ee8a2c6d18a29c9562",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.324868Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    },
+    "course_authorized_files_denied": {
+      "schema_version": "1.0",
+      "status": "partial_data",
+      "summary": "Permission consistency audit completed with restrictions or unresolved evidence.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "present_not_verified",
+        "scope_consistency": "consistent",
+        "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "current_scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": "2a26a383a99116d866805a5663dbc7d2406dccb4",
+            "resource": "files",
+            "advertised_selected": true,
+            "connection_owned": true,
+            "identifier_state": "canonical",
+            "scope_authorized": true,
+            "resource_capability": "allowlisted_upstream_unverified",
+            "authorization_freshness": "within_lease",
+            "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+            "upstream_permission": "denied",
+            "upstream_http_status": 403,
+            "result": "consistent",
+            "reason_code": "RESOURCE_PERMISSION_DENIED",
+            "recommended_action": "review_resource_permissions"
+          }
+        ],
+        "recommended_action": "review_resource_permissions",
+        "recommended_actions": [
+          "review_resource_permissions"
+        ],
+        "upstream_checks_requested": true,
+        "upstream_requests": 1,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "766baa7a883c45b58200e251e4d92b4a",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.329541Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    },
+    "selected_access_mismatch": {
+      "schema_version": "1.0",
+      "status": "partial_data",
+      "summary": "Permission consistency audit completed with restrictions or unresolved evidence.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "present_not_verified",
+        "scope_consistency": "mismatch",
+        "scope_snapshot_version": "161feefcfd9825adbd44ca7c",
+        "current_scope_snapshot_version": "161feefcfd9825adbd44ca7c",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": "2a26a383a99116d866805a5663dbc7d2406dccb4",
+            "resource": "files",
+            "advertised_selected": true,
+            "connection_owned": true,
+            "identifier_state": "canonical",
+            "scope_authorized": false,
+            "resource_capability": "unknown",
+            "authorization_freshness": "within_lease",
+            "scope_snapshot_version": "161feefcfd9825adbd44ca7c",
+            "upstream_permission": "not_checked",
+            "upstream_http_status": null,
+            "result": "inconsistent",
+            "reason_code": "SELECTED_SCOPE_MISMATCH",
+            "recommended_action": "inspect_scope_mapping"
+          }
+        ],
+        "recommended_action": "inspect_scope_mapping",
+        "recommended_actions": [
+          "inspect_scope_mapping"
+        ],
+        "upstream_checks_requested": false,
+        "upstream_requests": 0,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "72efe980659d45ca837711aa37b08d5c",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.333931Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    },
+    "stale_authorization_lease": {
+      "schema_version": "1.0",
+      "status": "partial_data",
+      "summary": "Permission consistency audit completed with restrictions or unresolved evidence.",
+      "data": {
+        "connection_state": "active",
+        "credential_state": "present_not_verified",
+        "scope_consistency": "indeterminate",
+        "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "current_scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+        "correlation_id": "266a86e2aa7ae81dc97469c5",
+        "checks": [
+          {
+            "course_id": "2a26a383a99116d866805a5663dbc7d2406dccb4",
+            "resource": "files",
+            "advertised_selected": true,
+            "connection_owned": true,
+            "identifier_state": "canonical",
+            "scope_authorized": false,
+            "resource_capability": "unknown",
+            "authorization_freshness": "stale",
+            "scope_snapshot_version": "72bf9adcc0f8be8753c5fa78",
+            "upstream_permission": "not_checked",
+            "upstream_http_status": null,
+            "result": "indeterminate",
+            "reason_code": "STALE_SCOPE_SNAPSHOT",
+            "recommended_action": "reconcile_scope_snapshots"
+          }
+        ],
+        "recommended_action": "reconcile_scope_snapshots",
+        "recommended_actions": [
+          "reconcile_scope_snapshots"
+        ],
+        "upstream_checks_requested": false,
+        "upstream_requests": 0,
+        "state_modified": false,
+        "limitations": [
+          "Selection, local authorization, upstream endpoint access and extraction are separate stages.",
+          "A successful metadata request does not authorize every item in that resource collection.",
+          "Metadata probes do not refresh student-enrollment evidence or establish all resource privileges.",
+          "Grade and syllabus permission cannot be conclusively probed here without content reads.",
+          "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
+          "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ]
+      },
+      "sources": [],
+      "evidence": [],
+      "meta": {
+        "request_id": "612954fcfcf64b4782a51044d938e1ae",
+        "snapshot_id": null,
+        "retrieved_at": "2026-10-21T17:15:58.338317Z",
+        "display_timezone": "UTC",
+        "freshness": "synthetic",
+        "coverage": [],
+        "next_cursor": null,
+        "warnings": []
+      }
+    }
+  }
+}

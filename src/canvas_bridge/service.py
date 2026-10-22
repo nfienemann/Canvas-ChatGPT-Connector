@@ -8,6 +8,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from cryptography.exceptions import InvalidTag
 from sqlalchemy import delete, select
 
+from canvas_bridge.authorization import (
+    ENDPOINT_RESOURCE,
+    authorize_course_resource,
+    digest,
+    log_decision,
+    scope_version,
+)
 from canvas_bridge.canvas import CanvasClient
 from canvas_bridge.config import Settings
 from canvas_bridge.domain import Coverage, DomainError, Meta, Result, Source, WorkItem, utcnow
@@ -36,6 +43,9 @@ class Bridge:
         self.settings, self.store, self.vault, self.registry = settings, store, vault, registry
         self.synthetic = synthetic
         self.locks: dict[str, asyncio.Lock] = {}
+        from canvas_bridge.file_delivery import OriginalFiles
+
+        self.original_files = OriginalFiles(self)
 
     def lock(self, connection: str) -> asyncio.Lock:
         # Entries are bounded by configured active connections; single-process development.
@@ -58,7 +68,15 @@ class Bridge:
         self.store.purge_courses(session, conn.owner, conn.id, course_ids)
 
     @asynccontextmanager
-    async def client(self, owner: str, ref: str):
+    async def client(
+        self,
+        owner: str,
+        ref: str,
+        *,
+        refresh_credentials=True,
+        course_ref=None,
+        track_authorization=True,
+    ):
         if self.settings.profile == "personal":
             from canvas_bridge.auth import principal_id
 
@@ -76,7 +94,13 @@ class Bridge:
                 raise DomainError("reconnect_required", "Reconnect this Canvas account.")
             credential = conn.credential
             expires = conn.token_expires_at
-        if expires and aware(expires) <= utcnow() + timedelta(seconds=60):
+        if not refresh_credentials and expires and aware(expires) <= utcnow():
+            raise DomainError(
+                "reconnect_required",
+                "The Canvas credential has expired.",
+                reason_code="UPSTREAM_AUTH_EXPIRED",
+            )
+        if refresh_credentials and expires and aware(expires) <= utcnow() + timedelta(seconds=60):
             from canvas_bridge.linking import refresh_credential
 
             credential = await refresh_credential(self, owner, ref)
@@ -88,6 +112,53 @@ class Bridge:
             ) from exc
         http = self.synthetic.client() if self.synthetic else None
         client = CanvasClient(institution, secret["access_token"], self.settings, http)
+
+        def authorize(endpoint, ids, resource=None):
+            if endpoint in {Endpoint.COURSES, Endpoint.PROFILE}:
+                return
+            resource = resource or ENDPOINT_RESOURCE.get(endpoint)
+            if resource is None:
+                raise DomainError(
+                    "permission_denied",
+                    "This resource operation is not enabled.",
+                    reason_code="MISSING_RESOURCE_CAPABILITY",
+                )
+            target = (
+                canonical_id(owner, ref, "course", source_id(ids["course"]))
+                if "course" in ids
+                else course_ref
+            )
+            if target is None:
+                raise DomainError(
+                    "permission_denied",
+                    "A selected course is required for this resource.",
+                    reason_code="IDENTIFIER_MAPPING_FAILURE",
+                )
+            self.authorize(
+                owner, ref, target, resource, endpoint, track=track_authorization
+            ).require()
+
+        client.authorize = authorize
+
+        def observe(endpoint, ids, error):
+            target = (
+                canonical_id(owner, ref, "course", source_id(ids["course"]))
+                if "course" in ids
+                else course_ref or ""
+            )
+            resource = ENDPOINT_RESOURCE.get(endpoint, "course")
+            decision = self.authorize(owner, ref, target, resource, endpoint, track=False)
+            log_decision(
+                owner,
+                ref,
+                target,
+                resource,
+                decision,
+                http_status=error.upstream_http_status,
+                reason=error.reason_code,
+            )
+
+        client.observe = observe
         try:
             yield client
         finally:
@@ -96,7 +167,8 @@ class Bridge:
                 await http.aclose()
 
     def meta(self, **kwargs) -> Meta:
-        return Meta(freshness="synthetic" if self.synthetic else "live", **kwargs)
+        kwargs.setdefault("freshness", "synthetic" if self.synthetic else "live")
+        return Meta(**kwargs)
 
     def connection_status(self, owner: str) -> Result:
         with self.store.transaction() as session:
@@ -108,7 +180,6 @@ class Bridge:
                         Course.owner == owner,
                         Course.connection_id == row.id,
                         Course.selected.is_(True),
-                        Course.accessible.is_(True),
                     )
                 ).all()
                 data.append(
@@ -117,7 +188,39 @@ class Bridge:
                         "institution": row.institution,
                         "state": row.state,
                         "timezone": row.timezone,
-                        "selected_courses": [{"id": c.id, "name": c.name} for c in courses],
+                        "selected_courses": [
+                            {
+                                "id": c.id,
+                                "name": c.name if c.accessible else "Unavailable course",
+                                "scope_authorized": self.authorize(
+                                    owner,
+                                    row.id,
+                                    c.id,
+                                    operation="scope",
+                                    session=session,
+                                    track=False,
+                                ).scope_authorized,
+                            }
+                            for c in courses
+                        ],
+                        "scope_snapshot_version": scope_version(
+                            row,
+                            list(
+                                session.scalars(
+                                    select(Course).where(
+                                        Course.owner == owner, Course.connection_id == row.id
+                                    )
+                                )
+                            ),
+                            self.registry.entries.get(row.institution),
+                        ),
+                        "correlation_id": digest(owner + "\0" + row.id),
+                        "authentication": "expired"
+                        if row.token_expires_at and aware(row.token_expires_at) <= utcnow()
+                        else "present_not_verified"
+                        if row.credential
+                        else "unavailable",
+                        "upstream_permissions": "not_checked",
                         "last_successful_refresh": aware(row.last_success).isoformat()
                         if row.last_success
                         else None,
@@ -137,9 +240,17 @@ class Bridge:
                 "calendar": "not_connected",
                 "calendar_composition": "proposal_only_via_existing_native_connection; connection availability is not verified here",
                 "notifications": "disabled",
+                "original_file_delivery": {
+                    "configured": self.settings.file_delivery_enabled,
+                    "maximum_bytes": self.settings.file_delivery_max_bytes,
+                    "inline_maximum_bytes": self.settings.file_delivery_inline_bytes,
+                    "host_support": "not_negotiated",
+                    "native_attachment": "not_implemented",
+                    "requires_server_online": True,
+                },
                 "live_institution_verification": "not_verified",
             },
-            meta=self.meta(),
+            meta=self.meta(freshness="cached" if not self.synthetic else "synthetic"),
         )
 
     async def list_courses(self, owner: str, ref: str) -> Result:
@@ -194,6 +305,8 @@ class Bridge:
                     session.add(row)
                     existing[upstream] = row
                 else:
+                    if not row.accessible:
+                        row.version += 1
                     row.accessible = True
                     row.name = plain_text(str(raw.get("name") or row.name), 1000)
             if collection.complete:
@@ -202,6 +315,8 @@ class Bridge:
                 self.withdraw_courses(session, conn, lost)
                 for upstream, row in existing.items():
                     if upstream not in seen:
+                        if row.accessible:
+                            row.version += 1
                         row.accessible = False
                         row.name = "Unavailable course"
             elif collection.failure in {"permission_denied", "reconnect_required"}:
@@ -228,7 +343,18 @@ class Bridge:
             summary="Active student courses."
             if collection.complete
             else "Course access could not be fully checked.",
-            data={"courses": result, "archived_courses": "not_in_current_scope"},
+            data={
+                "courses": result,
+                "archived_courses": "not_in_current_scope",
+                **(
+                    {
+                        "reason_code": collection.reason_code,
+                        "upstream_http_status": collection.upstream_http_status,
+                    }
+                    if collection.reason_code
+                    else {}
+                ),
+            },
             meta=self.meta(
                 coverage=[
                     Coverage(
@@ -243,12 +369,29 @@ class Bridge:
             ),
         )
 
+    async def refresh_course_access(self, owner, ref):
+        result = await self.list_courses(owner, ref)
+        if result.status in {"permission_denied", "reconnect_required"}:
+            raise DomainError(
+                result.status,
+                result.summary,
+                reason_code=result.data.get("reason_code") or "UNKNOWN_AUTHORIZATION_FAILURE",
+                upstream_http_status=result.data.get("upstream_http_status"),
+            )
+        return result
+
     def selected(
-        self, owner: str, ref: str, course_refs: list[str] | None = None
+        self,
+        owner: str,
+        ref: str,
+        course_refs: list[str] | None = None,
+        *,
+        resource_type: str = "course",
+        operation="scope",
     ) -> tuple[Connection, list[Course]]:
         with self.store.transaction() as session:
             conn = self.store.connection(session, owner, ref)
-            if (
+            if course_refs is None and (
                 not conn.entitlement_at
                 or (utcnow() - aware(conn.entitlement_at)).total_seconds()
                 > self.settings.authorization_lease_seconds
@@ -256,6 +399,7 @@ class Bridge:
                 raise DomainError(
                     "retry_later",
                     "Course access needs a successful refresh before data can be served.",
+                    reason_code="STALE_SCOPE_SNAPSHOT",
                 )
             rows = list(
                 session.scalars(
@@ -268,17 +412,26 @@ class Bridge:
                 )
             )
             if course_refs is not None:
-                allowed = {c.id for c in rows}
-                if set(course_refs) - allowed:
-                    raise DomainError(
-                        "permission_denied", "One or more courses are outside the selected scope."
-                    )
+                for course_ref in course_refs:
+                    self.authorize(
+                        owner, ref, course_ref, resource_type, operation, session=session
+                    ).require()
                 rows = [c for c in rows if c.id in course_refs]
+            else:
+                for course in rows:
+                    self.authorize(
+                        owner, ref, course.id, resource_type, operation, session=session
+                    ).require()
             if len(rows) > self.settings.max_courses:
                 raise DomainError(
                     "needs_input", "Select fewer courses to stay within the refresh budget."
                 )
             return conn, rows
+
+    def authorize(self, owner, ref, course_ref, resource_type="course", operation="read", **kwargs):
+        return authorize_course_resource(
+            self, owner, ref, course_ref, resource_type, operation, **kwargs
+        )
 
     def select_courses(self, owner: str, ref: str, ids: list[str], timezone: str) -> Result:
         try:
@@ -303,8 +456,13 @@ class Bridge:
                     "permission_denied", "Course selection contains unavailable courses."
                 )
             removed = {c.id for c in rows if c.selected and c.id not in ids}
+            added = {c.id for c in rows if not c.selected and c.id in ids}
             self.withdraw_courses(session, conn, removed)
+            if added and not removed:
+                conn.epoch += 1
             for row in rows:
+                if row.selected != (row.id in ids):
+                    row.version += 1
                 row.selected = row.id in ids
             conn.timezone = timezone
         return Result(
@@ -318,7 +476,7 @@ class Bridge:
 
     async def refresh(self, owner: str, ref: str, course_refs: list[str] | None = None) -> Snapshot:
         async with self.lock(ref):
-            course_result = await self.list_courses(owner, ref)
+            course_result = await self.refresh_course_access(owner, ref)
             conn, courses = self.selected(owner, ref, course_refs)
             if not courses:
                 raise DomainError(
@@ -471,7 +629,7 @@ class Bridge:
             return snapshot
 
     def snapshot(self, owner: str, ref: str, snapshot_ref: str) -> Snapshot:
-        _, courses = self.selected(owner, ref)
+        _, courses = self.selected(owner, ref, resource_type="assignments", operation="read")
         allowed = {c.id for c in courses}
         with self.store.transaction() as session:
             snapshot = self.store.owned(session, Snapshot, owner, ref, snapshot_ref)
@@ -617,7 +775,7 @@ class Bridge:
         )
 
     async def assignment_details(self, owner: str, ref: str, work_ref: str) -> Result:
-        await self.list_courses(owner, ref)
+        await self.refresh_course_access(owner, ref)
         conn, courses = self.selected(owner, ref)
         with self.store.transaction() as session:
             row = self.store.owned(session, Work, owner, ref, work_ref)
@@ -723,7 +881,7 @@ class Bridge:
         )
 
     def changes(self, owner: str, ref: str, since: datetime) -> Result:
-        _, courses = self.selected(owner, ref)
+        _, courses = self.selected(owner, ref, resource_type="assignments", operation="read")
         ids = sorted(c.id for c in courses)
         with self.store.transaction() as session:
             rows = list(
@@ -804,10 +962,12 @@ class Bridge:
         )
 
     async def gradebook(self, owner: str, ref: str, course_ref: str) -> Result:
-        await self.list_courses(owner, ref)
-        conn, courses = self.selected(owner, ref, [course_ref])
+        await self.refresh_course_access(owner, ref)
+        conn, courses = self.selected(
+            owner, ref, [course_ref], resource_type="grades", operation="read"
+        )
         course = courses[0]
-        async with self.client(owner, ref) as client:
+        async with self.client(owner, ref, course_ref=course_ref) as client:
             enrollments = await client.collection(Endpoint.ENROLLMENTS)
             rows = [
                 x

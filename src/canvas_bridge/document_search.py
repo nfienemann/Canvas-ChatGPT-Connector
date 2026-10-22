@@ -3,7 +3,15 @@
 import asyncio
 import re
 
-from canvas_bridge.course_files import checked_row, list_files, page_label, read_file, source
+from canvas_bridge.course_files import (
+    cell_references,
+    checked_row,
+    failure_state,
+    list_files,
+    passage_label,
+    read_file,
+    source,
+)
 from canvas_bridge.domain import Coverage, DomainError, Result, utcnow
 from canvas_bridge.evidence import attach, fingerprint
 from canvas_bridge.parser_worker import PARSER
@@ -150,7 +158,17 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                         "file_id": row.id,
                         "title": row.title,
                         "page": page["page"],
-                        "locator": page_label(row, page["page"]),
+                        "locator": passage_label(row, page, match.start(), match.end()),
+                        **(
+                            {
+                                "sheet_name": page["sheet_name"],
+                                "cell_references": cell_references(
+                                    page, match.start(), match.end()
+                                ),
+                            }
+                            if "sheet_name" in page
+                            else {}
+                        ),
                         "page_offset": at,
                         "passage": page["text"][at : at + 600],
                         "extraction_method": page.get("extraction_method", "text_extraction"),
@@ -197,13 +215,10 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
             statuses.append(
                 {
                     **info,
-                    "state": "inaccessible"
-                    if exc.status == "permission_denied"
-                    else "unsupported"
-                    if exc.status == "unsupported_feature"
-                    else "failed",
+                    "state": failure_state(exc),
                     "reason": exc.message,
                     "status": exc.status,
+                    **exc.data,
                     "document_search_finished": False,
                 }
             )
