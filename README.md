@@ -142,6 +142,11 @@ connectors from Directory approval. Eligibility remains an explicit release gate
 this repository is not evidence of approval. See the
 [distribution review](docs/distribution-review.md).
 
+The [deferred public-launch roadmap](docs/public-launch-roadmap.md) records the
+Rowan-first, hosted direction: zero student downloads and no student API keys.
+Current correctness and reliability issues take priority; the roadmap does not
+start deployment or change any release-gate status.
+
 - [Student guide](docs/student-guide.md)
 - [Institution administrator guide](docs/institution-admin-guide.md)
 - [Contributor guide](docs/contributor-guide.md)

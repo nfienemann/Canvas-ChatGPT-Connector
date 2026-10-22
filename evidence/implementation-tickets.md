@@ -14,3 +14,13 @@
 | C10 knowledge/math | Modules/pages/files, course-bound module references, scoped page search, text continuation, bounded file transport and simple-points primitives | Partial; binary extraction requires verified OS isolation; full policy subsets remain gated |
 | C11 optional Calendar | No live grants/actions/receipts or notifications exposed | Deferred until independent authorization and approval proof |
 | C12 distribution | Reproducible dependencies, guides, CI template, truthful claims | Source upload authorized; listing/license/live cost gates unresolved |
+
+## Deferred public-launch follow-up
+
+The owner selected a Rowan-first hosted release with zero student downloads and
+no student API keys on 22 October 2026. The
+[public-launch roadmap](../docs/public-launch-roadmap.md) records the dependency
+order, external approval gates, onboarding target, and acceptance scenarios for
+C12 with dependencies on C05/C08/C09. This work is deferred while current
+correctness and reliability issues are addressed. No implementation, outreach,
+hosting purchase, student pilot, or directory submission is started by this record.
