@@ -14,15 +14,17 @@ from pypdf import PdfReader
 
 if globals().get("__package__"):
     from .office_package import OFFICE_ERRORS, OfficePackage
+    from .presentation_worker import PRESENTATION_ERRORS, extract_presentation
     from .workbook_worker import WORKBOOK_ERRORS, extract_workbook
 else:
     from office_package import OFFICE_ERRORS, OfficePackage
+    from presentation_worker import PRESENTATION_ERRORS, extract_presentation
     from workbook_worker import WORKBOOK_ERRORS, extract_workbook
 
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v6"
+PARSER = "canvas-bridge-documents-v7"
 
 
 def office(data: bytes, kind: str):
@@ -136,7 +138,11 @@ def extract(data: bytes, kind: str) -> dict:
         warnings.append(
             "Page numbers are PDF page positions, not printed journal pagination. Reading order may be imperfect in multi-column papers."
         )
-    elif kind in {"docx", "pptx"}:
+    elif kind == "pptx":
+        metadata, pages, partial, warnings = extract_presentation(data)
+        page_count = len(pages)
+        coverage = "partial" if partial else "text_only"
+    elif kind == "docx":
         metadata, sections, locator_kind = office(data, kind)
         page_count = len(sections)
         if page_count > MAX_PAGES:
@@ -212,6 +218,7 @@ def main():
                 "invalid_slide_reference",
             }
             | OFFICE_ERRORS
+            | PRESENTATION_ERRORS
             | WORKBOOK_ERRORS
         )
         reason = (

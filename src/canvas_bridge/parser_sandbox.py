@@ -24,6 +24,7 @@ from canvas_bridge import ocr_runtime
 from canvas_bridge.domain import DomainError
 from canvas_bridge.office_package import OFFICE_ERRORS
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
+from canvas_bridge.presentation_worker import PRESENTATION_ERRORS
 from canvas_bridge.workbook_worker import WORKBOOK_ERRORS
 
 _slot = threading.Lock()
@@ -46,12 +47,14 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     worker = Path(__file__).with_name("parser_worker.py")
     office = Path(__file__).with_name("office_package.py")
     workbook = Path(__file__).with_name("workbook_worker.py")
+    presentation = Path(__file__).with_name("presentation_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
         + office.read_bytes()
         + workbook.read_bytes()
+        + presentation.read_bytes()
         + openpyxl.__version__.encode()
         + et_xmlfile.__version__.encode()
         + visual.read_bytes()
@@ -101,6 +104,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     shutil.copy2(worker, runtime / "worker.py")
     shutil.copy2(office, runtime / "office_package.py")
     shutil.copy2(workbook, runtime / "workbook_worker.py")
+    shutil.copy2(presentation, runtime / "presentation_worker.py")
     shutil.copy2(visual, runtime / "visual_worker.py")
     shutil.copy2(ocr, runtime / "ocr_worker.py")
     ocr_runtime.copy(ocr_root, runtime)
@@ -141,6 +145,7 @@ def validate_result(result: dict, data: bytes) -> dict:
             }
             | OFFICE_ERRORS
             | WORKBOOK_ERRORS
+            | PRESENTATION_ERRORS
         )
         raise DomainError(
             "unsupported_feature",

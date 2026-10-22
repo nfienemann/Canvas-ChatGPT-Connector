@@ -220,7 +220,7 @@ async def test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling(brid
     settings.mcp_read_only = True
     server = create_app(settings, bridge).state.mcp
     tools = await server.list_tools()
-    assert len(tools) == 29
+    assert len(tools) == 31
     assert {"render_course_file_page", "interpret_course_schedule"} <= {tool.name for tool in tools}
     assert "propose_course_study_plan" in {tool.name for tool in tools}
     assert all(tool.annotations.readOnlyHint for tool in tools)

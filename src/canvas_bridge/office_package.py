@@ -155,6 +155,22 @@ class OfficePackage:
         # ZipFile checks CRC/overlap on reads; defusedxml rejects DTDs/entities.
         return ET.fromstring(self._archive.read(name), forbid_dtd=True, forbid_entities=True)
 
+    def read(self, name: str) -> bytes:
+        """Read one validated member in memory; archive bounds and CRC still apply."""
+        if name not in self.names:
+            raise ValueError("invalid_office_reference")
+        return self._archive.read(name)
+
+    def relationships(self, source: str, relationship_type: str):
+        """Return matching relationships without following their destinations."""
+        directory, filename = posixpath.split(source)
+        name = posixpath.join(directory, "_rels", filename + ".rels")
+        if name not in self.names:
+            return []
+        return [
+            e for e in self.xml(name) if e.attrib.get("Type", "").endswith("/" + relationship_type)
+        ]
+
     def _resolve(self, source: str, relation) -> str:
         if relation.attrib.get("TargetMode", "Internal") != "Internal":
             raise ValueError("invalid_office_reference")

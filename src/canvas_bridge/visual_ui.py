@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-PAGE_URI = "ui://canvas-bridge/page-reader-v3.html"
+PAGE_URI = "ui://canvas-bridge/page-reader-v4.html"
 PAGE_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Canvas page reader</title><style>
@@ -12,7 +12,7 @@ button:disabled{opacity:.6;cursor:default}img{display:block;max-width:100%;max-h
 #status{font-size:14px}small{display:block;margin-top:10px;line-height:1.4}
 </style></head><body>
 <h2 id="title">Canvas page reader</h2>
-<p>This page stays connected to its Canvas source. Read it visually in this ChatGPT conversation without downloading it yourself.</p>
+<p>This image stays connected to its Canvas source. Read it visually in this ChatGPT conversation without downloading it yourself. A PPTX picture is an original embedded image, not the complete slide.</p>
 <img id="page" alt="Authorized Canvas PDF page" hidden>
 <button id="read" disabled>Read page in ChatGPT</button>
 <p id="status" role="status">Starting page reader…</p>
@@ -26,11 +26,11 @@ button:disabled{opacity:.6;cursor:default}img{display:block;max-width:100%;max-h
 def register_page_reader(mcp):
     @mcp.resource(
         PAGE_URI,
-        name="Canvas PDF page reader",
+        name="Canvas document image reader",
         mime_type="text/html;profile=mcp-app",
         meta={
             "ui": {"prefersBorder": True, "csp": {"connectDomains": [], "resourceDomains": []}},
-            "openai/widgetDescription": "Authorized PDF page preview. Read page in ChatGPT attaches its image for visual interpretation; no manual download or Canvas changes.",
+            "openai/widgetDescription": "Authorized PDF page or PPTX picture preview. The read button adds its image for visual interpretation; no manual download or Canvas changes. PPTX pictures are not complete rendered slides.",
             "openai/widgetCSP": {"connect_domains": [], "resource_domains": []},
         },
     )

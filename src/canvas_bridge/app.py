@@ -611,6 +611,8 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         DOCX sections are not rendered pages. Use the returned locator labels for citations.
         For XLSX worksheet names, cell ranges and separate formulas/cached values,
         prefer read_course_workbook; this tool returns a compatible text index.
+        For PPTX structure, speaker notes, tables and picture discovery, prefer
+        read_course_presentation; image-only slides need visual review.
         """
         return await read_file(
             bridge,
@@ -656,6 +658,64 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
             query,
             max_cells,
             offset,
+            expected_hash,
+        )
+
+    @register()
+    async def read_course_presentation(
+        connection_id: Ref,
+        file_id: Ref,
+        slide: Annotated[int | None, Field(ge=1, le=200)] = None,
+        offset: Annotated[int, Field(ge=0, le=400)] = 0,
+        max_objects: Annotated[int, Field(ge=1, le=30)] = 10,
+        expected_hash: Annotated[str | None, Field(min_length=64, max_length=64)] = None,
+    ) -> Result:
+        """Read PPTX slide structure, speaker notes, tables and precise source references.
+
+        Omit slide for the overview, then read slide records with continuation.
+        Notes are separate from visible content. Table rows/columns retain stored
+        merge flags; do not invent headers. For pictures call read_course_slide_image
+        with the returned object_index. Explain using authorized course context,
+        distinguishing source evidence from interpretation and unread visual content.
+        """
+        from canvas_bridge.presentations import read_presentation
+
+        return await read_presentation(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            file_id,
+            slide,
+            offset,
+            max_objects,
+            expected_hash,
+        )
+
+    @register(image_result=True)
+    async def read_course_slide_image(
+        connection_id: Ref,
+        file_id: Ref,
+        slide: Annotated[int, Field(ge=1, le=200)],
+        object_index: Annotated[int, Field(ge=1, le=200)],
+        expected_hash: Annotated[str | None, Field(min_length=64, max_length=64)] = None,
+    ) -> Annotated[CallToolResult, Result]:
+        """Inspect one embedded PPTX picture with slide/object citation, not a whole slide.
+
+        Use read_course_presentation for the slide's picture object_index, text,
+        notes and table context. Supports PNG/JPEG/static WebP only. Never fetches
+        linked pictures or renders charts. If pixels are unavailable to the model,
+        show the native reader and ask the student to click Read image in ChatGPT.
+        Do not claim visual interpretation before pixels are actually supplied.
+        """
+        from canvas_bridge.presentations import read_picture
+
+        return await read_picture(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            file_id,
+            slide,
+            object_index,
             expected_hash,
         )
 

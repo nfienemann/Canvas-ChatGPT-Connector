@@ -97,12 +97,15 @@ def main():
         with (work / "input.bin").open("rb") as stream:
             data = stream.read(10_000_001)
         request = json.loads((work / "request.json").read_text(encoding="utf-8"))
-        result = {
-            "ok": True,
-            "rendering": render(
+        if request.get("kind") == "pptx":
+            from presentation_worker import render_picture
+
+            rendering = render_picture(data, request["page"], request["object_index"])
+        else:
+            rendering = render(
                 data, request["page"], request["rotation"], request.get("ocr", False)
-            ),
-        }
+            )
+        result = {"ok": True, "rendering": rendering}
     except Exception:
         result = {"ok": False, "reason": "unreadable_or_rendering_limit"}
     output = json.dumps(result).encode()

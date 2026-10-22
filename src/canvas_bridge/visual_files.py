@@ -16,14 +16,19 @@ from canvas_bridge.visual_worker import MAX_PNG, RENDERER
 
 
 def validate_rendering(result, data, request):
+    from canvas_bridge.presentation_worker import PICTURE_RENDERER
+
+    expected_renderer = PICTURE_RENDERER if request.get("kind") == "pptx" else RENDERER
     if not result.get("ok"):
         raise DomainError(
             "unsupported_feature",
-            "PDF page could not be rendered within the sandbox limits; no visual interpretation is available.",
+            "Image could not be read within the sandbox limits. PPTX pictures require embedded PNG, JPEG or static WebP; linked/vector pictures and full slide rendering are unsupported."
+            if request.get("kind") == "pptx"
+            else "PDF page could not be rendered within the sandbox limits; no visual interpretation is available.",
         )
     r = result["rendering"]
     if (
-        r["renderer"] != RENDERER
+        r["renderer"] != expected_renderer
         or r["content_hash"] != hashlib.sha256(data).hexdigest()
         or type(r["page"]) is not int
         or type(r["page_count"]) is not int
@@ -34,6 +39,12 @@ def validate_rendering(result, data, request):
         or not all(type(n) is int and 1 <= n <= 2401 for n in r["pixels"])
     ):
         raise ValueError("Invalid isolated page metadata")
+    if request.get("kind") == "pptx" and (
+        r.get("object_index") != request["object_index"]
+        or r.get("visual_kind") != "pptx_picture"
+        or request.get("ocr")
+    ):
+        raise ValueError("Invalid isolated picture metadata")
     if request.get("ocr"):
         ocr = r["ocr"]
         if (
@@ -62,7 +73,7 @@ def validate_rendering(result, data, request):
         return r
     png = base64.b64decode(r["png"], validate=True)
     if (
-        r["renderer"] != RENDERER
+        r["renderer"] != expected_renderer
         or r["content_hash"] != hashlib.sha256(data).hexdigest()
         or r["page"] != request["page"]
         or r["rotation"] != request["rotation"]

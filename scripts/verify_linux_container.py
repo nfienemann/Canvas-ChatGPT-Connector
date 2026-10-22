@@ -9,12 +9,14 @@ from pathlib import Path
 def prepare(root):
     from tests.test_academic_intelligence import ooxml
     from tests.test_file_reading import scientific_pdf
+    from tests.test_presentations import presentation
     from tests.test_visual_files import scanned_pdf
     from tests.test_workbooks import workbook
 
     root.mkdir(parents=True, exist_ok=True)
     (root / "scan.pdf").write_bytes(scanned_pdf(mixed=True))
     (root / "synthetic.xlsx").write_bytes(workbook())
+    (root / "structured.pptx").write_bytes(presentation())
     for kind in ("pdf", "txt", "md", "docx", "pptx"):
         data = (
             scientific_pdf()
@@ -52,6 +54,26 @@ async def verify(root):
         assert any(c["formula"] == "=B2-C2" and c["cached_value"] == 5.3 for c in cells)
         assert not list((settings.parser_root / "jobs").iterdir())
         print("Verified XLSX formulas, cached values and cleanup in restricted Linux image")
+        from canvas_bridge.parser_sandbox import extract_isolated
+
+        deck = (root / "structured.pptx").read_bytes()
+        slides = await extract_document(deck, "pptx", settings)
+        assert slides["pages"][0]["notes_state"] == "extracted"
+        assert slides["pages"][0]["objects"][1]["table"]["cells"][3]["text"] == "5.3"
+        picture = await asyncio.to_thread(
+            extract_isolated,
+            deck,
+            "pptx",
+            settings.parser_root,
+            runtime_root=settings.parser_runtime_root,
+            ocr_root=settings.ocr_root,
+            visual={"kind": "pptx", "page": 1, "rotation": 0, "object_index": 5},
+        )
+        assert picture["pixels"] == [120, 80] and picture["png"]
+        assert not list((settings.parser_root / "jobs").iterdir())
+        print(
+            "Verified PPTX notes, table structure, embedded picture and cleanup in restricted Linux image"
+        )
         image = await render_document((root / "synthetic.pdf").read_bytes(), settings)
         assert image["png"] and image["page_count"] == 3
         scan = await extract_document((root / "scan.pdf").read_bytes(), "pdf", settings)

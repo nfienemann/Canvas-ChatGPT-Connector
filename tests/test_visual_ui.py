@@ -26,12 +26,14 @@ from canvas_bridge.visual_ui import PAGE_URI
         "missing_image",
     ],
 )
-def test_T12_T13_page_reader_image_context_requires_fresh_access(failure):
+@pytest.mark.parametrize("kind", ["pdf", "pptx"])
+def test_T12_T13_page_reader_image_context_requires_fresh_access(failure, kind):
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node runtime needed for the native UI bridge contract")
     script = Path("ui/page-reader/reader.js").read_text(encoding="utf-8").split("\n", 1)[1]
-    harness = r"""
+    harness = (
+        r"""
 import vm from "node:vm";
 import assert from "node:assert/strict";
 import {webcrypto, createHash} from "node:crypto";
@@ -41,6 +43,8 @@ for(const key of ['status','read','title','page']) elements[key]={disabled:true,
 const bytes=Buffer.from('synthetic-png-test-bytes');
 const imageHash=createHash('sha256').update(bytes).digest('hex');
 const result={status:'ok',data:{page:1,page_count:1,render_receipt:'receipt',content_hash:'a'.repeat(64),source_version:'v1',image_hash:imageHash,rotation:0},sources:[{locator:'PDF page 1'}]};
+const kind=KIND;
+if(kind==='pptx') {delete result.data.render_receipt;result.data.visual_kind='pptx_picture';result.data.object_index=5;result.data.image_locator='Slide 1, object 5';}
 const meta={canvas_bridge_page:{png:bytes.toString('base64')}};
 const calls=[],uploads=[],messages=[],states=[];
 const response={structuredContent:result,_meta:meta};
@@ -73,6 +77,8 @@ await new Promise(resolve=>setImmediate(resolve));
 if(failure==='missing_helpers'||failure==='connect') {assert.equal(elements.read.disabled,true);process.exit(0);}
 await elements.read.click();
 assert.equal(calls.length,1);assert.equal(calls[0].args.expected_hash,'a'.repeat(64));
+assert.equal(calls[0].name,kind==='pptx'?'read_course_slide_image':'render_course_file_page');
+if(kind==='pptx') {assert.equal(calls[0].args.object_index,5);assert.equal(calls[0].args.slide,1);assert.equal(elements.read.textContent,'Read image in ChatGPT');}
 if(failure==='standard'||failure==='message') {
  assert.equal(uploads.length,0);assert.equal(states[0].content[0].type,'image');
  assert.equal(states[0].content[0].data,meta.canvas_bridge_page.png);
@@ -88,7 +94,10 @@ else {
  assert.equal(messages.length,1);
  await elements.read.click();assert.equal(uploads.length,1);assert.equal(calls.length,2);
 }
-""".replace("FAILURE", json.dumps(failure)).replace("SOURCE", json.dumps(script))
+""".replace("FAILURE", json.dumps(failure))
+        .replace("KIND", json.dumps(kind))
+        .replace("SOURCE", json.dumps(script))
+    )
     run = subprocess.run(  # noqa: S603 - fixed trusted unit harness with synthetic data only.
         [node, "--input-type=module"], input=harness, text=True, capture_output=True, timeout=15
     )
@@ -106,6 +115,7 @@ async def test_T12_reader_resource_is_static_and_has_no_external_origins(setting
     assert template.meta["ui"]["csp"] == {"connectDomains": [], "resourceDomains": []}
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert tools["render_course_file_page"].meta["ui"]["resourceUri"] == PAGE_URI
+    assert tools["read_course_slide_image"].meta["ui"]["resourceUri"] == PAGE_URI
 
 
 async def test_T13_outbound_library_logs_do_not_expose_signed_urls(caplog):
