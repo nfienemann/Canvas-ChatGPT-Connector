@@ -99,6 +99,10 @@ def unescape(value):
 
 def typed_value(cell, strings):
     kind = cell.get("t", "n")
+    if kind not in {"n", "b", "s", "str", "inlineStr", "e", "d"}:
+        raise ValueError("unsupported_workbook_cell_type")
+    if any(len(children(cell, name)) > 1 for name in ("v", "f", "is")):
+        raise ValueError("invalid_workbook_structure")
     value = child(cell, "v")
     raw = value.text if value is not None else None
     if kind == "inlineStr":
@@ -279,11 +283,14 @@ def extract_workbook(data, max_text):
             for row in [] if grid is None else grid:
                 if tag(row) != "row":
                     continue
-                row_number = int(row.get("r", str(last_row + 1)))
+                cells = children(row, "c")
+                first_reference = next((cell.get("r") for cell in cells if cell.get("r")), None)
+                inferred_row = position(first_reference)[0] if first_reference else last_row + 1
+                row_number = int(row.get("r", str(inferred_row)))
                 if not last_row < row_number <= 1048576:
                     raise ValueError("invalid_workbook_structure")
                 last_row, last_col = row_number, 0
-                for cell in children(row, "c"):
+                for cell in cells:
                     count += 1
                     if count > MAX_CELLS:
                         truncated = True
@@ -298,6 +305,8 @@ def extract_workbook(data, max_text):
                     style = cell.get("s", row.get("s") if true(row.get("customFormat")) else None)
                     if style is None and matching:
                         style = matching[-1]["style"]
+                    if style is None and styles:
+                        style = "0"
                     record = {"cell": ref, **typed_value(cell, strings)}
                     if style is not None:
                         style_index = int(style)

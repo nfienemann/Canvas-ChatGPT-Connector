@@ -74,7 +74,12 @@ def test_xlsx_types_formulas_cache_dates_hidden_merged_and_order(epoch):
     assert "D1" not in cells and "A4" not in cells
     assert cells["E1"]["value"] == '雪\nquoted "value"'
     assert cells["A2"]["formula"] == "SUM(B1,1)"
-    assert cells["A2"]["cached_value"] == {"type": "number", "value": "1"}
+    assert cells["A2"]["cached_value"] == {
+        "type": "number",
+        "value": "1",
+        "number_format_id": 0,
+        "number_format": "General",
+    }
     assert cells["A2"]["cached_value_present"] and cells["A2"]["hidden_row"]
     assert not cells["B2"]["cached_value_present"]
     assert cells["B3"]["cached_value_present"] and cells["B3"]["cached_value"]["value"] == "0"
@@ -176,6 +181,8 @@ def test_xlsx_empty_string_escapes_and_external_formula_are_inert():
     assert cells["B1"]["cached_value_present"] and cells["B1"]["cached_value"] == {
         "type": "string",
         "value": "",
+        "number_format_id": 0,
+        "number_format": "General",
     }
     assert cells["C1"]["formula"].startswith("WEBSERVICE")
     assert not cells["C1"]["cached_value_present"]

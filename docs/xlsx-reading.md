@@ -30,6 +30,8 @@ extracted text and cell spans.
   and workbook `date_system` (`1900` or `1904`). ISO date cells retain their stored
   string. This is not a localized Excel display renderer or a date converter.
   Custom numeric formats such as `00000` are returned alongside the raw number.
+  When a styles table exists, cells without an explicit cell/row/column style
+  retain its default style at index zero, including in formula caches.
 - Hidden sheets and stored cells in hidden rows/columns are included and labeled.
   Merged ranges are listed; only stored cells are read, without copying an anchor
   value into the rest of the merge. Charts, images, comments, pivot tables,
@@ -51,6 +53,13 @@ inputs fail closed. Sparse dimensions never cause expansion to a rectangular
 grid. Whole cell records are omitted at the text/cell budget, and coverage is
 explicitly partial. Remaining sheets/cells require another extraction strategy;
 text continuation cannot recover content omitted by extraction limits.
+
+Omitted row indices can be recovered from explicit cell references in the row;
+conflicting row/cell indices still fail closed. Unknown cell types are rejected
+even without a stored value, and duplicate value/formula/inline-string elements
+are rejected instead of silently selecting the first value. Optional indices,
+default style zero and single-value element cardinality follow the
+[Microsoft row and cell schema documentation](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/how-to-insert-a-chart-into-a-spreadsheet).
 
 Workbook bytes determine the content hash. Continuation requires that hash and
 the same sheet range; `chunk_id` is repeatable. File version, parser version and

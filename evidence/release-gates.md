@@ -18,7 +18,12 @@ but cannot be advertised as delivered. PDF/TXT/Markdown reading now has a verifi
 Windows AppContainer worker and a private actual-course PDF proof. DOCX/PPTX text extraction now shares that sandbox and passes synthetic OS-isolated
 acceptance. A Linux Landlock/seccomp worker now has synthetic kernel and container
 checks; actual Linux student reads and hosted deployment remain unverified.
-OCR, visual interpretation and macOS parser workers remain unimplemented. Calendar proposals now compose with the existing native
+Bounded English OCR and PDF page rendering have synthetic checks and private
+evidence in the [PDF investigation](sanitized-results/pdf-processing-2026-10-22.md).
+Complete visual interpretation and macOS parser workers remain unimplemented.
+The [cross-format stress record](sanitized-results/document-stress-2026-10-22.md)
+tracks DOCX/XLSX/PDF parser-v7 fixes separately from installed-service acceptance.
+Calendar proposals now compose with the existing native
 connection; actual writes still require explicit event approval and read-back.
 
 Additional gaps: comprehensive non-assignment obligations (classic quiz/topic and

@@ -2,6 +2,7 @@
 
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
@@ -150,8 +151,16 @@ def test_T23_linux_cpu_limit_and_corrupt_input(linux_root, tmp_path):
     probe = runtime / "cpu_probe.py"
     probe.write_text("while True: pass\n", encoding="utf-8")
     try:
-        with pytest.raises(RuntimeError, match="resource limits"):
+        with pytest.raises(DomainError) as error:
             run(runtime, tmp_path, script="cpu_probe.py")
+        assert error.value.status == "retry_later"
+        assert error.value.processing_stage == "worker_execution"
+        assert error.value.worker_exit_code in {-signal.SIGKILL, -signal.SIGXCPU}
+        assert error.value.reason_code == (
+            "DOCUMENT_WORKER_CPU_LIMIT"
+            if error.value.worker_exit_code == -signal.SIGXCPU
+            else "DOCUMENT_WORKER_EXITED"
+        )
     finally:
         probe.unlink(missing_ok=True)
     with pytest.raises(DomainError, match="corrupt_or_unreadable"):

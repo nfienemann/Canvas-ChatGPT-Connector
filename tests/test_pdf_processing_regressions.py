@@ -41,7 +41,7 @@ def fake_worker(monkeypatch, tmp_path):
 
 def test_redirected_job_parent_uses_directory_identity(tmp_path, monkeypatch, fake_worker):
     root = tmp_path / "parser"
-    root.mkdir()
+    root.mkdir(mode=0o700)
     logical = root / "jobs"
     physical = root / "redirected-jobs"
     physical.mkdir()
@@ -71,7 +71,7 @@ def test_redirected_job_parent_uses_directory_identity(tmp_path, monkeypatch, fa
 
 def test_job_resolved_outside_root_is_rejected_before_writes(tmp_path, monkeypatch, fake_worker):
     root = tmp_path / "parser"
-    root.mkdir()
+    root.mkdir(mode=0o700)
     outside = tmp_path / "outside"
     outside.mkdir()
     real_resolve = Path.resolve
@@ -129,7 +129,7 @@ def test_processing_errors_are_bounded_and_stage_specific(
         monkeypatch.setattr("canvas_bridge.parser_sandbox.ensure_runtime", failed_runtime)
     monkeypatch.setattr(fake_worker + ".run", run)
     root = tmp_path / "parser"
-    root.mkdir()
+    root.mkdir(mode=0o700)
     with pytest.raises(DomainError) as error:
         extract_isolated(scientific_pdf(), "pdf", root)
     assert error.value.reason_code == code

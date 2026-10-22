@@ -161,7 +161,9 @@ def validate_result(result: dict, data: bytes) -> dict:
         or parsed["coverage"] not in {"text_only", "partial"}
         or not 0 <= parsed["page_count"] <= 200
         or len(parsed["pages"]) > 200
-        or sum(len(p["text"]) for p in parsed["pages"]) > MAX_TEXT
+        or sum(len(p["text"]) for p in parsed["pages"]) + 2 * max(0, len(parsed["pages"]) - 1)
+        > MAX_TEXT
+        or (parsed["coverage"] == "text_only" and len(parsed["pages"]) != parsed["page_count"])
     ):
         raise ValueError("Invalid sandbox extraction result.")
     previous = 0

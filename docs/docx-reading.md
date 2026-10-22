@@ -1,6 +1,6 @@
 # DOCX reading
 
-Parser `canvas-bridge-documents-v6-docx` reads bounded WordprocessingML text through
+Parser `canvas-bridge-documents-v7-stress` reads bounded WordprocessingML text through
 the existing credential-free OS worker. DOCX uses the same fresh course/file
 authorization, download checks, temporary-file cleanup and resource limits as
 other course documents. No new tool, permission, download origin or dependency
@@ -31,6 +31,8 @@ character document cap. Canonical text has no locator labels. Short reads of the
 same parser/source version reconstruct that text; sources carry section labels
 separately. Exhausting the text budget with unread content always reports partial
 coverage, including when a paragraph ends exactly at the cap.
+Separators between sections also count toward that cap; a separator that cannot
+fit is omitted together with the unread section and coverage remains partial.
 
 Heading text and list-item text can be read, but heading hierarchy and automatic
 list numbering are not reconstructed. Table text is flattened; merged cells,
@@ -55,6 +57,8 @@ it must not be interpreted as a statement that DOCX as a format is unsupported.
 Explicit capability exclusions, such as macros/embedded active content, remain
 `unsupported`. Runtime setup, worker launch, timeout and result failures retain
 the shared stage-specific diagnostics described in [file reading](file-reading.md).
+ActiveX package parts and macro-enabled content types are rejected even when
+the package has a `.docx` filename and contains otherwise readable body text.
 
 The parser version change invalidates old success/failure caches on the next
 authorized access. Failed extraction is retried by a later authorized read.

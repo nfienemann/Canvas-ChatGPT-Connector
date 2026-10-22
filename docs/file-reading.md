@@ -47,6 +47,12 @@ If worker code changes while the service is running, a mismatched parser version
 is rejected as `DOCUMENT_PARSER_VERSION_CHANGED`. Restart the service to load
 the matching reader and worker; the version check is never bypassed.
 
+Parser `canvas-bridge-documents-v7-stress` counts page/section separators in the
+text budget and reports partial coverage when the exact cap omits later PDF
+pages. The parent also rejects worker results that exceed the canonical-text
+budget or claim complete text coverage while omitting declared pages/sections/
+sheets. See the [cross-format stress record](../evidence/sanitized-results/document-stress-2026-10-22.md).
+
 A continuation with a nonzero offset requires `expected_hash` before download or
 parsing, following the normal access check. Failed extraction is retried on the
 next authorized read; it is not cached as an empty successful document.

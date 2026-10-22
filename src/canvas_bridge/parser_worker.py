@@ -23,7 +23,7 @@ else:
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v6-docx"
+PARSER = "canvas-bridge-documents-v7-stress"
 SUPPORTED_FORMATS = ("pdf", "docx", "pptx", "txt", "md", "xlsx")
 
 
@@ -101,7 +101,10 @@ def office(data: bytes, kind: str):
         ):
             raise ValueError("office_resource_limit")
         names = {e.filename for e in entries}
-        if any("vbaproject" in n.lower() or "/embeddings/" in n.lower() for n in names):
+        if any(
+            "vbaproject" in n.lower() or "/embeddings/" in n.lower() or "/activex/" in n.lower()
+            for n in names
+        ):
             raise ValueError("active_office_content")
 
         def xml(name):
@@ -109,6 +112,11 @@ def office(data: bytes, kind: str):
 
         def tag(element):
             return element.tag.rsplit("}", 1)[-1]
+
+        if "[Content_Types].xml" in names and any(
+            "macroenabled" in e.get("ContentType", "").lower() for e in xml("[Content_Types].xml")
+        ):
+            raise ValueError("active_office_content")
 
         metadata = {}
         if "docProps/core.xml" in names:
@@ -179,18 +187,25 @@ def extract(data: bytes, kind: str) -> dict:
             for key, source in (("title", "/Title"), ("author", "/Author"), ("subject", "/Subject"))
         }
         for number, page in enumerate(reader.pages, 1):
+            separator = 2 if pages else 0
+            if total + separator > MAX_TEXT:
+                coverage = "partial"
+                warnings.append(
+                    f"Page {number}: text limit reached; remaining content was not extracted."
+                )
+                break
             content = page.get_contents()
             if content and len(content.get_data()) > 10_000_000:
                 coverage = "partial"
                 warnings.append(f"Page {number}: content stream exceeds extraction limits.")
                 pages.append({"page": number, "text": "", "state": "resource_limit"})
+                total += separator
                 continue
             text = (page.extract_text() or "").strip()
             state = "extracted" if text.strip() else "no_text"
             if not text.strip():
                 coverage = "partial"
                 warnings.append(f"Page {number}: no text layer; OCR or visual reading is required.")
-            separator = 2 if pages else 0
             remaining = max(0, MAX_TEXT - total - separator)
             if len(text) > remaining:
                 text, coverage, state = text[:remaining], "partial", "truncated"
@@ -202,6 +217,11 @@ def extract(data: bytes, kind: str) -> dict:
             )
             total += len(text) + separator
             if total >= MAX_TEXT:
+                if number < page_count and state != "truncated":
+                    coverage = "partial"
+                    warnings.append(
+                        f"Page {number}: text limit reached; remaining content was not extracted."
+                    )
                 break
         warnings.append(
             "Page numbers are PDF page positions, not printed journal pagination. Reading order may be imperfect in multi-column papers."
@@ -212,7 +232,14 @@ def extract(data: bytes, kind: str) -> dict:
         if page_count > MAX_PAGES:
             raise ValueError("too_many_pages")
         for index, text in enumerate(sections, 1):
-            remaining = max(0, MAX_TEXT - total - (2 if pages else 0))
+            separator = 2 if pages else 0
+            if total + separator > MAX_TEXT:
+                coverage = "partial"
+                warnings.append(
+                    f"{locator_kind.capitalize()} {index}: text limit reached; remaining content was not extracted."
+                )
+                break
+            remaining = max(0, MAX_TEXT - total - separator)
             state = "extracted" if text.strip() else "no_text"
             if len(text) > remaining:
                 text, state, coverage = text[:remaining], "truncated", "partial"
