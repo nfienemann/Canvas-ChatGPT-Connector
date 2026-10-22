@@ -88,12 +88,64 @@ an unprivileged user with no network, a read-only filesystem, dropped capabiliti
 and `no-new-privileges`. The final evidence-only commit does not change tested
 code and skips a redundant CI run.
 
+## Installed connector acceptance after restart
+
+**Scoped live gate: PASS.** After the owner reported restarting the connector
+and authorized proceeding, the installed MCP tools exercised six authorized
+files. All initial status checks reported `canvas-bridge-documents-v7-stress`,
+`not_attempted` and no current index. Fresh offset-zero reads then succeeded.
+The parser label and observed behavior establish this runtime acceptance;
+they do not independently identify the serving process's Git revision.
+
+| Case | Extracted characters | Units | Read status / coverage |
+|---|---:|---|---|
+| DOCX A | 1,899 | 1 text section | `ok` / `text_only` |
+| DOCX B | 2,051 | 1 text section | `ok` / `text_only` |
+| XLSX | 14,037 | 1 worksheet | `ok` / `text_only` |
+| Embedded-text PDF A | 5,603 | 2 PDF pages | `ok` / `text_only` |
+| Embedded-text PDF B | 1,537 | 1 PDF page | `ok` / `text_only` |
+| Scanned PDF | 3,041 | 1 PDF page | `partial_data` / `partial` |
+
+- Every extracted text stream reconstructed to its declared character count
+  in two or three hash-consistent chunks. Repeated reads matched both text and
+  chunk identity; `fetch_course_material` matched the reconstructed text and
+  source hash for every file. This confirms complete retrieval of the extracted
+  stream, not complete interpretation of the original document.
+- Missing and incorrect continuation hashes were tested for DOCX, XLSX and PDF.
+  All six probes returned `source_changed` without text; missing hashes carried
+  `CONTINUATION_HASH_REQUIRED`.
+- Cached-only literal search found DOCX, XLSX, embedded PDF and scanned PDF
+  passages with matching source hashes and section, cell or PDF-page locators.
+  Search retained `partial_data`: unread documents were not searched, and some
+  course inventories remained partial because access or bounded listing was
+  incomplete. No permission or inventory completeness was inferred from a hit.
+- PDF page rendering returned an actual PNG image block for an embedded-text
+  page and the scanned page, each 1,855 by 2,400 pixels, with the same source
+  hash as its text read. This verifies image delivery, not visual interpretation.
+- The scanned page used `tesseract_english_ocr` with reported confidence 79/100.
+  Its final state remained `partially_parsed`; the other five became `parsed`.
+  All six final status checks reported available access, a current index and
+  a source hash matching the read.
+- Before/after connection checks matched connection identity, active state,
+  timezone, selected-course identities and scope snapshot. Only read tools were
+  invoked; normal extraction/search cache updates occurred. No credential,
+  permission, selection, Canvas-record or Calendar writes were invoked.
+
+Two parallel reader-check captures and one final-status capture were inconclusive
+in the acceptance harness. Serial retries passed. Their cause was not established,
+so this record does not claim installed-service concurrency or throughput proof.
+Request IDs and per-case checks are retained in a private local operator summary;
+source text, images, file/course identifiers and render receipts are not copied
+into this repository. No additional parser defect was reproduced in this retest.
+Runtime code was unchanged, so the preceding full Windows/Linux suites were not
+rerun; the evidence update was checked with `git diff --check`.
+
 ## Remaining boundaries
 
-This work does not establish deployment of parser v7 in the installed connector.
-The serving process must load the matching parser before fresh offset-zero live
-reads; old-process version mismatches remain fail-closed. No service restart,
-credential refresh, course-selection change or Canvas/Calendar write occurred.
+The live result is limited to these six files in the owner's existing selected
+scope. Partial course inventories and OCR coverage remain explicit. The owner
+performed the restart; this task did not change service configuration or refresh
+credentials. This does not establish broader student or deployment acceptance.
 
 DOCX visual pagination, complete table layout, headers/footnotes/equations;
 XLSX formula recalculation, shared-formula expansion and chart interpretation;

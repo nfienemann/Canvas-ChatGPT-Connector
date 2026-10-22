@@ -95,3 +95,21 @@ and fresh offset-zero reads of the original two DOCX references through both
 reader routes remain necessary before claiming live recovery. No real document
 bytes were downloaded or committed; no credentials, selected courses, Canvas
 records, Calendar events or messages were changed.
+
+## Post-restart installed acceptance — 22 October 2026
+
+After the owner reported restarting the connector and authorized a retest, both
+DOCX references succeeded through the installed `read_course_file` and
+`fetch_course_material` routes using `canvas-bridge-documents-v7-stress`.
+Their extracted streams contained 1,899 and 2,051 characters respectively, each
+in one text section. Both reconstructed completely with consistent source
+hashes, matched repeated and alternate-route reads, and ended with available
+access, `parsed` status and a current index. A DOCX cached-search hit preserved
+the source hash and section locator. Missing/wrong continuation hashes returned
+no text. Connection selection and scope snapshot were unchanged before/after.
+
+This closes the two-file live recovery check left pending above; it does not
+prove the cause of the historical failures or complete visual DOCX fidelity.
+Private academic content and identifiers were not copied into the repository.
+The [cross-format retest](document-stress-2026-10-22.md#installed-connector-acceptance-after-restart)
+records the scoped live evidence, partial search coverage and serial retries.
