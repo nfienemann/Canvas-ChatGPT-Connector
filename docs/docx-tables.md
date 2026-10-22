@@ -25,10 +25,12 @@ Each returned record includes a Canvas reference URL, paragraph or table/cell
 locator, content hash and retrieval timestamp; the response also contains the
 Canvas source version. For example: `Table T1, R3C2`. DOCX text sections remain
 compatible with `read_course_file`/`fetch_course_material` continuation and search;
-they are **not rendered Word pages**. The plain text index labels cell values and
-references nested tables; use the structured reader for exact block relationships.
+they are **not rendered Word pages**. The compatible plain text index retains
+author text without adding locator prefixes that could alter deadline or policy
+matching. It references nested tables; use the structured reader for exact
+block relationships and table/cell citations. Generic text search cites sections.
 Reading subsequent records reuses extraction while rechecking existing access and
-version boundaries. Parser v8 invalidates older flattened DOCX caches; start a
+version boundaries. Parser v9 invalidates older flattened/prefixed DOCX caches; start a
 new text read instead of resuming a pre-upgrade DOCX character offset.
 
 ## Uncertainty and exclusions

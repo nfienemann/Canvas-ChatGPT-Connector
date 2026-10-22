@@ -111,7 +111,8 @@ def test_body_order_grid_coordinates_merges_headers_and_context():
     assert by_id["T1"]["rows"][3]["grid_before"] == 1
     assert "T1:R4C1" not in by_id
     assert by_id["T1:R4C2"]["text"] == "10 points"
-    assert "Table T1, R3C2" in result["pages"][0]["text"]
+    assert "Reproducible controls" in result["pages"][0]["text"]
+    assert "[Paragraph" not in result["pages"][0]["text"]
     assert "not rendered pages" in " ".join(result["warnings"])
 
 
@@ -351,7 +352,7 @@ async def test_continuation_search_cells_and_citations(bridge, owner, seeded, re
     assert (await status(bridge, owner, seeded, ref)).data["indexed"]
     assert (await read_file(bridge, owner, seeded, ref)).data["format"] == "docx"
     found = await search_files(bridge, owner, seeded, course.id, "Reproducible controls")
-    assert found.data["results"] and "Table T1, R3C2" in found.data["results"][0]["passage"]
+    assert found.data["results"] and "Reproducible controls" in found.data["results"][0]["passage"]
     assert sum("download" in r.url.path for r in bridge.synthetic.requests) == 1
 
 

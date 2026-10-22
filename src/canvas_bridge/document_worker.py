@@ -331,7 +331,10 @@ def extract_document_body(data):
             text = record.get("text", "")
             if record["kind"] == "table":
                 text = record.get("caption") or ""
-            line = f"[{record['locator']}] {text}" if text.strip() else ""
+            # Keep author text compatible with deterministic deadline/policy
+            # readers. Locators belong in structured records and citations, not
+            # in source titles (e.g. "[Paragraph 1] Exam 1").
+            line = text if text.strip() else ""
             total += len(line) + 1
             if total > 240000:
                 raise ValueError("document_resource_limit")

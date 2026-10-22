@@ -26,7 +26,7 @@ else:
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v8"
+PARSER = "canvas-bridge-documents-v9"
 
 
 def extract(data: bytes, kind: str) -> dict:

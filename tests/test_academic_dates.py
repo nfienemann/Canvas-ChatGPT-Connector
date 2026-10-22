@@ -187,6 +187,7 @@ async def test_T11_T21_http_mcp_date_evidence(
     [
         ("pdf", "application/pdf"),
         ("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        ("docx_table", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     ],
 )
 async def test_T11_authenticated_schedule_document_dates(
@@ -195,7 +196,17 @@ async def test_T11_authenticated_schedule_document_dates(
     from canvas_bridge.parser_worker import extract
 
     text = "Exam 1: 12 Nov 2026 at 14:00 America/New_York"
-    body = scientific_pdf([text]) if kind == "pdf" else ooxml(kind, [text])
+    if kind == "docx_table":
+        from tests.test_documents import cell, document, table
+
+        body = document(
+            '<w:document xmlns:w="urn:word"><w:body>'
+            + table([cell(text)], 1)
+            + "</w:body></w:document>"
+        )
+        kind = "docx"
+    else:
+        body = scientific_pdf([text]) if kind == "pdf" else ooxml(kind, [text])
     bridge.synthetic.data["course_details"]["11"]["syllabus_body"] = ""
     bridge.synthetic.data["files"] = {
         "11": [
