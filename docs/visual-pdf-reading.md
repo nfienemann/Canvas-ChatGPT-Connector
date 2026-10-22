@@ -2,7 +2,7 @@
 
 The existing authenticated file reader now falls back to isolated English OCR
 for PDF pages containing fewer than 40 non-whitespace text characters. The parser
-version is `canvas-bridge-documents-v5`. Older parser cache entries and entries created
+version is `canvas-bridge-documents-v6`. Older parser cache entries and entries created
 with a different OCR-enabled setting are reprocessed on the next authorized read.
 Whitespace-only output is never reported as indexed. The former scan failure
 was an absent OCR implementation, compounded by that incorrect indexed flag;

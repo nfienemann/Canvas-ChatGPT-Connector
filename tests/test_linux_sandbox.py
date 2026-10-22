@@ -167,6 +167,8 @@ def test_T23_linux_runtime_contains_only_public_parser_code(linux_root):
         "pypdfium2_cfg",
         "PIL",
         "pillow.libs",
+        "openpyxl",
+        "et_xmlfile",
     }
     assert not (runtime / "site/canvas_bridge").exists()
     assert (runtime / "stdlib.zip").is_file()

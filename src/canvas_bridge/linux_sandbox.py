@@ -15,6 +15,8 @@ import zipfile
 from pathlib import Path
 
 import defusedxml
+import et_xmlfile
+import openpyxl
 import PIL
 import pypdf
 import pypdfium2
@@ -46,6 +48,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
     office = Path(__file__).with_name("office_package.py")
+    workbook = Path(__file__).with_name("workbook_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
@@ -54,6 +57,9 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     digest = hashlib.sha256(
         worker.read_bytes()
         + office.read_bytes()
+        + workbook.read_bytes()
+        + openpyxl.__version__.encode()
+        + et_xmlfile.__version__.encode()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -98,6 +104,8 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
             pypdfium2_raw,
             pypdfium2_cfg,
             PIL,
+            openpyxl,
+            et_xmlfile,
         ):
             shutil.copytree(
                 Path(package.__file__).parent,
@@ -109,6 +117,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
         shutil.copy2(office, stage / "office_package.py")
+        shutil.copy2(workbook, stage / "workbook_worker.py")
         shutil.copy2(visual, stage / "visual_worker.py")
         shutil.copy2(ocr, stage / "ocr_worker.py")
         ocr_runtime.copy(ocr_root, stage)

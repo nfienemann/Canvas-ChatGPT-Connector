@@ -52,10 +52,6 @@ def test_registry_validates_actual_package_not_extension(kind):
         if other != kind:
             with pytest.raises(ValueError, match="office_type_mismatch"):
                 OfficePackage(data, other)
-    if kind == "xlsx":
-        # Container readiness is not misrepresented as implemented cell extraction.
-        with pytest.raises(ValueError, match="unsupported_format"):
-            extract(data, kind)
 
 
 @pytest.mark.parametrize(

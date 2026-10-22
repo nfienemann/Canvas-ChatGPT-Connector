@@ -12,6 +12,8 @@ import zipfile
 from pathlib import Path
 
 import defusedxml
+import et_xmlfile
+import openpyxl
 import PIL
 import pypdf
 import pypdfium2
@@ -22,6 +24,7 @@ from canvas_bridge import ocr_runtime
 from canvas_bridge.domain import DomainError
 from canvas_bridge.office_package import OFFICE_ERRORS
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
+from canvas_bridge.workbook_worker import WORKBOOK_ERRORS
 
 _slot = threading.Lock()
 
@@ -42,11 +45,15 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
     office = Path(__file__).with_name("office_package.py")
+    workbook = Path(__file__).with_name("workbook_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
         + office.read_bytes()
+        + workbook.read_bytes()
+        + openpyxl.__version__.encode()
+        + et_xmlfile.__version__.encode()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -93,10 +100,11 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     )
     shutil.copy2(worker, runtime / "worker.py")
     shutil.copy2(office, runtime / "office_package.py")
+    shutil.copy2(workbook, runtime / "workbook_worker.py")
     shutil.copy2(visual, runtime / "visual_worker.py")
     shutil.copy2(ocr, runtime / "ocr_worker.py")
     ocr_runtime.copy(ocr_root, runtime)
-    for package in (pypdfium2, pypdfium2_raw, pypdfium2_cfg, PIL):
+    for package in (pypdfium2, pypdfium2_raw, pypdfium2_cfg, PIL, openpyxl, et_xmlfile):
         shutil.copytree(
             Path(package.__file__).parent,
             runtime / "site" / package.__name__,
@@ -120,16 +128,20 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
 def validate_result(result: dict, data: bytes) -> dict:
     if not result.get("ok"):
         reason = result.get("reason", "extraction_failed")
-        allowed = {
-            "file_too_large",
-            "encrypted_pdf",
-            "too_many_pages",
-            "active_pdf_content",
-            "unsupported_format",
-            "corrupt_or_unreadable",
-            "output_limit",
-            "invalid_slide_reference",
-        } | OFFICE_ERRORS
+        allowed = (
+            {
+                "file_too_large",
+                "encrypted_pdf",
+                "too_many_pages",
+                "active_pdf_content",
+                "unsupported_format",
+                "corrupt_or_unreadable",
+                "output_limit",
+                "invalid_slide_reference",
+            }
+            | OFFICE_ERRORS
+            | WORKBOOK_ERRORS
+        )
         raise DomainError(
             "unsupported_feature",
             "File extraction could not finish: "

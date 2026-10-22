@@ -14,13 +14,15 @@ from pypdf import PdfReader
 
 if globals().get("__package__"):
     from .office_package import OFFICE_ERRORS, OfficePackage
+    from .workbook_worker import WORKBOOK_ERRORS, extract_workbook
 else:
     from office_package import OFFICE_ERRORS, OfficePackage
+    from workbook_worker import WORKBOOK_ERRORS, extract_workbook
 
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v5"
+PARSER = "canvas-bridge-documents-v6"
 
 
 def office(data: bytes, kind: str):
@@ -160,6 +162,10 @@ def extract(data: bytes, kind: str) -> dict:
         warnings.append(
             "Headers, footers, comments, tracked changes, embedded objects and layout are not interpreted; table text may lose structure."
         )
+    elif kind == "xlsx":
+        metadata, pages, partial, warnings = extract_workbook(data)
+        page_count = len(pages)
+        coverage = "partial" if partial else "text_only"
     elif kind in {"txt", "md"}:
         raw = data.decode("utf-8-sig")
         if len(raw) > MAX_TEXT:
@@ -196,14 +202,18 @@ def main():
         result = {"ok": True, "extraction": extract(data, request["kind"])}
     except Exception as exc:
         # Never return parser exception text: it may contain private document data.
-        known = {
-            "file_too_large",
-            "encrypted_pdf",
-            "too_many_pages",
-            "active_pdf_content",
-            "unsupported_format",
-            "invalid_slide_reference",
-        } | OFFICE_ERRORS
+        known = (
+            {
+                "file_too_large",
+                "encrypted_pdf",
+                "too_many_pages",
+                "active_pdf_content",
+                "unsupported_format",
+                "invalid_slide_reference",
+            }
+            | OFFICE_ERRORS
+            | WORKBOOK_ERRORS
+        )
         reason = (
             str(exc)
             if isinstance(exc, ValueError) and str(exc) in known

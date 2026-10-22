@@ -22,6 +22,7 @@ FILE_TYPES = {
     "application/pdf": ("pdf", ".pdf"),
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ("docx", ".docx"),
     "application/vnd.openxmlformats-officedocument.presentationml.presentation": ("pptx", ".pptx"),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ("xlsx", ".xlsx"),
     "text/plain": ("txt", ".txt"),
     "text/markdown": ("md", ".md"),
     "text/x-markdown": ("md", ".md"),
@@ -188,7 +189,7 @@ async def _download_once(client, course: str, file: str, *, http=None) -> Downlo
                         )
                     kind = supported[0]
                     if (kind == "pdf" and not data.startswith(b"%PDF-")) or (
-                        kind in {"docx", "pptx"} and not data.startswith(b"PK\x03\x04")
+                        kind in {"docx", "pptx", "xlsx"} and not data.startswith(b"PK\x03\x04")
                     ):
                         raise DomainError(
                             "unsupported_feature", "The file signature is unsupported."

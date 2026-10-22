@@ -2,7 +2,8 @@
 
 The shared `OfficePackage` reader now validates DOCX and PPTX inside the existing
 isolated worker. Its immutable format registry also describes XLSX packages for
-the next increment. **XLSX cell extraction is not enabled by this change.**
+the next increment. XLSX reading was subsequently added in the
+[worksheet/cell increment](xlsx-reading.md); this document records the foundation.
 
 The package must contain the expected main part, declared content type and an
 internal root document relationship. A renamed ZIP or a different Office format
@@ -29,8 +30,8 @@ Safe parser error codes contain no raw XML, document text, local paths or URLs.
 
 ## Small follow-up increments
 
-1. XLSX worksheet metadata and bounded cells; preserve formulas separately from
-   cached values, with sheet/cell citations and explicit incomplete coverage.
+1. XLSX worksheet metadata and bounded cells: implemented in the linked increment,
+   with separate formulas/caches, cell citations and explicit incomplete coverage.
 2. PPTX structured slide content and relationships, with slide/object references
    and explicit coverage of tables, notes and visual-only content.
 3. DOCX tables and their relationships: preserve row/column structure, merged

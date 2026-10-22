@@ -105,6 +105,10 @@ def source(row, locator=None):
 
 def page_label(row, number):
     kind = row.file_state.get("format")
+    if kind == "xlsx":
+        part = next(p for p in row.locators if p["page"] == number)
+        sheet = part["sheet"].replace("'", "''")
+        return f"'{sheet}'!{part['range']}" if part.get("range") else f"Worksheet '{sheet}'"
     return {
         "pdf": f"PDF page {number}",
         "pptx": f"Slide {number}",

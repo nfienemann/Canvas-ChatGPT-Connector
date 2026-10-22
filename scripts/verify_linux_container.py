@@ -10,9 +10,11 @@ def prepare(root):
     from tests.test_academic_intelligence import ooxml
     from tests.test_file_reading import scientific_pdf
     from tests.test_visual_files import scanned_pdf
+    from tests.test_workbooks import workbook
 
     root.mkdir(parents=True, exist_ok=True)
     (root / "scan.pdf").write_bytes(scanned_pdf(mixed=True))
+    (root / "synthetic.xlsx").write_bytes(workbook())
     for kind in ("pdf", "txt", "md", "docx", "pptx"):
         data = (
             scientific_pdf()
@@ -44,6 +46,12 @@ async def verify(root):
             print(f"Verified {kind} extraction and cleanup in restricted Linux image")
         from canvas_bridge.visual_files import render_document
 
+        workbook = await extract_document((root / "synthetic.xlsx").read_bytes(), "xlsx", settings)
+        assert workbook["metadata"]["worksheet_count"] == 3
+        cells = [c for p in workbook["pages"] for c in p["cells"] if c["sheet"] == "Analysis"]
+        assert any(c["formula"] == "=B2-C2" and c["cached_value"] == 5.3 for c in cells)
+        assert not list((settings.parser_root / "jobs").iterdir())
+        print("Verified XLSX formulas, cached values and cleanup in restricted Linux image")
         image = await render_document((root / "synthetic.pdf").read_bytes(), settings)
         assert image["png"] and image["page_count"] == 3
         scan = await extract_document((root / "scan.pdf").read_bytes(), "pdf", settings)
