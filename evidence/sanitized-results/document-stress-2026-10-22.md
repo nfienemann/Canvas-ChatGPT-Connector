@@ -63,6 +63,17 @@ The fixtures now create mode-0700 directories. The CPU probe requires the safe
 exit status/stage and observed termination signal; SIGKILL is not mislabeled as
 a proven CPU-specific event. Actual kernel enforcement remains tested in Linux CI.
 
+The [next Linux run](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39851995931)
+passed **703 tests, 12 Windows-only skipped** in 77.89 seconds, including
+PostgreSQL and real kernel checks. Its later read-only container proof found a
+packaging gap: the image prebuilt only the OCR-enabled runtime, but ordinary
+text reads now deliberately choose the runtime without OCR. Creating that
+missing runtime on a read-only image correctly failed. The Docker build now
+prepares both variants without weakening runtime filesystem restrictions.
+The container proof also now includes XLSX alongside PDF/TXT/Markdown/DOCX/PPTX,
+rendering and scanned-PDF OCR. All six synthetic fixture preparations were
+checked locally; actual container execution is validated by Linux CI.
+
 ## Remaining boundaries
 
 This work does not establish deployment of parser v7 in the installed connector.

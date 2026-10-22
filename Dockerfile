@@ -10,7 +10,7 @@ COPY alembic.ini institutions.json ./
 RUN uv sync --frozen --no-dev --no-cache
 RUN useradd --system --uid 10001 bridge && mkdir /data /fences && mkdir -m 700 /opt/canvas-parser && chown bridge /data /fences /opt/canvas-parser
 USER bridge
-RUN .venv/bin/python -c "from pathlib import Path; from canvas_bridge.linux_sandbox import ensure_runtime; ensure_runtime(Path('/opt/canvas-parser'), Path('/usr/share/tesseract-ocr/5'))"
+RUN .venv/bin/python -c "from pathlib import Path; from canvas_bridge.linux_sandbox import ensure_runtime; root = Path('/opt/canvas-parser'); ensure_runtime(root); ensure_runtime(root, Path('/usr/share/tesseract-ocr/5'))"
 ENV BRIDGE_PARSER_RUNTIME_ROOT=/opt/canvas-parser BRIDGE_OCR_ROOT=/usr/share/tesseract-ocr/5
 EXPOSE 8000
 CMD [".venv/bin/canvas-bridge", "serve"]

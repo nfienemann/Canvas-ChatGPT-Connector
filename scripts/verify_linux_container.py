@@ -9,16 +9,23 @@ from pathlib import Path
 def prepare(root):
     from tests.test_academic_intelligence import ooxml
     from tests.test_file_reading import scientific_pdf
+    from tests.test_spreadsheet_reading import workbook
     from tests.test_visual_files import scanned_pdf
 
     root.mkdir(parents=True, exist_ok=True)
     (root / "scan.pdf").write_bytes(scanned_pdf(mixed=True))
-    for kind in ("pdf", "txt", "md", "docx", "pptx"):
+    for kind in ("pdf", "txt", "md", "docx", "pptx", "xlsx"):
         data = (
             scientific_pdf()
             if kind == "pdf"
             else ooxml(kind)
             if kind in {"docx", "pptx"}
+            else workbook(
+                changes={
+                    "xl/sharedStrings.xml": "<sst><si><t>controlled synthetic workbook</t></si></sst>"
+                }
+            )
+            if kind == "xlsx"
             else b"Methods: controlled synthetic cultures."
         )
         (root / ("synthetic." + kind)).write_bytes(data)
@@ -31,7 +38,7 @@ async def verify(root):
     with tempfile.TemporaryDirectory(prefix="canvas-parser-") as jobs:
         settings = Settings(_env_file=None, file_reading_enabled=True, parser_root=Path(jobs))
         assert settings.parser_runtime_root == Path("/opt/canvas-parser")
-        for kind in ("pdf", "txt", "md", "docx", "pptx"):
+        for kind in ("pdf", "txt", "md", "docx", "pptx", "xlsx"):
             result = await extract_document(
                 (root / ("synthetic." + kind)).read_bytes(), kind, settings
             )
