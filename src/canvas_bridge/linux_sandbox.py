@@ -48,6 +48,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
     office = Path(__file__).with_name("office_package.py")
+    document = Path(__file__).with_name("document_worker.py")
     workbook = Path(__file__).with_name("workbook_worker.py")
     presentation = Path(__file__).with_name("presentation_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
@@ -58,6 +59,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     digest = hashlib.sha256(
         worker.read_bytes()
         + office.read_bytes()
+        + document.read_bytes()
         + workbook.read_bytes()
         + presentation.read_bytes()
         + openpyxl.__version__.encode()
@@ -119,6 +121,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
         shutil.copy2(office, stage / "office_package.py")
+        shutil.copy2(document, stage / "document_worker.py")
         shutil.copy2(workbook, stage / "workbook_worker.py")
         shutil.copy2(presentation, stage / "presentation_worker.py")
         shutil.copy2(visual, stage / "visual_worker.py")

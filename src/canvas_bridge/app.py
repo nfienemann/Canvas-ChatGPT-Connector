@@ -613,6 +613,8 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
         prefer read_course_workbook; this tool returns a compatible text index.
         For PPTX structure, speaker notes, tables and picture discovery, prefer
         read_course_presentation; image-only slides need visual review.
+        For DOCX tables, merged cells and nearby paragraph relationships, use
+        read_course_docx; this text index does not reproduce visual layout.
         """
         return await read_file(
             bridge,
@@ -658,6 +660,38 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
             query,
             max_cells,
             offset,
+            expected_hash,
+        )
+
+    @register()
+    async def read_course_docx(
+        connection_id: Ref,
+        file_id: Ref,
+        table_id: Annotated[str | None, Field(max_length=4)] = None,
+        offset: Annotated[int, Field(ge=0, le=5000)] = 0,
+        max_records: Annotated[int, Field(ge=1, le=50)] = 20,
+        expected_hash: Annotated[str | None, Field(min_length=64, max_length=64)] = None,
+    ) -> Result:
+        """Read DOCX paragraphs, table cells, merged regions and structural context.
+
+        Use file_id from course-file discovery. Omit table_id for the document
+        overview and first records; select a returned table ID to read its cells.
+        Follow continuation for remaining records. Cell blocks preserve paragraph
+        and nested-table references; read nested tables separately by ID. Omitted
+        grid positions are not empty cells. Never copy a merged origin's value
+        into continuation cells or infer semantic headers from position. Cite
+        exact paragraph/table/cell locators; DOCX sections are not rendered pages.
+        """
+        from canvas_bridge.documents import read_docx
+
+        return await read_docx(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            file_id,
+            table_id,
+            offset,
+            max_records,
             expected_hash,
         )
 

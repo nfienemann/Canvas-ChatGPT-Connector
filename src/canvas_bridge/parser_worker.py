@@ -13,78 +13,20 @@ from pathlib import Path
 from pypdf import PdfReader
 
 if globals().get("__package__"):
-    from .office_package import OFFICE_ERRORS, OfficePackage
+    from .document_worker import DOCUMENT_ERRORS, extract_document_body
+    from .office_package import OFFICE_ERRORS
     from .presentation_worker import PRESENTATION_ERRORS, extract_presentation
     from .workbook_worker import WORKBOOK_ERRORS, extract_workbook
 else:
-    from office_package import OFFICE_ERRORS, OfficePackage
+    from document_worker import DOCUMENT_ERRORS, extract_document_body
+    from office_package import OFFICE_ERRORS
     from presentation_worker import PRESENTATION_ERRORS, extract_presentation
     from workbook_worker import WORKBOOK_ERRORS, extract_workbook
 
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v7"
-
-
-def office(data: bytes, kind: str):
-    """Bounded OOXML text only. Never extract files or resolve external relations."""
-    with OfficePackage(data, kind) as package:
-        xml, names = package.xml, package.names
-
-        def tag(element):
-            return element.tag.rsplit("}", 1)[-1]
-
-        metadata = {}
-        if "docProps/core.xml" in names:
-            for e in xml("docProps/core.xml"):
-                if tag(e) in {"title", "creator", "subject"}:
-                    metadata[{"creator": "author"}.get(tag(e), tag(e))] = (e.text or "")[:1000]
-        if kind == "docx":
-            root = xml("word/document.xml")
-            # Paragraph sections are stable within this document version. Word
-            # pagination depends on the renderer, fonts and printer settings.
-            texts = [
-                "".join(
-                    (e.text or "")
-                    if tag(e) == "t"
-                    else "\t"
-                    if tag(e) == "tab"
-                    else "\n"
-                    if tag(e) == "br"
-                    else ""
-                    for e in p.iter()
-                )
-                for p in root.iter()
-                if tag(p) == "p"
-            ]
-            # Bound section count while preserving complete paragraph order.
-            grouped = []
-            for text in texts:
-                if not grouped or len(grouped[-1]) + len(text) > 8000:
-                    grouped.append(text)
-                else:
-                    grouped[-1] += "\n" + text
-            return metadata, grouped, "section"
-        texts = []
-        for e in xml("ppt/presentation.xml").iter():
-            if tag(e) != "sldId":
-                continue
-            relation = next((v for k, v in e.attrib.items() if k.endswith("}id")), None)
-            try:
-                path = package.related_part(package.format.main_part, relation, "slide")
-            except ValueError:
-                raise ValueError("invalid_slide_reference") from None
-            if not path.startswith("ppt/slides/"):
-                raise ValueError("invalid_slide_reference")
-            texts.append(
-                "\n".join(
-                    "".join(t.text or "" for t in p.iter() if tag(t) == "t")
-                    for p in xml(path).iter()
-                    if tag(p) == "p"
-                )
-            )
-        return metadata, texts, "slide"
+PARSER = "canvas-bridge-documents-v8"
 
 
 def extract(data: bytes, kind: str) -> dict:
@@ -143,31 +85,9 @@ def extract(data: bytes, kind: str) -> dict:
         page_count = len(pages)
         coverage = "partial" if partial else "text_only"
     elif kind == "docx":
-        metadata, sections, locator_kind = office(data, kind)
-        page_count = len(sections)
-        if page_count > MAX_PAGES:
-            raise ValueError("too_many_pages")
-        for index, text in enumerate(sections, 1):
-            remaining = max(0, MAX_TEXT - total - (2 if pages else 0))
-            state = "extracted" if text.strip() else "no_text"
-            if len(text) > remaining:
-                text, state, coverage = text[:remaining], "truncated", "partial"
-            if not text.strip():
-                coverage = "partial"
-            pages.append(
-                {"page": index, "text": text, "state": state, "locator_kind": locator_kind}
-            )
-            total += len(text) + (2 if index > 1 else 0)
-            if total >= MAX_TEXT:
-                break
-        warnings.append(
-            "Word references identify text sections, not rendered pages."
-            if kind == "docx"
-            else "Slide numbers follow presentation order. Speaker notes, animations and image text are not extracted."
-        )
-        warnings.append(
-            "Headers, footers, comments, tracked changes, embedded objects and layout are not interpreted; table text may lose structure."
-        )
+        metadata, pages, partial, warnings = extract_document_body(data)
+        page_count = len(pages)
+        coverage = "partial" if partial else "text_only"
     elif kind == "xlsx":
         metadata, pages, partial, warnings = extract_workbook(data)
         page_count = len(pages)
@@ -217,6 +137,7 @@ def main():
                 "unsupported_format",
                 "invalid_slide_reference",
             }
+            | DOCUMENT_ERRORS
             | OFFICE_ERRORS
             | PRESENTATION_ERRORS
             | WORKBOOK_ERRORS

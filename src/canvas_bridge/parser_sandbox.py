@@ -21,6 +21,7 @@ import pypdfium2_cfg
 import pypdfium2_raw
 
 from canvas_bridge import ocr_runtime
+from canvas_bridge.document_worker import DOCUMENT_ERRORS
 from canvas_bridge.domain import DomainError
 from canvas_bridge.office_package import OFFICE_ERRORS
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
@@ -46,6 +47,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
     office = Path(__file__).with_name("office_package.py")
+    document = Path(__file__).with_name("document_worker.py")
     workbook = Path(__file__).with_name("workbook_worker.py")
     presentation = Path(__file__).with_name("presentation_worker.py")
     visual = Path(__file__).with_name("visual_worker.py")
@@ -53,6 +55,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     digest = hashlib.sha256(
         worker.read_bytes()
         + office.read_bytes()
+        + document.read_bytes()
         + workbook.read_bytes()
         + presentation.read_bytes()
         + openpyxl.__version__.encode()
@@ -103,6 +106,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     )
     shutil.copy2(worker, runtime / "worker.py")
     shutil.copy2(office, runtime / "office_package.py")
+    shutil.copy2(document, runtime / "document_worker.py")
     shutil.copy2(workbook, runtime / "workbook_worker.py")
     shutil.copy2(presentation, runtime / "presentation_worker.py")
     shutil.copy2(visual, runtime / "visual_worker.py")
@@ -143,6 +147,7 @@ def validate_result(result: dict, data: bytes) -> dict:
                 "output_limit",
                 "invalid_slide_reference",
             }
+            | DOCUMENT_ERRORS
             | OFFICE_ERRORS
             | WORKBOOK_ERRORS
             | PRESENTATION_ERRORS

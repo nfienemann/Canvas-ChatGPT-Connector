@@ -8,6 +8,7 @@ from pathlib import Path
 
 def prepare(root):
     from tests.test_academic_intelligence import ooxml
+    from tests.test_documents import document
     from tests.test_file_reading import scientific_pdf
     from tests.test_presentations import presentation
     from tests.test_visual_files import scanned_pdf
@@ -17,6 +18,7 @@ def prepare(root):
     (root / "scan.pdf").write_bytes(scanned_pdf(mixed=True))
     (root / "synthetic.xlsx").write_bytes(workbook())
     (root / "structured.pptx").write_bytes(presentation())
+    (root / "structured.docx").write_bytes(document())
     for kind in ("pdf", "txt", "md", "docx", "pptx"):
         data = (
             scientific_pdf()
@@ -47,6 +49,17 @@ async def verify(root):
             assert not list((settings.parser_root / "jobs").iterdir())
             print(f"Verified {kind} extraction and cleanup in restricted Linux image")
         from canvas_bridge.visual_files import render_document
+
+        word = await extract_document((root / "structured.docx").read_bytes(), "docx", settings)
+        word_records = {r["id"]: r for p in word["pages"] for r in p["records"]}
+        assert word_records["T1:R1C1"]["row_span"] == 2
+        assert word_records["T1:R2C1"]["merge_origin"] == "T1:R1C1"
+        assert word_records["T1:R2C1"]["text"] == ""
+        assert word_records["T3"]["parent_cell"] == "Table T2, R1C1"
+        assert not list((settings.parser_root / "jobs").iterdir())
+        print(
+            "Verified DOCX table merges, nested relationships and cleanup in restricted Linux image"
+        )
 
         workbook = await extract_document((root / "synthetic.xlsx").read_bytes(), "xlsx", settings)
         assert workbook["metadata"]["worksheet_count"] == 3
