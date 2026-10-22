@@ -3,8 +3,11 @@ import json
 import random
 import re
 import string
+import subprocess
+import sys
 import zipfile
 from datetime import datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -26,6 +29,47 @@ from tests.test_course_files import file_record
 from tests.test_mcp_contract import running as running
 
 MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def test_standalone_import_does_not_open_host_mime_configuration(tmp_path):
+    from canvas_bridge import workbook_worker
+
+    script = tmp_path / "import_probe.py"
+    script.write_text(
+        """import builtins, mimetypes, os.path, runpy, sys
+from pathlib import Path
+source = Path(sys.argv[1])
+sys.path.insert(0, str(source.parent))
+host = "/host-private-mime.types"
+real_open, real_isfile = builtins.open, os.path.isfile
+def blocked_open(path, *args, **kwargs):
+    if str(path) == host:
+        raise PermissionError("Synthetic host-config denial")
+    return real_open(path, *args, **kwargs)
+builtins.open = blocked_open
+os.path.isfile = lambda path: True if str(path) == host else real_isfile(path)
+mimetypes.knownfiles, mimetypes.inited, mimetypes._db = [host], False, None
+try:
+    mimetypes.MimeTypes()
+except PermissionError:
+    pass
+else:
+    raise AssertionError("Host-config denial control did not run")
+mimetypes.inited, mimetypes._db = False, None
+runpy.run_path(str(source), run_name="__main__")
+assert mimetypes.knownfiles == []
+print("Standalone workbook import uses no host MIME file")
+""",
+        encoding="utf-8",
+    )
+    result = subprocess.run(  # noqa: S603 - fixed synthetic probe and trusted local Python.
+        [sys.executable, "-I", str(script), str(Path(workbook_worker.__file__))],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=True,
+    )
+    assert "uses no host MIME file" in result.stdout
 
 
 def workbook():

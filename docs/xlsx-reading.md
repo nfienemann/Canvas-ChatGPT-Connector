@@ -25,6 +25,8 @@ existing Windows/Linux isolated runtime. No network, filesystem or OAuth
 permissions are added. Macros, executable objects, unsafe relationships and
 unsupported package types fail closed. XLS, XLSM and encrypted files are not
 supported. Workbooks are never saved back to Canvas or executed.
+The standalone worker initializes built-in MIME mappings before importing the
+spreadsheet library, so it never needs access to host MIME configuration files.
 
 ## Bounds and coverage
 

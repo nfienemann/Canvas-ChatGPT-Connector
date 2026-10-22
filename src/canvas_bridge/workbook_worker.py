@@ -5,6 +5,15 @@ import json
 import math
 from datetime import date, datetime, time, timedelta
 
+if not globals().get("__package__"):
+    # openpyxl constructs a MIME table at import time. In the isolated worker,
+    # use built-in mappings instead of probing host /etc/mime.types files.
+    # This runs before any document is opened and adds no filesystem access.
+    import mimetypes
+
+    mimetypes.knownfiles = []
+    mimetypes.init(files=[])
+
 from openpyxl import load_workbook
 from openpyxl.utils.cell import get_column_letter, range_boundaries
 
