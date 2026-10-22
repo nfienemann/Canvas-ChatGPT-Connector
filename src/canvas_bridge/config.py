@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     parser_root: Path | None = None
     parser_runtime_root: Path | None = None
     ocr_root: Path | None = None
+    slide_renderer_root: Path | None = None
     file_cache_hours: int = Field(default=24, ge=1, le=24)
 
     @property

@@ -118,7 +118,18 @@ async def read_presentation(
 
 
 async def read_picture(bridge, owner, ref, file_id, slide, object_index, expected_hash=None):
-    if not 1 <= slide <= 200 or not 1 <= object_index <= 200:
+    if type(object_index) is not int or not 1 <= object_index <= 200:
+        raise DomainError("needs_input", "Choose an embedded picture object index.")
+    return await _read_visual(bridge, owner, ref, file_id, slide, object_index, expected_hash)
+
+
+async def read_slide(bridge, owner, ref, file_id, slide, expected_hash=None):
+    return await _read_visual(bridge, owner, ref, file_id, slide, None, expected_hash)
+
+
+async def _read_visual(bridge, owner, ref, file_id, slide, object_index, expected_hash):
+    whole_slide = object_index is None
+    if type(slide) is not int or not 1 <= slide <= 200:
         raise DomainError(
             "needs_input", "Use a slide and picture object index from read_course_presentation."
         )
@@ -132,19 +143,24 @@ async def read_picture(bridge, owner, ref, file_id, slide, object_index, expecte
             async with bridge.synthetic.client() if bridge.synthetic else nullcontext(None) as http:
                 download = await download_file(client, course.source_id, row.source_id, http=http)
         if download.kind != "pptx":
-            raise DomainError("unsupported_feature", "Embedded picture reading requires PPTX.")
+            raise DomainError("unsupported_feature", "Presentation image reading requires PPTX.")
         digest = hashlib.sha256(download.data).hexdigest()
         if expected_hash is not None and expected_hash != digest:
             raise DomainError("source_changed", "Presentation changed. Start a fresh review.")
-        image = await asyncio.to_thread(
-            extract_isolated,
-            download.data,
-            "pptx",
-            bridge.settings.parser_root,
-            runtime_root=bridge.settings.parser_runtime_root,
-            ocr_root=bridge.settings.ocr_root,
-            visual={"kind": "pptx", "page": slide, "rotation": 0, "object_index": object_index},
-        )
+        if whole_slide:
+            from canvas_bridge.full_slides import render_slide
+
+            image = await asyncio.to_thread(render_slide, download.data, bridge.settings, slide)
+        else:
+            image = await asyncio.to_thread(
+                extract_isolated,
+                download.data,
+                "pptx",
+                bridge.settings.parser_root,
+                runtime_root=bridge.settings.parser_runtime_root,
+                ocr_root=bridge.settings.ocr_root,
+                visual={"kind": "pptx", "page": slide, "rotation": 0, "object_index": object_index},
+            )
         async with bridge.client(owner, ref) as client:
             after = await file_metadata(client, course.source_id, row.source_id)
         if not download.revision or file_version(after) != download.revision:
@@ -157,15 +173,21 @@ async def read_picture(bridge, owner, ref, file_id, slide, object_index, expecte
             update={
                 "retrieved_at": utcnow(),
                 "content_hash": digest,
-                "extraction_status": "picture_decoded",
+                "extraction_status": "slide_rendered" if whole_slide else "picture_decoded",
                 "uncertainty": [
-                    "Original picture pixels, not the complete slide. Meaning requires visual interpretation."
+                    "Static LibreOffice rendering; font substitution and PowerPoint compatibility may affect layout. Meaning requires visual interpretation."
+                    if whole_slide
+                    else "Original picture pixels, not the complete slide. Meaning requires visual interpretation."
                 ],
             }
         )
         png = image.pop("png")
         return Result(
-            summary="Authorized embedded PPTX picture. Inspect pixels with its slide text and notes before interpreting scientific content.",
+            summary=(
+                "Authorized complete static PPTX slide. Inspect its labels, layout and pictures alongside separate speaker notes and course context."
+                if whole_slide
+                else "Authorized embedded PPTX picture. Inspect pixels with its slide text and notes before interpreting scientific content."
+            ),
             data={
                 **image,
                 "file_id": file_id,
@@ -174,6 +196,13 @@ async def read_picture(bridge, owner, ref, file_id, slide, object_index, expecte
                 "ocr_performed": False,
                 "content_boundary": "untrusted_source_data",
                 "limitations": [
+                    "Static LibreOffice rendering may differ from PowerPoint, including fonts, unsupported effects, charts and SmartArt. This is not a fidelity guarantee.",
+                    "Animations and video are not played. Speaker notes are separate; use read_course_presentation. Tiny labels may need a closer source review.",
+                    "No slide OCR or visual search indexing is performed. Rendered pixels alone are not a transcription or a scientific interpretation.",
+                    "If pixels are unavailable, use Read slide in ChatGPT. Never infer unseen labels or findings from the course topic.",
+                ]
+                if whole_slide
+                else [
                     "Original uncropped picture: slide cropping, rotation, masks, overlays, group transforms and surrounding text are not applied.",
                     "Transparency is shown on white. Large pictures may be downsampled; tiny labels may be unreadable.",
                     "No full slide renderer, chart/SmartArt rendering or image OCR. Text search cannot find unread picture text.",

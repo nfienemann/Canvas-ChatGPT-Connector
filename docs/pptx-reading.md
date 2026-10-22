@@ -1,4 +1,4 @@
-# PPTX slide structure and picture reading
+# PPTX structure, pictures and complete slide rendering
 
 `read_course_presentation(connection_id, file_id)` returns an overview with actual
 slide order, titles where declared, hidden-slide flags, notes status and counts of
@@ -33,7 +33,7 @@ inaccessible notes fail extraction explicitly, rather than becoming "no notes".
    context. It must distinguish visual observations, author text, and its own
    interpretation. Course context cannot establish what an unseen picture shows.
 
-This is **original-picture extraction**, not a complete PowerPoint renderer.
+`read_course_slide_image` is **original-picture extraction**, not a complete PowerPoint renderer.
 Cropping, masks, rotation, overlays, group geometry, layout/master/background
 images, SmartArt, charts, animations, equations, embedded media and inherited
 labels are not composed. The original picture can contain areas hidden by slide
@@ -43,6 +43,61 @@ decoded or fetched. No OCR is performed on slide pictures, so picture-only text
 does not enter search. Unread visual content keeps coverage partial, even when
 speaker notes are readable. No claims of complete image-heavy lecture digestion
 are justified until the relevant images and context have actually been reviewed.
+
+## Complete static slides
+
+`render_course_slide(connection_id, file_id, slide, expected_hash=None)` composes
+one complete slide through an optional isolated LibreOffice installation, exports
+that slide to a temporary PDF, then uses the existing isolated PDF renderer to
+return bounded PNG pixels. Its native reader offers **Read slide in ChatGPT**.
+Download, access, version checks and image delivery reuse the existing paths.
+The citation identifies the original Canvas presentation, source hash/version
+and actual slide number; the intermediate PDF hash is separate. Hidden slides
+retain their original numbering and are identified as hidden presentation slides.
+
+Read notes and tables with `read_course_presentation` alongside these pixels.
+The complete image preserves layout, backgrounds, picture crops and overlay
+labels where LibreOffice supports them. Fonts, SmartArt, charts and effects may
+differ from PowerPoint. Animation/video playback and external resources are not
+supported. This tool does not add slide OCR or visual search indexing; image
+interpretation happens in ChatGPT, with explicit uncertainty for unreadable content.
+It never represents structure-only fallback as a successfully rendered slide.
+
+The first verified complete-slide platform is Windows. Set the operator-only
+`BRIDGE_SLIDE_RENDERER_ROOT` to a trusted LibreOffice installation containing
+`program/mergedlo.dll` and exactly one bundled `python-core-*/bin/python.exe`.
+Other platforms or an unset root return an explicit unsupported result; existing
+text, notes, tables and original-picture support remain available.
+
+For deployment, use an official checksum-verified LibreOffice distribution in a
+dedicated **runtime-only parent directory**, with the installation in its child
+directory. Give Windows AppContainers read/execute access to that dedicated
+parent and its runtime files, never to a workspace, credentials or student data.
+LibreOffice inspects its installation directory via its parent; granting access
+only to the installation itself can produce a misleading profile-creation error.
+The verified synthetic runtime was LibreOffice 26.8.1.1 on Windows x64. This is
+operator provisioning, not student setup; no runtime is silently downloaded.
+
+The worker initializes LibreOfficeKit, then loads the presentation directly with
+the published UNO `XLoadable` document interface. It avoids the failing desktop/
+IPC startup path. Macros and external updates are disabled; interaction requests
+are aborted. Before conversion, the existing isolated OOXML worker rejects active
+content, external resource relationships and document actions. Hyperlinks remain
+inert. No additional Canvas or OAuth privileges are needed.
+
+Conversion uses a separate one-process AppContainer profile: no capabilities,
+network or inherited handles; 768 MiB memory, 30 CPU seconds, 45 wall seconds and
+a checked 50 MB temporary-storage budget. This does not increase ordinary parser
+limits. A private random OS-temp job keeps LibreOffice's profile paths short;
+deep workspace paths can crash Windows Office components. The PPTX, PDF and
+profile are deleted after the worker exits, including failure and timeout paths.
+Cancellation does not abandon the bounded worker's cleanup. There is no persistent
+render cache, public file URL, raw-PDF tool attachment or external conversion service.
+The 10 MB source/output-PDF limits and existing bounded PNG output still apply.
+
+API references: [UNO XLoadable](https://api.libreoffice.org/docs/idl/ref/interfacecom_1_1sun_1_1star_1_1frame_1_1XLoadable.html),
+[macro execution modes](https://api.libreoffice.org/docs/idl/ref/namespacecom_1_1sun_1_1star_1_1document_1_1MacroExecMode.html),
+[PDF export options](https://help.libreoffice.org/latest/en-US/text/shared/01/ref_pdf_export_general.html).
 
 ## Isolation and bounds
 
@@ -83,6 +138,16 @@ cache reuse, version changes, cross-user denial, source citations and the real
 HTTP MCP envelope. Native-reader tests cover both PDF and PPTX image delivery,
 fresh-access failures, stale hashes, unavailable pixels and both host transports.
 The restricted Linux container proof also exercises PPTX notes/tables/pictures.
+
+Complete-slide verification on Windows used the synthetic two-slide fixture in
+`tests/fixtures/full-slide.pptx`. Both output images were inspected: the first
+retained background, cropped drawing, overlay labels, sidebar and footer; the
+second retained its hidden-slide identity and purple background. Actual isolated
+conversion, source/hash attribution, cleanup, synthetic HTTP MCP image delivery,
+private-file/network/child-process/runtime-write denial and timeout termination
+passed. Native-reader tests cover complete-slide delivery and stale/access failures.
+Run the optional real-renderer tests with `BRIDGE_TEST_SLIDE_RENDERER_ROOT` set;
+CI without that Windows runtime skips them explicitly rather than claiming proof.
 
 This increment does not change or restart the personal service or repair its
 authentication. Live Rowan and actual native ChatGPT PPTX review remain unverified

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-PAGE_URI = "ui://canvas-bridge/page-reader-v4.html"
+PAGE_URI = "ui://canvas-bridge/page-reader-v5.html"
 PAGE_HTML = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Canvas page reader</title><style>

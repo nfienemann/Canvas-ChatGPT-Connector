@@ -7,6 +7,7 @@ and enters a one-process, memory/CPU-limited job before any Python executes.
 import ctypes as C
 import os
 import subprocess
+import time
 from ctypes import wintypes as W
 from pathlib import Path
 from uuid import uuid4
@@ -30,6 +31,37 @@ def run(
     script: str = "worker.py",
     timeout: float = 15,
     memory_mb: int = 384,
+):
+    return _run(runtime, work, script=script, timeout=timeout, memory_mb=memory_mb)
+
+
+def run_office(runtime: Path, work: Path, slide: int):
+    """Trusted operator-installed LibreOffice only; no source-controlled commands.
+
+    Uses the same capability-free AppContainer and one-process Job Object. This
+    separate profile grants no additional access to the Python parser workers.
+    """
+    import shutil
+
+    if type(slide) is not int or not 1 <= slide <= 200:
+        raise ValueError("Invalid slide")
+    interpreters = list((runtime / "program").glob("python-core-*/bin/python.exe"))
+    if len(interpreters) != 1 or not (runtime / "program/mergedlo.dll").is_file():
+        raise RuntimeError("LibreOffice renderer is unavailable.")
+    worker = work / "slide_worker.py"
+    shutil.copy2(Path(__file__).with_name("slide_worker.py"), worker)
+    arguments = [str(interpreters[0]), "-I", "-S", str(worker), str(work), str(runtime), str(slide)]
+    return _run(runtime, work, timeout=45, memory_mb=768, office_arguments=arguments)
+
+
+def _run(
+    runtime: Path,
+    work: Path,
+    *,
+    script="worker.py",
+    timeout=15,
+    memory_mb=384,
+    office_arguments=None,
 ):
     if os.name != "nt":
         raise RuntimeError("Windows AppContainer is unavailable.")
@@ -195,7 +227,7 @@ def run(
         # PROCESS_TIME, ACTIVE_PROCESS, PROCESS_MEMORY, KILL_ON_JOB_CLOSE,
         # DIE_ON_UNHANDLED_EXCEPTION. No breakaway is granted.
         limits.basic.flags = 0x2 | 0x8 | 0x100 | 0x2000 | 0x400
-        limits.basic.process_time = 10 * 10_000_000
+        limits.basic.process_time = (30 if office_arguments else 10) * 10_000_000
         limits.basic.processes = 1
         limits.process_memory = memory_mb * 1024 * 1024
         checked(kernel.SetInformationJobObject(job, 9, C.byref(limits), C.sizeof(limits)))
@@ -204,9 +236,11 @@ def run(
         startup = StartupEx()
         startup.startup.cb = C.sizeof(startup)
         startup.attributes = C.cast(attributes, pointer)
-        executable = runtime / "python.exe"
+        executable = Path(office_arguments[0]) if office_arguments else runtime / "python.exe"
         command = C.create_unicode_buffer(
-            subprocess.list2cmdline([str(executable), "-I", "-S", str(runtime / script), str(work)])
+            subprocess.list2cmdline(
+                office_arguments or [str(executable), "-I", "-S", str(runtime / script), str(work)]
+            )
         )
         # Windows needs profile-location variables to construct the AppContainer
         # environment. They grant no file rights; the OS token still denies access.
@@ -224,6 +258,10 @@ def run(
             if key in os.environ
         }
         env.update({"TEMP": str(work), "TMP": str(work)})
+        if office_arguments:
+            env["PATH"] = (
+                str(runtime / "program") + os.pathsep + str(Path(env["SystemRoot"]) / "System32")
+            )
         environment = C.create_unicode_buffer(
             "\0".join(f"{k}={v}" for k, v in sorted(env.items())) + "\0\0"
         )
@@ -244,7 +282,18 @@ def run(
         checked(kernel.AssignProcessToJobObject(job, process.process))
         if kernel.ResumeThread(process.thread) == 0xFFFFFFFF:
             raise RuntimeError("Sandbox could not resume.")
-        waited = kernel.WaitForSingleObject(process.process, int(timeout * 1000))
+        deadline = time.monotonic() + timeout
+        while True:
+            waited = kernel.WaitForSingleObject(process.process, 200)
+            if waited != 0x102:
+                break
+            if (
+                office_arguments
+                and sum(p.stat().st_size for p in work.rglob("*") if p.is_file()) > 50_000_000
+            ):
+                raise RuntimeError("Slide rendering exceeded temporary storage budget.")
+            if time.monotonic() >= deadline:
+                break
         if waited == 0x102:
             raise TimeoutError("Document extraction exceeded its time budget.")
         checked(waited != 0xFFFFFFFF)

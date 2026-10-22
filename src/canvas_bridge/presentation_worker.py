@@ -18,6 +18,45 @@ else:
 
 PRESENTATION_ERRORS = frozenset({"presentation_resource_limit", "invalid_slide_reference"})
 PICTURE_RENDERER = "canvas-bridge-pptx-picture-v1"
+
+
+def render_preflight(data):
+    """Run only inside the OS parser worker, before a separate office renderer.
+
+    Hyperlinks may remain as inert labels; all external resource relationships,
+    actions and embedded executable content are rejected. Nothing is fetched.
+    """
+    with OfficePackage(data, "pptx") as package:
+        parts = slide_parts(package)
+        if any(
+            "activex" in name.casefold() or "customui" in name.casefold() for name in package.names
+        ):
+            raise ValueError("active_office_content")
+        for name in sorted(package.names):
+            if not name.endswith((".xml", ".rels")):
+                continue
+            root = package.xml(name)
+            for node in root.iter():
+                if any(key.rsplit("}", 1)[-1] == "action" for key in node.attrib):
+                    raise ValueError("active_office_content")
+                if name.endswith(".rels") and tag(node) == "Relationship":
+                    mode = node.attrib.get("TargetMode", "Internal")
+                    if mode != "Internal" and not (
+                        mode == "External" and node.attrib.get("Type", "").endswith("/hyperlink")
+                    ):
+                        raise ValueError("invalid_office_reference")
+                    if mode == "Internal":
+                        parent, separator, filename = name.rpartition("/_rels/")
+                        if name == "_rels/.rels":
+                            source = ""
+                        elif separator:
+                            source = parent + "/" + filename.removesuffix(".rels")
+                        else:
+                            raise ValueError("invalid_office_reference")
+                        package._resolve(source, node)
+        return {"slide_count": len(parts), "external_resources": "rejected", "hyperlinks": "inert"}
+
+
 MAX_OBJECTS = 200
 MAX_CELLS = 400
 

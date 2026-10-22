@@ -184,6 +184,7 @@ def extract_isolated(
     runtime_root: Path | None = None,
     visual: dict | None = None,
     ocr_root: Path | None = None,
+    render_preflight: bool = False,
 ) -> dict:
     if len(data) > 10_000_000:
         raise DomainError("unsupported_feature", "File exceeds the extraction size limit.")
@@ -208,7 +209,12 @@ def extract_isolated(
                 raise RuntimeError("Invalid temporary extraction location.")
             (work / "input.bin").write_bytes(data)
             (work / "request.json").write_text(
-                json.dumps(visual if visual is not None else {"kind": kind}), encoding="utf-8"
+                json.dumps(
+                    visual
+                    if visual is not None
+                    else {"kind": kind, "render_preflight": render_preflight}
+                ),
+                encoding="utf-8",
             )
             run(runtime, work, script="visual_worker.py" if visual is not None else "worker.py")
             path = work / "result.json"

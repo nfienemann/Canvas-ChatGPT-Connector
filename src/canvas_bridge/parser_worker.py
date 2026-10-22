@@ -126,6 +126,12 @@ def main():
         with (root / "input.bin").open("rb") as stream:
             data = stream.read(MAX_BYTES + 1)
         result = {"ok": True, "extraction": extract(data, request["kind"])}
+        if request.get("render_preflight"):
+            if request["kind"] != "pptx":
+                raise ValueError("unsupported_format")
+            from presentation_worker import render_preflight
+
+            result["extraction"]["metadata"]["render_preflight"] = render_preflight(data)
     except Exception as exc:
         # Never return parser exception text: it may contain private document data.
         known = (
