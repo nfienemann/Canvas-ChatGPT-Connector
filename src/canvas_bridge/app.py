@@ -24,6 +24,12 @@ from canvas_bridge.activity_planning import (
     propose_course_plan,
 )
 from canvas_bridge.auth import READ_SCOPE, WRITE_SCOPE, JWTVerifier, request_identity
+from canvas_bridge.authorization import (
+    RequestAuthorization,
+    Resource,
+    request_authorization,
+    validate_request_authorization,
+)
 from canvas_bridge.calendar_sync import CalendarContext, propose_sync
 from canvas_bridge.config import Settings
 from canvas_bridge.course_files import list_files, read_file, search_files
@@ -33,6 +39,7 @@ from canvas_bridge.evidence import attach
 from canvas_bridge.grade_audit import grading_request
 from canvas_bridge.grading_engine import GradeScenario, Mode, PolicyReview
 from canvas_bridge.obligations import course_obligations
+from canvas_bridge.permission_audit import audit_permissions
 from canvas_bridge.planning import PlanRequest
 from canvas_bridge.policy import Registry
 from canvas_bridge.retrieval import fetch_material, outline, search_materials
@@ -117,11 +124,15 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
 
             @functools.wraps(fn)
             async def guarded(*args, **kwargs):
+                context = RequestAuthorization(fn.__name__)
+                context_token = request_authorization.set(context)
                 try:
                     request_identity(scope)
                     returned = await fn(*args, **kwargs)
+                    validate_request_authorization(bridge)
                     if image_result:
                         result, png = returned
+                        result.meta.request_id = context.request_id
                         result = attach(result)
                         if len(png) > 1_733_336 or len(result.model_dump_json().encode()) > 250_000:
                             raise DomainError(
@@ -136,6 +147,7 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                             ],
                         )
                     result = attach(returned)
+                    result.meta.request_id = context.request_id
                     if len(result.model_dump_json().encode()) > 250_000:
                         return Result(
                             status="partial_data",
@@ -145,12 +157,16 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
                 except DomainError as exc:
                     allowed = Result.model_fields["status"].annotation.__args__
                     status = exc.status if exc.status in allowed else "retry_later"
-                    return Result(status=status, summary=exc.message)
+                    result = Result(status=status, summary=exc.message, data=exc.data)
+                    result.meta.request_id = context.request_id
+                    return result
                 except Exception as exc:
                     logger.warning("tool_failed type=%s", type(exc).__name__)
                     return Result(
                         status="retry_later", summary="This request could not be completed safely."
                     )
+                finally:
+                    request_authorization.reset(context_token)
 
             return mcp.tool(
                 annotations=ToolAnnotations(
@@ -182,6 +198,30 @@ def create_app(settings: Settings | None = None, bridge: Bridge | None = None):
     async def get_connection_status() -> Result:
         """Check your connection, selected scope and capability limits before using academic tools."""
         return bridge.connection_status(request_identity().owner)
+
+    @register()
+    async def audit_permission_consistency(
+        connection_id: Ref,
+        course_id: Ref | None = None,
+        resource_types: Annotated[list[Resource] | None, Field(min_length=1, max_length=7)] = None,
+        include_upstream_checks: bool = False,
+    ) -> Result:
+        """Audit selection, exact IDs, local authorization and resource capabilities read-only.
+
+        Defaults to all currently selected courses and metadata/scope checks only.
+        Explicit upstream checks make at most 30 bounded metadata GETs, never read
+        response bodies, grades, questions, submissions or documents. Unsupported
+        probes remain unknown. No credential refresh, permission/selection repair,
+        cache update or Canvas write occurs. Use exact returned opaque IDs.
+        """
+        return await audit_permissions(
+            bridge,
+            request_identity().owner,
+            connection_id,
+            course_id,
+            resource_types,
+            include_upstream_checks,
+        )
 
     @register()
     async def list_courses(connection_id: Ref) -> Result:

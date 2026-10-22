@@ -147,7 +147,7 @@ def extract_synthetic(
 async def outline(
     bridge, owner: str, ref: str, course_ref: str, module_filter: str | None = None
 ) -> Result:
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     _, courses = bridge.selected(owner, ref, [course_ref])
     course = courses[0]
     modules, resources, warnings = [], [], []
@@ -351,6 +351,11 @@ async def outline(
                 for name, c in (("pages", pages), ("files", files), ("modules", collection))
                 if c.failure
             },
+            "inventory_reason_codes": {
+                name: {"reason_code": c.reason_code, "upstream_http_status": c.upstream_http_status}
+                for name, c in (("pages", pages), ("files", files), ("modules", collection))
+                if c.reason_code
+            },
             "limitations": [
                 "Use read_course_file or fetch_course_material to read file text when isolated extraction is enabled.",
                 "External/LTI readings are not fetched. Module inclusion alone does not establish assigned versus optional status.",
@@ -385,8 +390,8 @@ async def fetch_material(
         from canvas_bridge.course_files import read_file
 
         return await read_file(bridge, owner, ref, material_ref, offset, length, expected_hash)
-    await bridge.list_courses(owner, ref)
-    _, courses = bridge.selected(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
+    _, courses = bridge.selected(owner, ref, resource_type="pages", operation=Endpoint.PAGE)
     with bridge.store.transaction() as session:
         material = bridge.store.owned(session, Material, owner, ref, material_ref)
         course = next((c for c in courses if c.id == material.course_id), None)
@@ -447,8 +452,8 @@ async def fetch_material(
 async def search_materials(bridge, owner: str, ref: str, query: str, limit: int = 10) -> Result:
     if not 1 <= len(query.strip()) <= 200 or not 1 <= limit <= 20:
         raise DomainError("needs_input", "Search requires a short query and a limit from 1 to 20.")
-    await bridge.list_courses(owner, ref)
-    _, courses = bridge.selected(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
+    _, courses = bridge.selected(owner, ref, resource_type="pages", operation=Endpoint.PAGE)
     with bridge.store.transaction() as session:
         # ACLs precede matching, counts, snippets and ranking.
         rows = session.scalars(

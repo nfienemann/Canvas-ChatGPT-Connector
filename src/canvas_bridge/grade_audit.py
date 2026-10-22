@@ -118,11 +118,13 @@ def assessment(raw, owner, ref, conn, course, origin):
 
 
 async def collect(bridge, owner, ref, course_ref):
-    entitlement = await bridge.list_courses(owner, ref)
-    conn, courses = bridge.selected(owner, ref, [course_ref])
+    entitlement = await bridge.refresh_course_access(owner, ref)
+    conn, courses = bridge.selected(
+        owner, ref, [course_ref], resource_type="grades", operation="read"
+    )
     course = courses[0]
     limitations, blockers = [], []
-    async with bridge.client(owner, ref) as client:
+    async with bridge.client(owner, ref, course_ref=course_ref) as client:
         origin = client.institution.origin
         try:
             config = await client.one(Endpoint.COURSE, course=course.source_id)

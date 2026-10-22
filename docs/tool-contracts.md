@@ -13,6 +13,7 @@ response size is 250 KB; callers must narrow excessive requests.
 | Tool | Result boundary |
 |---|---|
 | get_connection_status | Owned identity/scope/capability state; fictional profile visibly labeled |
+| audit_permission_consistency | Read-only exact-ID, ownership, selection, authorization-lease and capability diagnostics; all selected courses by default; optional bounded metadata probes without body reads, credential refresh or state repair |
 | list_courses | Active student courses; staff/mixed roles excluded; does not select courses |
 | get_course_obligations | Assignment/quiz/topic/event source aliases, bounded calendar window, visible instructions and hash-bound continuation; candidates never imply required or unfinished work |
 | get_workload | Explicit <=31-day window; max 100 items/page; course coverage and encrypted bound cursor |
@@ -85,6 +86,15 @@ comparison interval, missing-baseline reason and incomplete-observation coverage
 it cannot reconstruct pre-baseline history or exact change times.
 
 See [live findings and root causes](live-integration-findings.md).
+
+Permission diagnostics use the existing schema 1.0 status enum. Safe machine
+reasons are additive in `data.reason_code` for errors, in each audit check, and
+in file listings' `inventory_reason_codes`. Connection status distinguishes
+stored selection from `scope_authorized`, reports credential evidence separately,
+and includes a connection correlation ID and scope snapshot version. A stored
+`active` state is not a successful live authentication check. See the
+[permission troubleshooting guide](permission-consistency.md) for the request
+schema, reason codes, limits and the verified exact-ID incident reproduction.
 
 Grade tools add no new identity scope or persistence. Syllabus candidates require
 actual student review tied to the returned policy version; the assistant cannot

@@ -68,7 +68,7 @@ def source_for(course, origin, kind, key, title, text, updated=None):
 async def collect_course(
     bridge, owner, ref, course_ref, material_ids=None, purpose=None, work_id=None
 ):
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     conn, courses = bridge.selected(owner, ref, [course_ref])
     course, now = courses[0], utcnow()
     bundle = {
@@ -226,7 +226,9 @@ async def collect_course(
                 else None,
             }
         try:
-            raw_course = await client.one(Endpoint.COURSE, course=course.source_id)
+            raw_course = await client.one(
+                Endpoint.COURSE, course=course.source_id, course_content="syllabus"
+            )
             if str(raw_course.get("id")) != course.source_id:
                 raise DomainError("partial_data", "Course identity mismatch.")
             zone = raw_course.get("time_zone")

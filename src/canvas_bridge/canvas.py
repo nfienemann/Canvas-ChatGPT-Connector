@@ -18,6 +18,41 @@ class Collection:
     complete: bool = False
     pages: int = 0
     failure: str | None = None
+    reason_code: str | None = None
+    upstream_http_status: int | None = None
+
+
+def upstream_error(status: int, headers) -> DomainError:
+    if status == 401:
+        # A bare 401 is ambiguous in Canvas. Only an explicit invalid_token
+        # challenge establishes credential failure, not course scope loss.
+        expired = "invalid_token" in headers.get("www-authenticate", "").lower()
+        return DomainError(
+            "reconnect_required" if expired else "permission_denied",
+            "Canvas authentication could not be verified.",
+            reason_code="UPSTREAM_AUTH_EXPIRED" if expired else "UNKNOWN_AUTHORIZATION_FAILURE",
+            upstream_http_status=status,
+        )
+    if status == 403:
+        return DomainError(
+            "permission_denied",
+            "The requested Canvas resource cannot be accessed with the current permissions.",
+            reason_code="RESOURCE_PERMISSION_DENIED",
+            upstream_http_status=status,
+        )
+    if status == 404:
+        return DomainError(
+            "permission_denied",
+            "The resource is unavailable; absence and denied visibility cannot be distinguished.",
+            reason_code="RESOURCE_UNAVAILABLE",
+            upstream_http_status=status,
+        )
+    return DomainError(
+        "retry_later",
+        "The connector could not verify resource access because the upstream service was unavailable.",
+        reason_code="UPSTREAM_UNAVAILABLE",
+        upstream_http_status=status,
+    )
 
 
 class CanvasClient:
@@ -35,6 +70,8 @@ class CanvasClient:
         self.settings = settings
         self.http = http or public_client(settings.request_timeout_seconds)
         self.owns_http = http is None
+        self.authorize = lambda endpoint, ids, resource=None: None
+        self.observe = lambda endpoint, ids, error: None
 
     async def close(self):
         if self.owns_http:
@@ -53,21 +90,12 @@ class CanvasClient:
                     follow_redirects=False,
                 ) as response:
                     if response.status_code == 401:
-                        status = (
-                            "reconnect_required"
-                            if "www-authenticate" in response.headers
-                            else "permission_denied"
-                        )
-                        raise DomainError(status, "Canvas access could not be authorized.")
+                        raise upstream_error(response.status_code, response.headers)
                     if response.status_code in {403, 404}:
-                        raise DomainError(
-                            "permission_denied", "The Canvas resource is unavailable."
-                        )
+                        raise upstream_error(response.status_code, response.headers)
                     if response.status_code == 429 or response.status_code >= 500:
                         if attempt == 2:
-                            raise DomainError(
-                                "retry_later", "Canvas could not finish this refresh."
-                            )
+                            raise upstream_error(response.status_code, response.headers)
                         try:
                             delay = min(max(float(response.headers.get("Retry-After", 0)), 0), 3)
                         except ValueError:
@@ -95,27 +123,97 @@ class CanvasClient:
                     next_link = response.links.get("next", {}).get("url")
                     return payload, next_link
             except (httpx.HTTPError, ValueError) as exc:
-                raise DomainError("retry_later", "Canvas is temporarily unavailable.") from exc
+                raise DomainError(
+                    "retry_later",
+                    "Canvas is temporarily unavailable.",
+                    reason_code="UPSTREAM_UNAVAILABLE",
+                ) from exc
         raise DomainError("retry_later", "Canvas request budget exhausted.")
 
-    async def one(self, endpoint: Endpoint, **ids: str) -> dict:
+    async def one(
+        self,
+        endpoint: Endpoint,
+        *,
+        course_content: Literal["grades", "syllabus", "metadata"] = "grades",
+        **ids: str,
+    ) -> dict:
         # Match assignment-list semantics. Canvas omits the current user's
         # submission from a single assignment unless explicitly requested.
         params = [("include[]", "submission")] if endpoint == Endpoint.ASSIGNMENT else []
+        resource = None
         if endpoint == Endpoint.COURSE:
+            resource = "course" if course_content == "metadata" else course_content
             params = [
                 ("include[]", key)
                 for key in (
-                    "syllabus_body",
-                    "total_scores",
-                    "grading_periods",
-                    "current_grading_period_scores",
+                    (
+                        "syllabus_body",
+                        "total_scores",
+                        "grading_periods",
+                        "current_grading_period_scores",
+                    )
+                    if course_content == "grades"
+                    else ("syllabus_body",)
+                    if course_content == "syllabus"
+                    else ()
                 )
             ]
-        payload, _ = await self._get(str(httpx.URL(self.url(endpoint, **ids), params=params)))
+            if course_content == "grades":
+                self.authorize(Endpoint.ENROLLMENTS, ids, "grades")
+        self.authorize(endpoint, ids, resource)
+        try:
+            payload, _ = await self._get(str(httpx.URL(self.url(endpoint, **ids), params=params)))
+        except DomainError as exc:
+            self.observe(endpoint, ids, exc)
+            raise
+        self.authorize(endpoint, ids, resource)
         if not isinstance(payload, dict):
             raise DomainError("partial_data", "Canvas returned an unexpected object.")
         return payload
+
+    async def probe_metadata(self, resource: str, course: str) -> int:
+        """One GET, no includes, no pagination/retry, no response body consumption.
+
+        HTTP 200 only proves this endpoint accepted the request. It says nothing
+        about individual locked files, extraction, or enrollment completeness.
+        Grades/syllabus have no safe conclusive metadata probe here.
+        """
+        endpoints = {
+            "course": Endpoint.COURSE,
+            "files": Endpoint.FILES,
+            "modules": Endpoint.MODULES,
+            "assignments": Endpoint.ASSIGNMENTS,
+            "quizzes": Endpoint.QUIZZES,
+        }
+        endpoint = endpoints.get(resource)
+        if endpoint is None:
+            raise DomainError(
+                "unsupported_feature",
+                "No content-free permission probe is enabled.",
+                reason_code="NO_SAFE_METADATA_PROBE",
+            )
+        ids = {"course": source_id(course)}
+        self.authorize(endpoint, ids, resource)
+        params = {} if resource == "course" else {"per_page": "1"}
+        url = str(httpx.URL(self.url(endpoint, **ids), params=params))
+        try:
+            async with self.http.stream(
+                "GET",
+                url,
+                headers={"Authorization": f"Bearer {self.token}"},
+                follow_redirects=False,
+            ) as response:
+                status = response.status_code
+                if status != 200:
+                    raise upstream_error(status, response.headers)
+                self.authorize(endpoint, ids, resource)
+                return status
+        except httpx.HTTPError as exc:
+            raise DomainError(
+                "retry_later",
+                "The upstream metadata probe was unavailable.",
+                reason_code="UPSTREAM_UNAVAILABLE",
+            ) from exc
 
     async def collection(
         self,
@@ -171,8 +269,10 @@ class CanvasClient:
         result = Collection()
         seen: set[str] = set()
         try:
+            self.authorize(endpoint, ids)
             async with asyncio.timeout(self.settings.refresh_budget_seconds):
                 while url and result.pages < self.settings.max_pages:
+                    self.authorize(endpoint, ids)
                     if url in seen:
                         raise DomainError("partial_data", "Canvas repeated a pagination cursor.")
                     seen.add(url)
@@ -189,11 +289,15 @@ class CanvasClient:
                 result.complete = url is None
                 if not result.complete:
                     result.failure = "request_budget"
+            self.authorize(endpoint, ids)
         except TimeoutError:
             result.failure = "retry_later"
         except DomainError as exc:
-            if exc.status in {"reconnect_required", "permission_denied"}:
+            self.observe(endpoint, ids, exc)
+            if exc.status in {"reconnect_required", "permission_denied", "source_changed"}:
                 # Never keep records from a now-denied collection.
                 result.items.clear()
             result.failure = exc.status
+            result.reason_code = exc.reason_code
+            result.upstream_http_status = exc.upstream_http_status
         return result

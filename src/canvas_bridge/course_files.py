@@ -11,6 +11,7 @@ from canvas_bridge.file_download import download_file, file_metadata, file_versi
 from canvas_bridge.normalize import fact_date, plain_text
 from canvas_bridge.parser_sandbox import extract_document
 from canvas_bridge.parser_worker import PARSER
+from canvas_bridge.policy import Endpoint
 from canvas_bridge.storage import Course, Material, aware
 
 
@@ -40,7 +41,7 @@ def fresh_cache(row, metadata, settings):
 
 
 async def authorized(bridge, owner, ref, material_id):
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     _, courses = bridge.selected(owner, ref)
     with bridge.store.transaction() as session:
         conn = bridge.store.connection(session, owner, ref)
@@ -52,8 +53,15 @@ async def authorized(bridge, owner, ref, material_id):
                 "File reference unavailable. Use a file_id from list_course_files or a File item's material_ref from get_course_outline; a parent module ID cannot identify one document.",
             ) from exc
         course = next((c for c in courses if c.id == row.course_id), None)
+        bridge.authorize(
+            owner, ref, row.course_id, "files", Endpoint.FILE, session=session
+        ).require()
         if not course or row.kind != "file":
-            raise DomainError("permission_denied", "File is outside the selected course scope.")
+            raise DomainError(
+                "permission_denied",
+                "File is outside the selected course scope.",
+                reason_code="IDENTIFIER_MAPPING_FAILURE",
+            )
         epoch = conn.epoch
     try:
         async with bridge.client(owner, ref) as client:
@@ -81,8 +89,13 @@ def checked_row(bridge, session, owner, ref, material_id, epoch):
     conn = bridge.store.connection(session, owner, ref, lock=True)
     row = bridge.store.owned(session, Material, owner, ref, material_id)
     course = bridge.store.owned(session, Course, owner, ref, row.course_id)
+    bridge.authorize(owner, ref, course.id, "files", Endpoint.FILE, session=session).require()
     if conn.epoch != epoch or not course.selected or not course.accessible:
-        raise DomainError("permission_denied", "File scope changed during this request.")
+        raise DomainError(
+            "permission_denied",
+            "File scope changed during this request.",
+            reason_code="STALE_SCOPE_SNAPSHOT",
+        )
     return row
 
 
@@ -173,6 +186,7 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
             "modules": [{"id": m["id"], "title": m["title"]} for m in modules],
             "coverage": result.data["inventory_coverage"],
             "inventory_failures": result.data["inventory_failures"],
+            "inventory_reason_codes": result.data["inventory_reason_codes"],
             "document_content_included": False,
         },
         sources=result.sources,
@@ -188,7 +202,7 @@ async def status(bridge, owner, ref, file_id):
             return Result(
                 status="permission_denied",
                 summary="This file is inaccessible in the current selected scope.",
-                data={"file_id": file_id, "state": "inaccessible", "indexed": False},
+                data={"file_id": file_id, "state": "inaccessible", "indexed": False, **exc.data},
             )
         raise
     state = row.file_state.get("stage", "available")

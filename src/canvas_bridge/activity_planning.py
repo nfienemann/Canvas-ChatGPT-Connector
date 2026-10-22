@@ -93,7 +93,7 @@ async def propose_course_plan(bridge, owner, ref, scopes, start, end, timezone, 
     ids = [s.course_id for s in scopes]
     if not 1 <= len(ids) <= 10 or len(set(ids)) != len(ids):
         raise DomainError("needs_input", "Choose one to ten distinct selected courses.")
-    await bridge.list_courses(owner, ref)
+    await bridge.refresh_course_access(owner, ref)
     connection, _ = bridge.selected(owner, ref, ids)
     try:
         async with asyncio.timeout(bridge.settings.refresh_budget_seconds):

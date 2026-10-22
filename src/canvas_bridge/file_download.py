@@ -55,8 +55,22 @@ def file_visible(metadata: dict) -> bool:
 async def file_metadata(client, course: str, file: str) -> dict:
     course, file = source_id(course), source_id(file)
     metadata = await client.one(Endpoint.FILE, course=course, file=file)
-    if source_id(metadata.get("id", "")) != file or not file_visible(metadata):
-        raise DomainError("permission_denied", "The course file is currently unavailable.")
+    if str(metadata.get("id", "")) != file:
+        raise DomainError(
+            "permission_denied",
+            "The course file is unavailable; its reference could not be verified.",
+            reason_code="IDENTIFIER_MAPPING_FAILURE",
+        )
+    if not file_visible(metadata):
+        denied = any(
+            metadata.get(flag) is True
+            for flag in ("locked_for_user", "hidden_for_user", "locked", "hidden")
+        )
+        raise DomainError(
+            "permission_denied",
+            "The course file is currently unavailable.",
+            reason_code="RESOURCE_PERMISSION_DENIED" if denied else "UNKNOWN_AUTHORIZATION_FAILURE",
+        )
     return metadata
 
 
