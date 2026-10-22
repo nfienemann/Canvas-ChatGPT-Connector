@@ -63,8 +63,8 @@ the package has a `.docx` filename and contains otherwise readable body text.
 The parser version change invalidates old success/failure caches on the next
 authorized access. Failed extraction is retried by a later authorized read.
 Restart the existing service as part of a coordinated deployment before live
-acceptance; an already-running v5 process does not become v6 merely because the
-source files changed. After an upgrade, start a fresh read at offset zero.
+acceptance; an already-running process does not load a new parser merely because
+the source files changed. After an upgrade, start a fresh read at offset zero.
 
 Synthetic validation and the installed-service evidence boundary are recorded in
 [the DOCX investigation](../evidence/sanitized-results/docx-processing-2026-10-22.md).

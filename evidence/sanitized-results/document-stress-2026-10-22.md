@@ -44,6 +44,11 @@ was never executed by the prior parser; the change closes a rejection-policy gap
   PDF-diagnostic and Linux tests: **48 passed, 13 Linux-only skipped** in 15.27
   seconds on Windows. The parser implementation was unchanged by these assertion
   corrections.
+- Final full Windows run with English OCR enabled: **695 passed, 20 skipped**
+  in 214.30 seconds. All runtime Python changes were committed in `3247adc`;
+  the subsequent container changes affect Docker preparation and its proof
+  script, not the Windows runtime. Skips are the 13 Linux-kernel and seven
+  disposable-PostgreSQL tests covered by the successful Linux test run below.
 - Real-worker pressure test: repeated DOCX/XLSX/PDF reads, bounded busy rejection
   under simultaneous calls, successful sequential retries, identical results,
   active-content failure and empty job directories afterward.
@@ -73,6 +78,15 @@ prepares both variants without weakening runtime filesystem restrictions.
 The container proof also now includes XLSX alongside PDF/TXT/Markdown/DOCX/PPTX,
 rendering and scanned-PDF OCR. All six synthetic fixture preparations were
 checked locally; actual container execution is validated by Linux CI.
+
+**Final Linux gate: PASS.** [Run 39852501702](https://github.com/nfienemann/Canvas-ChatGPT-Connector/actions/runs/39852501702)
+on code commit `51fe012` completed successfully: **703 passed, 12 skipped** in
+76.13 seconds. Lint, formatting, dependency audits, reproducible UI assets and
+Docker build passed. The image then verified all six document formats and job
+cleanup, PDF page-image rendering and actual scanned-PDF OCR while running as
+an unprivileged user with no network, a read-only filesystem, dropped capabilities
+and `no-new-privileges`. The final evidence-only commit does not change tested
+code and skips a redundant CI run.
 
 ## Remaining boundaries
 
