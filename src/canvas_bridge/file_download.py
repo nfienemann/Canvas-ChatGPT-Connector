@@ -8,17 +8,20 @@ Signed download URLs stay transient and never become sources.
 import asyncio
 import hashlib
 import json
+import threading
 from dataclasses import dataclass
 from typing import BinaryIO
 from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+from canvas_bridge.document_policy import SOURCE_BYTES
 from canvas_bridge.domain import DomainError
-from canvas_bridge.network import public_client
+from canvas_bridge.network import GuardedHTTP, public_client
 from canvas_bridge.policy import Endpoint, source_id, validate_https
 
-MAX_FILE_BYTES = 10_000_000
+MAX_FILE_BYTES = SOURCE_BYTES
+_reading_slot = threading.BoundedSemaphore(1)
 MAX_REDIRECTS = 3
 FILE_TYPES = {
     "application/pdf": ("pdf", ".pdf"),
@@ -43,8 +46,10 @@ def file_format(metadata: dict) -> str | None:
         supported = ("md", ".md")
     # Canvas sometimes uses the generic binary MIME for an OOXML workbook.
     # The ZIP signature and workbook structure are checked before accepting text.
-    if mime == "application/octet-stream" and name.lower().endswith(".xlsx"):
-        supported = ("xlsx", ".xlsx")
+    if mime == "application/octet-stream":
+        for extension in ("xlsx", "pptx"):
+            if name.lower().endswith("." + extension):
+                supported = (extension, "." + extension)
     return supported[0] if supported and name.lower().endswith(supported[1]) else None
 
 
@@ -137,7 +142,7 @@ async def _download_once(
     http=None,
     sink: BinaryIO | None = None,
     metadata: dict | None = None,
-    max_bytes=MAX_FILE_BYTES,
+    max_bytes=None,
     budget=None,
 ) -> DownloadedFile:
     """Only fresh metadata from a course-qualified API can supply a download URL.
@@ -148,6 +153,24 @@ async def _download_once(
     course, file = source_id(course), source_id(file)
     owned_http = http is None
     download_http = http or public_client(client.settings.request_timeout_seconds)
+    raw_http = download_http
+
+    def check_download(method, url):
+        client.require_offline()
+        if client.settings.profile == "synthetic" and not isinstance(
+            raw_http._transport, httpx.MockTransport
+        ):
+            raise DomainError(
+                "permission_denied",
+                "Synthetic file reads require a mock transport.",
+                reason_code="SYNTHETIC_NETWORK_DISABLED",
+            )
+        if method != "GET":
+            raise DomainError("permission_denied", "Only file reads are permitted.")
+        download_destination(url, client, course, file)
+        client.authorize(Endpoint.FILE, {"course": course, "file": file}, "files")
+
+    download_http = GuardedHTTP(download_http, check_download)
     try:
         async with asyncio.timeout(budget or client.settings.refresh_budget_seconds):
             metadata = (
@@ -155,6 +178,10 @@ async def _download_once(
             )
             mime = str(metadata.get("content-type", "")).split(";", 1)[0].strip().lower()
             kind = file_format(metadata)
+            if max_bytes is None:
+                max_bytes = (
+                    client.settings.pptx_source_max_bytes if kind == "pptx" else MAX_FILE_BYTES
+                )
             if not kind and sink is None:
                 raise DomainError(
                     "unsupported_feature",
@@ -162,16 +189,33 @@ async def _download_once(
                     reason_code="UNSUPPORTED_FILE_FORMAT",
                 )
             size = metadata.get("size")
-            if type(size) is not int or not 0 <= size <= max_bytes:
+            if size is not None and (type(size) is not int or size < 0):
                 raise DomainError(
-                    "unsupported_feature",
-                    "The course file exceeds download limits.",
-                    reason_code="FILE_TOO_LARGE",
-                    details={
-                        "limit_bytes": max_bytes,
-                        "observed_size": size if type(size) is int else None,
-                    },
+                    "source_changed",
+                    "Invalid source size metadata.",
+                    reason_code="INVALID_SOURCE_SIZE",
                 )
+
+            def check_size(observed):
+                if observed > max_bytes:
+                    raise DomainError(
+                        "unsupported_feature",
+                        "The source file exceeds this workflow's byte limit.",
+                        reason_code="FILE_TOO_LARGE",  # Schema 1.0 compatibility.
+                        details={
+                            "budget_code": "SOURCE_FILE_TOO_LARGE"
+                            if sink is None
+                            else "ORIGINAL_DELIVERY_LIMIT",
+                            "limit_bytes": max_bytes,
+                            "observed_size": observed,
+                            "observed": observed,
+                            "limit": max_bytes,
+                            "retryable": False,
+                        },
+                    )
+
+            if size is not None:
+                check_size(size)
             url = metadata.get("url")
             if not isinstance(url, str):
                 raise DomainError(
@@ -189,6 +233,11 @@ async def _download_once(
                 # Construct the request directly: no client cookies, default
                 # Authorization, Referer or HTTP-auth fallback can cross hosts.
                 request = httpx.Request("GET", url, headers=headers)
+                from canvas_bridge.workflow_budget import active_budget, count_bytes, count_request
+
+                if workflow_budget := active_budget.get():
+                    workflow_budget.document(course, file)
+                count_request()
                 response = await download_http.send(
                     request, stream=True, auth=None, follow_redirects=False
                 )
@@ -230,9 +279,14 @@ async def _download_once(
                         response.headers.get("content-type", "").split(";", 1)[0].lower().strip()
                     )
                     expected_types = {mime, "application/octet-stream"}
-                    if kind == "xlsx":
+                    if kind in {"xlsx", "pptx"}:
                         expected_types.add(
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                            "application/vnd.openxmlformats-officedocument."
+                            + (
+                                "spreadsheetml.sheet"
+                                if kind == "xlsx"
+                                else "presentationml.presentation"
+                            )
                         )
                     if actual_type not in expected_types:
                         raise DomainError(
@@ -241,7 +295,16 @@ async def _download_once(
                             reason_code="UNEXPECTED_UPSTREAM_CONTENT",
                         )
                     declared = response.headers.get("content-length")
-                    if declared is not None and (not declared.isdecimal() or int(declared) != size):
+                    if declared is not None and (not declared.isdecimal() or len(declared) > 20):
+                        raise DomainError(
+                            "source_changed",
+                            "Invalid transfer size.",
+                            reason_code="INCOMPLETE_TRANSFER",
+                        )
+                    declared = int(declared) if declared is not None else None
+                    if declared is not None:
+                        check_size(declared)
+                    if declared is not None and size is not None and declared != size:
                         raise DomainError(
                             "source_changed",
                             "File size differs from its current metadata.",
@@ -251,8 +314,10 @@ async def _download_once(
                     prefix = bytearray()
                     digest = hashlib.sha256()
                     count = 0
-                    async for chunk in response.aiter_raw():
-                        if count + len(chunk) > min(size, max_bytes):
+                    async for chunk in response.aiter_raw(chunk_size=64 * 1024):
+                        count_bytes(len(chunk), document=True)
+                        check_size(count + len(chunk))
+                        if size is not None and count + len(chunk) > size:
                             raise DomainError(
                                 "source_changed",
                                 "File exceeded its declared size.",
@@ -265,7 +330,9 @@ async def _download_once(
                             data.extend(chunk)
                         else:
                             sink.write(chunk)
-                    if count != size:
+                    if (size is not None and count != size) or (
+                        declared is not None and count != declared
+                    ):
                         raise DomainError(
                             "source_changed",
                             "The course file transfer is incomplete.",
@@ -347,11 +414,31 @@ async def stream_original(client, course, file, metadata, sink, *, max_bytes, bu
 
 async def download_file(client, course: str, file: str, *, http=None) -> DownloadedFile:
     """Renew an expired storage link once via freshly authorized Canvas metadata."""
+    if not _reading_slot.acquire(blocking=False):
+        raise DomainError(
+            "retry_later",
+            "Another source download is in progress.",
+            reason_code="DOCUMENT_DOWNLOAD_BUSY",
+            processing_stage="file_download",
+        )
     try:
-        async with asyncio.timeout(client.settings.refresh_budget_seconds):
+        metadata = await file_metadata(client, course, file)
+        budget = (
+            client.settings.pptx_download_budget_seconds
+            if file_format(metadata) == "pptx"
+            else client.settings.refresh_budget_seconds
+        )
+        async with asyncio.timeout(budget):
             for attempt in range(2):
                 try:
-                    return await _download_once(client, course, file, http=http)
+                    return await _download_once(
+                        client,
+                        course,
+                        file,
+                        http=http,
+                        metadata=metadata if attempt == 0 else None,
+                        budget=budget,
+                    )
                 except DomainError as exc:
                     if (
                         attempt
@@ -372,6 +459,8 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
             reason_code="DOCUMENT_DOWNLOAD_TIMEOUT",
             processing_stage="file_download",
         ) from exc
+    finally:
+        _reading_slot.release()
     raise DomainError(
         "retry_later",
         "Course file download did not complete.",

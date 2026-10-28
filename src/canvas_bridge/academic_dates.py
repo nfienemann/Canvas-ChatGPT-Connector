@@ -79,6 +79,14 @@ def parse_clock(raw):
     return time(hour, fields[1] if len(fields) > 1 else 0, fields[2] if len(fields) > 2 else 0)
 
 
+class AmbiguousWallTime(ValueError):
+    def __init__(self, choices):
+        super().__init__(
+            "Source wall time repeats at a daylight-saving transition; no instant was selected."
+        )
+        self.possible_utc = [value.isoformat().replace("+00:00", "Z") for value in sorted(choices)]
+
+
 def resolve_zone(wall, raw):
     if raw.upper() in {"Z", "UTC", "GMT"}:
         return wall.replace(tzinfo=UTC)
@@ -103,7 +111,9 @@ def resolve_zone(wall, raw):
         instant = candidate.astimezone(UTC)
         if instant.astimezone(zone).replace(tzinfo=None) == wall:
             choices[instant] = candidate
-    if len(choices) != 1:
+    if len(choices) > 1:
+        raise AmbiguousWallTime(choices)
+    if not choices:
         raise ValueError(
             "Source wall time is ambiguous or nonexistent at a daylight-saving transition."
         )
@@ -138,6 +148,10 @@ def parse_candidate(match):
                 "Date only; time of day and source timezone are not stated."
             )
         result["normalization_status"] = "normalized"
+    except AmbiguousWallTime as exc:
+        result["possible_utc"] = exc.possible_utc
+        result["normalization_status"] = "ambiguous"
+        result["uncertainty"].append(str(exc))
     except (ValueError, OverflowError) as exc:
         result["uncertainty"].append(str(exc))
     return result

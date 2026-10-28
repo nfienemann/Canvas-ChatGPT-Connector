@@ -1,15 +1,18 @@
 import asyncio
 import random
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
 from canvas_bridge.config import Settings
 from canvas_bridge.domain import DomainError, utcnow
-from canvas_bridge.network import public_client
+from canvas_bridge.network import GuardedHTTP, deny_network, public_client
 from canvas_bridge.policy import Endpoint, Institution, route, source_id, validate_continuation
+from canvas_bridge.request_limits import retry_after
 
 
 @dataclass
@@ -68,10 +71,62 @@ class CanvasClient:
         self.institution = institution
         self.token = token
         self.settings = settings
-        self.http = http or public_client(settings.request_timeout_seconds)
+        self._offline_transport = bool(http and isinstance(http._transport, httpx.MockTransport))
+        self.http = GuardedHTTP(
+            http or public_client(settings.request_timeout_seconds), self.check_request
+        )
         self.owns_http = http is None
-        self.authorize = lambda endpoint, ids, resource=None: None
+        self.authorize = self._unbound
         self.observe = lambda endpoint, ids, error: None
+        from canvas_bridge.privacy.identity import PrivacyIdentity
+
+        self.privacy_identity = PrivacyIdentity()
+
+    def _unbound(self, endpoint, ids, resource=None):
+        if self.settings.profile != "synthetic":
+            deny_network()
+        self.require_offline()
+
+    def require_offline(self):
+        if self.settings.profile == "synthetic" and (
+            not self._offline_transport
+            or not (urlsplit(self.institution.origin).hostname or "").endswith(".invalid")
+        ):
+            raise DomainError(
+                "permission_denied",
+                "Synthetic mode cannot contact real Canvas.",
+                reason_code="SYNTHETIC_NETWORK_DISABLED",
+            )
+
+    def check_request(self, method, url):
+        self.require_offline()
+        parsed = urlsplit(url)
+        if method != "GET" or f"{parsed.scheme}://{parsed.netloc}" != self.institution.origin:
+            deny_network()
+        for endpoint in Endpoint:
+            pattern = re.sub(r"\\\{(\w+)\\\}", r"(?P<\1>[0-9]{1,20})", re.escape(endpoint.value))
+            match = re.fullmatch(pattern, parsed.path)
+            if match:
+                ids = match.groupdict()
+                query = parse_qs(parsed.query)
+                if endpoint in {Endpoint.ANNOUNCEMENTS, Endpoint.CALENDAR_EVENTS}:
+                    contexts = query.get("context_codes[]", [])
+                    if len(contexts) != 1 or not re.fullmatch(r"course_[0-9]{1,20}", contexts[0]):
+                        deny_network()
+                    ids["course"] = contexts[0][7:]
+                self.authorize(endpoint, ids)
+                if "syllabus_body" in query.get("include[]", []):
+                    self.authorize(Endpoint.COURSE, ids, "syllabus")
+                if set(query.get("include[]", [])) & {
+                    "total_scores",
+                    "current_grading_period_scores",
+                    "submission",
+                }:
+                    self.authorize(endpoint, ids, "grades")
+                if "submission" in query.get("include[]", []):
+                    self.authorize(endpoint, ids, "submissions")
+                return
+        deny_network()
 
     async def close(self):
         if self.owns_http:
@@ -80,13 +135,19 @@ class CanvasClient:
     def url(self, endpoint: Endpoint, **ids: str) -> str:
         return f"{self.institution.origin}{route(endpoint, **ids)}"
 
-    async def _get(self, url: str) -> tuple[dict | list, str | None]:
-        for attempt in range(3):
+    async def _get(self, url: str, *, attempts: int = 3) -> tuple[dict | list, str | None]:
+        from canvas_bridge.workflow_budget import count_bytes, count_request
+
+        for attempt in range(attempts):
             try:
+                count_request()
                 async with self.http.stream(
                     "GET",
                     url,
-                    headers={"Authorization": f"Bearer {self.token}"},
+                    headers={
+                        "Authorization": f"Bearer {self.token}",
+                        "Accept-Encoding": "identity",
+                    },
                     follow_redirects=False,
                 ) as response:
                     if response.status_code == 401:
@@ -94,12 +155,16 @@ class CanvasClient:
                     if response.status_code in {403, 404}:
                         raise upstream_error(response.status_code, response.headers)
                     if response.status_code == 429 or response.status_code >= 500:
-                        if attempt == 2:
+                        if attempt == attempts - 1:
                             raise upstream_error(response.status_code, response.headers)
-                        try:
-                            delay = min(max(float(response.headers.get("Retry-After", 0)), 0), 3)
-                        except ValueError:
-                            delay = 1
+                        delay = retry_after(response.headers.get("Retry-After"))
+                        if delay is None:
+                            delay = 1 if response.status_code == 429 else 0
+                        if delay > 3:
+                            # The transport retains the full cooldown across clients.
+                            # Do not shorten it to fit this request's latency budget.
+                            raise upstream_error(response.status_code, response.headers)
+                        await response.aclose()
                         await asyncio.sleep(max(delay, 0.15 * 2**attempt) + random.uniform(0, 0.1))  # noqa: S311
                         continue
                     if 300 <= response.status_code < 400:
@@ -111,7 +176,10 @@ class CanvasClient:
                             "unsupported_feature", "Canvas did not return the expected resource."
                         )
                     content = bytearray()
+                    if response.headers.get("content-encoding", "identity").lower() != "identity":
+                        raise DomainError("retry_later", "Encoded API responses are unsupported.")
                     async for chunk in response.aiter_bytes():
+                        count_bytes(len(chunk))
                         content.extend(chunk)
                         if len(content) > self.settings.max_response_bytes:
                             raise DomainError(
@@ -120,6 +188,7 @@ class CanvasClient:
                     import json
 
                     payload = json.loads(content)
+                    self.check_request("GET", url)
                     next_link = response.links.get("next", {}).get("url")
                     return payload, next_link
             except (httpx.HTTPError, ValueError) as exc:
@@ -130,16 +199,62 @@ class CanvasClient:
                 ) from exc
         raise DomainError("retry_later", "Canvas request budget exhausted.")
 
+    async def discussion_page(self, endpoint: Endpoint, *, cursor=None, **ids):
+        """One allowlisted page. Raw peer data never leaves this method.
+
+        Pagination uses the existing exact-origin/path/query fence. Budgets for
+        the entire topic, including nested reply pages, live in the scanner.
+        """
+        allowed = {
+            Endpoint.DISCUSSION_VIEW,
+            Endpoint.DISCUSSION_ENTRIES,
+            Endpoint.DISCUSSION_REPLIES,
+        }
+        if endpoint not in allowed:
+            raise DomainError("permission_denied", "Unsupported discussion route.")
+        params = (
+            {"include_new_entries": "1"}
+            if endpoint == Endpoint.DISCUSSION_VIEW
+            else {"per_page": "100"}
+        )
+        original = str(httpx.URL(self.url(endpoint, **ids), params=params))
+        url = cursor or original
+        validate_continuation(url, original)
+        self.authorize(endpoint, ids)
+        try:
+            payload, next_link = await self._get(
+                url, attempts=self.settings.discussion_retry_attempts
+            )
+        except DomainError as exc:
+            self.observe(endpoint, ids, exc)
+            raise
+        self.authorize(endpoint, ids)
+        from canvas_bridge.privacy.discussions import minimize_thread
+
+        return minimize_thread(
+            payload,
+            self.privacy_identity,
+            full_view=endpoint == Endpoint.DISCUSSION_VIEW,
+            max_entries=self.settings.discussion_max_entries,
+            text_limit=self.settings.discussion_text_limit,
+            parent_entry=ids.get("entry"),
+        ), next_link
+
     async def one(
         self,
         endpoint: Endpoint,
         *,
         course_content: Literal["grades", "syllabus", "metadata"] = "grades",
+        discussion_checkpoints: bool = False,
         **ids: str,
     ) -> dict:
         # Match assignment-list semantics. Canvas omits the current user's
         # submission from a single assignment unless explicitly requested.
         params = [("include[]", "submission")] if endpoint == Endpoint.ASSIGNMENT else []
+        if discussion_checkpoints:
+            if endpoint != Endpoint.ASSIGNMENT:
+                raise DomainError("permission_denied", "Checkpoint dates require an assignment.")
+            params = [("include[]", "checkpoints")]
         resource = None
         if endpoint == Endpoint.COURSE:
             resource = "course" if course_content == "metadata" else course_content
@@ -162,14 +277,21 @@ class CanvasClient:
                 self.authorize(Endpoint.ENROLLMENTS, ids, "grades")
         self.authorize(endpoint, ids, resource)
         try:
-            payload, _ = await self._get(str(httpx.URL(self.url(endpoint, **ids), params=params)))
+            payload, next_link = await self._get(
+                str(httpx.URL(self.url(endpoint, **ids), params=params))
+            )
         except DomainError as exc:
             self.observe(endpoint, ids, exc)
             raise
         self.authorize(endpoint, ids, resource)
         if not isinstance(payload, dict):
             raise DomainError("partial_data", "Canvas returned an unexpected object.")
-        return payload
+        from canvas_bridge.privacy.upstream import minimize_upstream
+
+        minimized = minimize_upstream(endpoint, payload, self.privacy_identity)
+        if endpoint == Endpoint.DISCUSSION_DATES and next_link:
+            minimized["overrides_uncertain"] = True
+        return minimized
 
     async def probe_metadata(self, resource: str, course: str) -> int:
         """One GET, no includes, no pagination/retry, no response body consumption.
@@ -221,6 +343,7 @@ class CanvasClient:
         *,
         window: tuple[datetime, datetime] | None = None,
         calendar_kind: Literal["event", "assignment"] = "event",
+        budget_seconds: float | None = None,
         **ids: str,
     ) -> Collection:
         # Query values are determined here, never passed through from a tool.
@@ -270,7 +393,13 @@ class CanvasClient:
         seen: set[str] = set()
         try:
             self.authorize(endpoint, ids)
-            async with asyncio.timeout(self.settings.refresh_budget_seconds):
+            # Internal callers may reserve time for other inventory branches.
+            # Catch that timeout here so completed pages are not discarded by
+            # an outer cancellation. This never expands the configured budget.
+            budget = self.settings.refresh_budget_seconds
+            if budget_seconds is not None:
+                budget = min(budget, max(0, budget_seconds))
+            async with asyncio.timeout(budget):
                 while url and result.pages < self.settings.max_pages:
                     self.authorize(endpoint, ids)
                     if url in seen:
@@ -284,7 +413,11 @@ class CanvasClient:
                         raise DomainError(
                             "partial_data", "Canvas returned an unexpected collection."
                         )
-                    result.items.extend(payload)
+                    from canvas_bridge.privacy.upstream import minimize_upstream
+
+                    result.items.extend(
+                        minimize_upstream(endpoint, item, self.privacy_identity) for item in payload
+                    )
                     result.pages += 1
                 result.complete = url is None
                 if not result.complete:
@@ -292,6 +425,7 @@ class CanvasClient:
             self.authorize(endpoint, ids)
         except TimeoutError:
             result.failure = "retry_later"
+            result.reason_code = "UPSTREAM_REQUEST_TIMEOUT"
         except DomainError as exc:
             self.observe(endpoint, ids, exc)
             if exc.status in {"reconnect_required", "permission_denied", "source_changed"}:

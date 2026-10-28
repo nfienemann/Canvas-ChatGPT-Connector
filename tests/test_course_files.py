@@ -83,7 +83,8 @@ async def test_T12_T13_file_refs_are_course_scoped_and_join_module_items(bridge,
     _, courses = bridge.selected(owner, seeded)
     first = await outline(bridge, owner, seeded, courses[0].id)
     second = await outline(bridge, owner, seeded, courses[1].id)
-    assert first.status == "ok"
+    assert first.status == "partial_data"  # The unresolved module file is explicit coverage loss.
+    assert first.data["inventory_status"]["file_metadata_failures"]
     assert first.data["inventory_coverage"] == dict.fromkeys(
         ["pages", "files", "modules"], "complete"
     )
@@ -167,23 +168,22 @@ async def test_T27_missing_file_collection_is_partial_not_empty_success(bridge, 
 
 
 async def test_T27_outline_uses_one_budget_for_module_requests(bridge, owner, seeded, monkeypatch):
-    from canvas_bridge.canvas import Collection
-    from canvas_bridge.policy import Endpoint
+    original = CanvasClient._get
+    bridge.settings.refresh_budget_seconds = 0.5
 
-    original = CanvasClient.collection
-    bridge.settings.refresh_budget_seconds = 0.05
+    async def slow(client, url):
+        if "/modules/" in url and "/items?" in url:
+            await asyncio.Event().wait()
+        return await original(client, url)
 
-    async def slow(client, endpoint, **ids):
-        if endpoint == Endpoint.MODULE_ITEMS:
-            await asyncio.sleep(1)
-            return Collection(complete=True)
-        return await original(client, endpoint, **ids)
-
-    monkeypatch.setattr(CanvasClient, "collection", slow)
+    monkeypatch.setattr(CanvasClient, "_get", slow)
     _, courses = bridge.selected(owner, seeded)
     result = await outline(bridge, owner, seeded, courses[0].id)
-    assert result.status == "partial_data" and not result.data["modules"]
-    assert any("overall" in w for w in result.meta.warnings)
+    assert result.status == "partial_data"
+    assert not result.data["modules"][0]["items_complete"]
+    assert result.data["inventory_coverage"]["modules"] == "partial"
+    failure = next(iter(result.data["inventory_status"]["module_item_failures"].values()))
+    assert failure["reason_code"] == "INVENTORY_BRANCH_TIMEOUT"
 
 
 async def test_T23_download_strips_all_ambient_auth_and_never_restores_bearer(file_client):

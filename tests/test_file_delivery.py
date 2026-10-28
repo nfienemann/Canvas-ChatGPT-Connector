@@ -408,7 +408,9 @@ async def test_concurrent_acquisition_budget_is_enforced(
     ]
     try:
         await asyncio.wait_for(entered.wait(), 5)
-        assert bridge.original_files.reserved == 2 * len(data)
+        from canvas_bridge.ephemeral_blob import storage_size
+
+        assert bridge.original_files.reserved == 2 * storage_size(len(data))
         with pytest.raises(DomainError) as error:
             await bridge.original_files.prepare(owner, seeded, file)
         assert error.value.reason_code == "RATE_LIMITED"

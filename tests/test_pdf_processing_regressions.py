@@ -87,6 +87,14 @@ def test_job_resolved_outside_root_is_rejected_before_writes(tmp_path, monkeypat
         extract_isolated(scientific_pdf(), "pdf", root)
     assert error.value.reason_code == "DOCUMENT_WORKSPACE_INVALID"
     assert not list(outside.iterdir())
+    # An untrusted resolution is not a deletion target either. No source bytes
+    # were written; quarantine the empty directory until its boundary is trusted.
+    assert all(not list(p.iterdir()) for p in (root / "jobs").iterdir())
+    monkeypatch.setattr(Path, "resolve", real_resolve)
+    from canvas_bridge.domain import utcnow
+    from canvas_bridge.worker_storage import sweep_orphans
+
+    assert sweep_orphans(root, now=utcnow().timestamp() + 601)["removed"] == 1
     assert not list((root / "jobs").iterdir())
 
 

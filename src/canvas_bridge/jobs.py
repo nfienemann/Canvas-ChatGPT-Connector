@@ -1,6 +1,7 @@
 """Leased database queue; refresh is explicit and opt-in, never implied by a read."""
 
 import asyncio
+from contextlib import suppress
 from datetime import timedelta
 
 from sqlalchemy import or_, select
@@ -79,7 +80,28 @@ async def work_once(bridge) -> bool:
     success = False
     try:
         if job.kind == "refresh":
-            snapshot = await bridge.refresh(job.owner, job.connection_id)
+            task = asyncio.create_task(bridge.refresh(job.owner, job.connection_id))
+            try:
+                while not task.done():
+                    await asyncio.wait({task}, timeout=0.1)
+                    with bridge.store.transaction() as session:
+                        conn = session.get(Connection, job.connection_id)
+                        current = session.get(Job, job.id)
+                        if (
+                            not conn
+                            or not current
+                            or conn.state != "active"
+                            or conn.epoch != job.epoch
+                        ):
+                            raise DomainError(
+                                "permission_denied", "Pending job authorization was revoked."
+                            )
+                snapshot = await task
+            finally:
+                if not task.done():
+                    task.cancel()
+                with suppress(asyncio.CancelledError, DomainError):
+                    await task
             success = snapshot.complete
     except DomainError:
         pass
@@ -103,5 +125,5 @@ async def work_once(bridge) -> bool:
 async def worker(bridge):
     while True:
         await work_once(bridge)
-        bridge.store.purge_history()
+        await bridge.retention.sweep()
         await asyncio.sleep(5)

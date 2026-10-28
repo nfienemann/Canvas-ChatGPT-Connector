@@ -1,5 +1,11 @@
 # Course document reading — text extraction
 
+**October 25 local policy update:** The [data egress gateway](data-egress-governance.md)
+now separates authorized local extraction from transmission. Live text requires
+approved recipient and source/version/byte-hash review; source instructions cannot
+grant rights. Historical functional evidence below does not establish those
+approvals, and this local change has not been deployed.
+
 The private Windows source deployment can read actual authorized PDF, UTF-8 text
 Markdown, DOCX and PPTX files without asking the student to download/upload them. XLSX
 now uses the same isolated reader; see [workbook semantics and limits](xlsx-reading.md). On
@@ -60,7 +66,8 @@ next authorized read; it is not cached as an empty successful document.
 Page numbers are PDF positions, including cover/correction pages, not necessarily
 printed journal numbers. TXT/Markdown use one artificial page, stated as a limit.
 DOCX range indices refer to stable text sections, not rendered pages. PPTX indices
-follow the presentation slide order. Speaker notes and image text are not extracted.
+follow presentation order; v8 extracts speaker notes and stored chart text with
+separate provenance. Images are not interpreted. See [PPTX budgets and the blocked visual gate](pptx-reading.md).
 See [DOCX semantics and diagnostics](docx-reading.md) for revision/text-box policy,
 partial coverage and the distinction between processing failure and format support.
 Text and figure captions may be extracted; figure images are not interpreted.
@@ -68,7 +75,8 @@ All returned content is marked untrusted source data, never executable instructi
 
 ## Boundaries and caching
 
-- Maximum download 10,000,000 bytes, three redirects, bounded request time,
+- Maximum extraction download 10,000,000 bytes for other formats and a separate
+  33,554,432-byte default for PPTX, three redirects, bounded request time,
   200 PDF pages, 250,000 extracted characters and 16,000 characters per window.
 - Stable opaque IDs include owner, connection, course and upstream file identity.
   SHA-256 identifies original document bytes; chunk identity includes document,

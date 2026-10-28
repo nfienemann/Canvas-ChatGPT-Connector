@@ -43,20 +43,21 @@ def main():
     names = [file.name for file in files]
     expected = {
         "CanvasBridgeDemo-Windows-x64-Setup.exe",
-        "CanvasBridgeDemo-macOS-arm64.dmg",
-        "CanvasBridgeDemo-macOS-x64.dmg",
-        "CanvasBridgeDemo-Linux-x64.deb",
-        "CanvasBridgeDemo-Linux-x64.tar.gz",
     }
     if len(names) != len(set(names)) or not expected.issubset(names):
         raise RuntimeError("Missing or duplicate native package assets.")
     verification = [file for file in files if file.name.startswith("verification-")]
-    if len(verification) != 4:
-        raise RuntimeError("All four native package verification reports are required.")
+    if len(verification) != 1:
+        raise RuntimeError("Exactly one Windows package verification report is required.")
     for file in verification:
         report = json.loads(file.read_text(encoding="utf-8"))
         if report["wizard"]["native_wizard"] != "passed" or report["mcp"]["planning"] != "verified":
             raise RuntimeError("A native package did not pass its verification.")
+        if (
+            report.get("platform") != "win32"
+            or report.get("offline_wizard", {}).get("native_wizard") != "passed"
+        ):
+            raise RuntimeError("Both Windows editions must pass installed-package checks.")
     checksums = folder / "SHA256SUMS.txt"
     lines = []
     for file in files:
@@ -72,35 +73,13 @@ def main():
 | Your computer | Download | Open it |
 |---|---|---|
 """
-    for label, name, instruction in [
-        (
-            "Windows 10/11, x64",
-            "CanvasBridgeDemo-Windows-x64-Setup.exe",
-            "Run the setup wizard, then open Canvas Bridge Demo.",
-        ),
-        (
-            "Mac with Apple silicon, macOS 14+",
-            "CanvasBridgeDemo-macOS-arm64.dmg",
-            "Drag Canvas Bridge Demo to Applications, then open it.",
-        ),
-        (
-            "Mac with Intel, macOS 15+",
-            "CanvasBridgeDemo-macOS-x64.dmg",
-            "Drag Canvas Bridge Demo to Applications, then open it.",
-        ),
-        (
-            "Ubuntu 22.04+ / compatible Debian, x64",
-            "CanvasBridgeDemo-Linux-x64.deb",
-            "Open with your software installer, then launch from Applications.",
-        ),
-    ]:
-        body += f"| {label} | [Download]({base}{name}) | {instruction} |\n"
+    body += f"| Windows 10/11 x64 | [Download]({base}CanvasBridgeDemo-Windows-x64-Setup.exe) | Open the installer, then Canvas Bridge Demo. |\n"
     body += """
-Choose **Set up local demo → Start local demo → Open demo settings**. Use the clearly labeled synthetic sign-in. **Check study tools** runs a real local connection and study-planning check. Closing the launcher stops the service. Upgrades and uninstall keep your separate demo data folder.
+Choose **Offline academic intelligence** or **Synthetic demonstration**, review local data use, then select **Check and set up**. Success requires a completed fictional academic task. The offline edition needs no account or server. The synthetic edition checks an authenticated local MCP client. Neither establishes a ChatGPT or university connection.
 
-These are **unsigned development packages**. Windows or macOS may block them or show publisher warnings. No security settings need to be weakened as part of setup; signed Windows releases and Apple notarization remain required before general student distribution. Linux's package installer may request administrator approval. The portable Linux archive is for other compatible glibc systems; it is not verified on every distribution.
+This is an **unsigned development preview**. Windows may block it or show publisher warnings. Do not weaken security settings. Public student distribution still needs a verified publisher, protected signing configuration, and release approval. macOS and Linux builds are experimental and are not part of this release.
 
-The attached reports cover packaged startup, native wizard controls, MCP reads/planning, and data preservation on the named runner operating systems. They do not establish accessibility certification, OS trust approval, a live Canvas integration, or ChatGPT Directory approval. Checksums detect download corruption; they do not replace publisher signing.
+Updates through the wizard require a trusted signed release package and matching Windows publisher. Uninstall offers explicit local data removal; keeping data is the default. Checksums detect corruption, and are not proof of publisher identity. Human usability and independent AI-client acceptance remain separate gates.
 """
     api = f"https://api.github.com/repos/{repository}"
     try:
@@ -136,7 +115,7 @@ The attached reports cover packaged startup, native wizard controls, MCP reads/p
             file.read_bytes(),
             "application/octet-stream",
         )
-    # Publish only once every platform's upload has succeeded.
+    # Publish the explicit development preview only after every upload succeeds.
     release = request(
         f"{api}/releases/{release['id']}",
         token,

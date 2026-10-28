@@ -1,0 +1,19 @@
+{
+  "schema": "scientific-benchmark-3",
+  "license": "CC0-1.0",
+  "synthetic": true,
+  "files": {
+    "cases.json": "270b54f4ac806f695281303521a9a6d30a60febb84173f0e703963ea5dcdb458",
+    "cell-signaling.png": "edc0d2c116c79d1b37cc0bc9fe3528d8058f76491339b34d11150ee90ac63ffc",
+    "complex-table.png": "9fca2a04d4e7a5a74f239148214a48ef903a36a5fe3519ae70c6e32a4d4a16ed",
+    "confocal.png": "96e2ce3e986e9cb2923c405da1ab39509fd32d08491bae51184cc859d09e1970",
+    "dose-response.png": "382522a76dec4b7359407d77b91c6850ec1d657de753d305c8d98abf72f0e343",
+    "flow-cytometry.png": "48511c8b484146d9f9b377eb5de3a3009ee7fde557e8e86dab628d2e95baa337",
+    "mass-spectrometry.png": "ac0b6112b7bb091dc61966b5cf5dc91e616a5358d628b5dbea8f5fdbf197cfb4",
+    "microscopy.png": "2005d157955ac254b864196103049c0038101926519249b7df4e0c2b0707ef7a",
+    "multi-panel.png": "e17f9d0c1184dacb30f381835d7a2788364ecce019875146529b8c967f5647dc",
+    "qpcr.png": "dfa346a20ea8a5513efeb045ebd058df3915a904a083cfc0e93d5f62636bd7be",
+    "scientific-fixtures.pdf": "a37233d7a9311434a553d5fd63c2c6bb7564ebf89752b84145e95a1aeafb0665",
+    "western-blot.png": "252503857719993ef2b6442ed20f282d0b6356106160c0b4b14b8bc442b81a26"
+  }
+}

@@ -1,0 +1,32 @@
+"""Reviewed process envelope field vocabulary; text still receives privacy checks."""
+
+FIELDS = frozenset(
+    """
+term origin sensitivity retention entity field basis unit total seen unreadable extraction
+resolutions canonical_fields impacts repair_plan
+historical_content
+history_limit markdown diff
+canonical_link_proposal communication_status_basis response_candidate note source_edited
+unverified_completed_credits what_if_credits_if_confirmed
+uncertainty_assessment missing next_steps resolution selected candidates superseded reasons clarification
+document_trust trust indicators summarization_allowed authority_granted tool_actions limitation
+depends_on dependents state_version actor before after affected request_hash revision_id affected_count external_writes
+preview_id change records record_id origins external_transfer exact_payload sent explicit_sharing_opt_in_required
+event_id correlation_id component_version category sharing_status contains_coursework schema_version
+classification reschedule_proposed deadline_seconds external_action approval_required_for_external_write
+signals collisions merge_allowed confirmation_required proposal_id originals_preserved permission_union
+identity_signal_basis canonical_id aliases permission_mode reversible external_id course_code section start_date
+assignment_id stage archived next_step integrity_decision observed kind minimum_minutes maximum_minutes
+prerequisites maximum_minutes work_id cases case shortfall_minutes effort_minutes capacity_minutes_before_breaks
+calendar_changed external_write_requires_separate_preview_and_consent assumptions blocks
+concept_id review_at score possible verified_assessment mastery_certified grade_implication
+related_concept_candidate relationship_basis relationships left right courses eligible minimum_credits
+catalog_year rule_version program concentration credits completed verified planned_term corequisites
+unofficial certifies_graduation preferred_reference official_audit required_remaining elective_baskets
+blocked_plan requires credits_remaining required remaining minimum authority status_basis question evidence_ids
+self_service_first message_sent clearance_id checklist part_id cleared_parts publish_executed
+explicit_user_action_required assistance_permission_is_publication_permission published
+review_reference permission reviewed_at attribution_checked privacy_checked collaborators_checked research_release_checked
+source_version content_hash source_id value permission_established expires_at observed_at updated_at
+""".split()
+)

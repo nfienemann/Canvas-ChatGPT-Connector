@@ -67,7 +67,7 @@ def ooxml(kind, texts=None):
         else:
             archive.writestr(
                 "ppt/presentation.xml",
-                '<p:presentation xmlns:p="urn:ppt" xmlns:r="urn:rels"><p:sldIdLst>'
+                '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst>'
                 + "".join(f'<p:sldId id="{i}" r:id="r{i}"/>' for i in range(len(texts), 0, -1))
                 + "</p:sldIdLst></p:presentation>",
             )
@@ -161,8 +161,15 @@ def test_office_extraction_order_locators_and_security(kind):
         assert "Exam 1" in result["pages"][1]["text"]
     else:
         assert "not rendered pages" in " ".join(result["warnings"])
-    with pytest.raises(ParseError):
-        extract(ooxml(kind, ['<!DOCTYPE test [<!ENTITY x SYSTEM "file:///secret">]>&x;']), kind)
+    malicious = ooxml(kind, ['<!DOCTYPE test [<!ENTITY x SYSTEM "file:///secret">]>&x;'])
+    if kind == "pptx":
+        rejected = extract(malicious, kind)
+        assert rejected["coverage"] == "partial"
+        assert rejected["pages"][0]["state"] == "unreadable"
+        assert rejected["pages"][0]["text"] == ""
+    else:
+        with pytest.raises(ParseError):
+            extract(malicious, kind)
     data = io.BytesIO(ooxml(kind))
     with zipfile.ZipFile(data, "a") as archive:
         archive.writestr("word/vbaProject.bin", b"never execute")

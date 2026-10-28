@@ -11,6 +11,36 @@ from pydantic import Field, model_validator
 from canvas_bridge.domain import DomainError, Model
 
 
+class OAuthCapabilities(Model):
+    """Operator-reviewed protocol facts, never provider or institutional approval."""
+
+    client_type: Literal["confidential_server"] = "confidential_server"
+    pkce: Literal["S256", "unsupported"]
+    refresh_rotation: Literal["rotating", "stable"]
+    granular_scopes: bool
+    documentation_reference: str = Field(min_length=1, max_length=1000)
+    issuer_parameter: bool = False
+    max_access_token_seconds: int = Field(default=3600, ge=60, le=3600)
+
+
+Capability = Literal[
+    "courses",
+    "course_membership",
+    "assignments",
+    "submissions",
+    "grades",
+    "files",
+    "modules",
+    "pages",
+    "syllabus",
+    "quizzes",
+    "discussions",
+    "announcements",
+    "calendar",
+    "calendar_proposals",
+]
+
+
 class Institution(Model):
     id: str = Field(pattern=r"^[a-z0-9-]{1,100}$")
     name: str
@@ -29,6 +59,8 @@ class Institution(Model):
     evidence: list[str] = Field(default_factory=list)
     client_id_env: str | None = None
     client_secret_env: str | None = None
+    oauth: OAuthCapabilities | None = None
+    capabilities: frozenset[Capability] = frozenset({"courses", "course_membership"})
     # Exact operator-reviewed storage origins. Never inferred from a redirect.
     download_origins: list[str] = Field(default_factory=list)
     download_origin_templates: list[str] = Field(default_factory=list)
@@ -132,6 +164,13 @@ class Endpoint(StrEnum):
     ANNOUNCEMENTS = "/api/v1/announcements"
     QUIZZES = "/api/v1/courses/{course}/quizzes"
     DISCUSSIONS = "/api/v1/courses/{course}/discussion_topics"
+    DISCUSSION = "/api/v1/courses/{course}/discussion_topics/{topic}"
+    DISCUSSION_VIEW = "/api/v1/courses/{course}/discussion_topics/{topic}/view"
+    DISCUSSION_ENTRIES = "/api/v1/courses/{course}/discussion_topics/{topic}/entries"
+    DISCUSSION_REPLIES = (
+        "/api/v1/courses/{course}/discussion_topics/{topic}/entries/{entry}/replies"
+    )
+    DISCUSSION_DATES = "/api/v1/courses/{course}/discussion_topics/{topic}/date_details"
     CALENDAR_EVENTS = "/api/v1/calendar_events"
     FILE = "/api/v1/courses/{course}/files/{file}"
     FILES = "/api/v1/courses/{course}/files"

@@ -1,5 +1,11 @@
 # Scanned PDF reading and OCR
 
+**October 25 local policy update:** The [data egress gateway](data-egress-governance.md)
+requires an explicit visual review and verified recipient before emitting pixels
+or reader metadata. Text extraction is not evidence of image privacy or permission.
+This implementation is local; historical rendering proofs do not establish egress
+rights or deployment of the new controls.
+
 The existing authenticated file reader now falls back to isolated English OCR
 for PDF pages containing fewer than 40 non-whitespace text characters. The parser
 version is returned by the reader and status tools. Older parser cache entries and entries created
@@ -116,3 +122,11 @@ ChatGPT model saw the image. The complete visual-schedule acceptance test remain
 partial. Future work must verify a supported image-delivery path on that surface;
 do not substitute public signed URLs or claim visual understanding from metadata.
 XLSX support is a separate increment and is not included in this patch.
+
+## Visual inspection v2 follow-up
+
+The [v2 contract and compatibility report](visual-inspection-v2.md) adds bounded
+figure discovery, evidence states and structured visual observations while
+preserving the rendering and reader behavior documented above. The ordinary
+ChatGPT target-client gate remains pending; current Codex pixel visibility is
+tracked separately.

@@ -18,6 +18,7 @@ from sqlalchemy import select
 from canvas_bridge.domain import DomainError, opaque_id, utcnow
 from canvas_bridge.normalize import canonical_id
 from canvas_bridge.policy import Endpoint, source_id
+from canvas_bridge.retention_policy import CONNECTION_LIFETIME
 from canvas_bridge.storage import Connection, Course, Tombstone, aware
 
 Resource = Literal["course", "files", "modules", "assignments", "syllabus", "quizzes", "grades"]
@@ -25,6 +26,9 @@ RESOURCES = ("course", "files", "modules", "assignments", "syllabus", "quizzes",
 
 # Reviewed scopes; these describe configured ceilings, never inferred token grants.
 SCOPES = {
+    Endpoint.PROFILE: "url:GET|/api/v1/users/:user_id/profile",
+    Endpoint.COURSES: "url:GET|/api/v1/courses",
+    Endpoint.SUBMISSION: "url:GET|/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id",
     Endpoint.COURSE: "url:GET|/api/v1/courses/:id",
     Endpoint.FILES: "url:GET|/api/v1/courses/:course_id/files",
     Endpoint.FILE: "url:GET|/api/v1/courses/:course_id/files/:id",
@@ -38,6 +42,11 @@ SCOPES = {
     Endpoint.ENROLLMENTS: "url:GET|/api/v1/users/:user_id/enrollments",
     Endpoint.QUIZZES: "url:GET|/api/v1/courses/:course_id/quizzes",
     Endpoint.DISCUSSIONS: "url:GET|/api/v1/courses/:course_id/discussion_topics",
+    Endpoint.DISCUSSION: "url:GET|/api/v1/courses/:course_id/discussion_topics/:topic_id",
+    Endpoint.DISCUSSION_VIEW: "url:GET|/api/v1/courses/:course_id/discussion_topics/:topic_id/view",
+    Endpoint.DISCUSSION_ENTRIES: "url:GET|/api/v1/courses/:course_id/discussion_topics/:topic_id/entries",
+    Endpoint.DISCUSSION_REPLIES: "url:GET|/api/v1/courses/:course_id/discussion_topics/:topic_id/entries/:entry_id/replies",
+    Endpoint.DISCUSSION_DATES: "url:GET|/api/v1/courses/:course_id/discussion_topics/:discussion_topic_id/date_details",
     Endpoint.CALENDAR_EVENTS: "url:GET|/api/v1/calendar_events",
     Endpoint.ANNOUNCEMENTS: "url:GET|/api/v1/announcements",
 }
@@ -46,6 +55,7 @@ RESOURCE_ENDPOINT = {
     "files": Endpoint.FILES,
     "modules": Endpoint.MODULES,
     "assignments": Endpoint.ASSIGNMENTS,
+    "submissions": Endpoint.SUBMISSION,
     "syllabus": Endpoint.COURSE,
     "quizzes": Endpoint.QUIZZES,
     "grades": Endpoint.ENROLLMENTS,
@@ -55,6 +65,7 @@ RESOURCE_ENDPOINT = {
     "calendar": Endpoint.CALENDAR_EVENTS,
 }
 ENDPOINT_RESOURCE = {
+    Endpoint.SUBMISSION: "submissions",
     Endpoint.COURSE: "course",
     Endpoint.FILES: "files",
     Endpoint.FILE: "files",
@@ -68,6 +79,11 @@ ENDPOINT_RESOURCE = {
     Endpoint.PAGES: "pages",
     Endpoint.PAGE: "pages",
     Endpoint.DISCUSSIONS: "discussions",
+    Endpoint.DISCUSSION: "discussions",
+    Endpoint.DISCUSSION_VIEW: "discussions",
+    Endpoint.DISCUSSION_ENTRIES: "discussions",
+    Endpoint.DISCUSSION_REPLIES: "discussions",
+    Endpoint.DISCUSSION_DATES: "discussions",
     Endpoint.CALENDAR_EVENTS: "calendar",
     Endpoint.ANNOUNCEMENTS: "announcements",
 }
@@ -93,9 +109,15 @@ logger = logging.getLogger("canvas_bridge.authorization")
 @dataclass
 class RequestAuthorization:
     tool_name: str
+    recipient: str = "local"
     request_id: str = field(default_factory=opaque_id)
     # In-memory request fence only. No academic records or historical auth cache.
     decisions: dict = field(default_factory=dict)
+    policy_checks: dict = field(default_factory=dict)
+    policy_failure: DomainError | None = None
+    egress_identity: object | None = None
+    egress_principal: str | None = None
+    egress_arguments: dict = field(default_factory=dict)
 
 
 request_authorization: ContextVar[RequestAuthorization | None] = ContextVar(
@@ -123,6 +145,9 @@ def scope_version(conn, courses, institution):
         ),
         sorted(institution.scopes) if institution else None,
         institution.status if institution else None,
+        sorted(institution.capabilities) if institution else None,
+        institution.oauth.model_dump() if institution and institution.oauth else None,
+        conn.authentication_state,
     ]
     return digest(json.dumps(state, sort_keys=True))
 
@@ -143,8 +168,11 @@ class AuthorizationDecision:
     credential_state: str = "not_checked"
     course: Course | None = field(default=None, repr=False)
     connection: Connection | None = field(default=None, repr=False)
+    policy_error: DomainError | None = field(default=None, repr=False)
 
     def require(self):
+        if self.policy_error:
+            raise self.policy_error
         if not self.allowed:
             raise DomainError(self.status, MESSAGES[self.reason_code], reason_code=self.reason_code)
         return self
@@ -232,7 +260,11 @@ def authorize_course_resource(
             <= bridge.settings.authorization_lease_seconds
         )
         d.authorization_freshness = "within_lease" if fresh else "stale"
-        if conn.state != "active" or session.get(Tombstone, connection_id):
+        if (
+            conn.state != "active"
+            or session.get(Tombstone, connection_id)
+            or aware(conn.created_at) + CONNECTION_LIFETIME <= bridge.retention.clock()
+        ):
             d.reason_code, d.status = "CONNECTION_INACTIVE", "reconnect_required"
         elif not re.fullmatch(r"[0-9a-f]{40}", course_id):
             d.identifier_state = "invalid_format"
@@ -322,6 +354,28 @@ def authorize_course_resource(
                             "unsupported_feature",
                         )
                         d.resource_capability = "unavailable"
+    if d.allowed:
+        from canvas_bridge.approval_policy import resource_categories
+        from canvas_bridge.oauth_security import (
+            endpoint_capabilities,
+            require_capabilities,
+            require_connection_identity,
+        )
+
+        try:
+            require_connection_identity(bridge, d.connection)
+            require_capabilities(
+                bridge, institution, endpoint_capabilities(endpoint, resource_type)
+            )
+            bridge.require_policy(
+                d.connection.institution,
+                resource_categories(resource_type),
+                resource=course_id,
+                track=track,
+            )
+        except DomainError as exc:
+            d.allowed, d.reason_code, d.status = False, exc.reason_code, exc.status
+            d.policy_error = exc
     log_decision(principal, connection_id, course_id, resource_type, d)
     context = request_authorization.get()
     if d.allowed and track and context:
@@ -339,6 +393,8 @@ def authorize_course_resource(
 def validate_request_authorization(bridge):
     context = request_authorization.get()
     if context:
+        if context.policy_failure:
+            raise context.policy_failure
         for key, version in list(context.decisions.items()):
             d = authorize_course_resource(bridge, *key, track=False)
             d.require()
@@ -348,3 +404,5 @@ def validate_request_authorization(bridge):
                     MESSAGES["STALE_SCOPE_SNAPSHOT"],
                     reason_code="STALE_SCOPE_SNAPSHOT",
                 )
+        for check in list(context.policy_checks.values()):
+            check()

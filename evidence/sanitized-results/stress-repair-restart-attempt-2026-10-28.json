@@ -1,0 +1,73 @@
+{
+  "suite": "live_connector_smoke",
+  "attempt": "helper_restart_did_not_replace_elevated_process",
+  "verification": "NOT_ACCEPTED",
+  "reason": "Windows denied process termination; helper skipped listener because command line inspection was unavailable. Awaiting user restart.",
+  "request_id": "47f82d054b654caaad8612d307d65bef",
+  "state": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_policy": {
+        "allowed": false,
+        "reason_code": "APPROVAL_NOT_ASSESSED",
+        "state": "NOT_ASSESSED"
+      }
+    }
+  ],
+  "inventory_count": 0,
+  "inventory_request_id": "db27cbeea8d04eaaaabf580fb0c190f4",
+  "calls": [
+    {
+      "capability": "planning",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "300738b140934f5fbdf5a51e5c50a467",
+      "source_count": 0
+    },
+    {
+      "capability": "assessment",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "0ecd82b87519475183b83a317460922f",
+      "source_count": 0
+    },
+    {
+      "capability": "requirements",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "db3f176db13740288ff831a9b9c8357e",
+      "source_count": 0
+    },
+    {
+      "capability": "grades",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "19963bc8ccbb4d708aea7537c3451e0c",
+      "source_count": 0
+    },
+    {
+      "capability": "deadlines",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "request_id": "2e9c62e3cc7149f4a1fc7ce65a11b5ea",
+      "source_count": 0
+    },
+    {
+      "capability": "consistency",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "request_id": "dc037549074a44358debc028df3946a2",
+      "source_count": 0
+    },
+    {
+      "capability": "calendar",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "73357915b94047c0b3aae850824183d7",
+      "source_count": 0
+    }
+  ],
+  "source_content_returned": false
+}

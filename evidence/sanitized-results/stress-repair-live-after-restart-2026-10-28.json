@@ -1,0 +1,225 @@
+{
+  "suite": "live_connector_smoke",
+  "verification": "PASS_FOR_DIAGNOSTICS_ONLY",
+  "runtime": "Workspace source used by the user's restarted personal service; no exact running-process build endpoint is exposed.",
+  "application_source_fingerprint": "9ea6beeee3714ff693ea1c0991339610646454e97398d7ad0907e3b07b10d5e8",
+  "before_request_id": "7c38040f36d84cef876e6a728f5ad829",
+  "after_request_id": "e08ff3e4b4c047569520668acc758d55",
+  "before": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_policy": {
+        "allowed": false,
+        "reason_code": "APPROVAL_NOT_ASSESSED",
+        "state": "NOT_ASSESSED"
+      }
+    }
+  ],
+  "after": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_policy": {
+        "allowed": false,
+        "reason_code": "APPROVAL_NOT_ASSESSED",
+        "state": "NOT_ASSESSED"
+      }
+    }
+  ],
+  "inventory_request_id": "a9477821899e4da9b9405255695362ea",
+  "inventory_count": 0,
+  "calls": [
+    {
+      "capability": "planning",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "dataset.document_id",
+        "dataset.expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "cb624d12afef426ba5708fb110ae4d01",
+      "source_count": 0
+    },
+    {
+      "capability": "assessment",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "documents[].document_id",
+        "documents[].expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "50e66fe9dc784c059a8ed52765c13383",
+      "source_count": 0
+    },
+    {
+      "capability": "requirements",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "documents[].document_id",
+        "documents[].expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "56d1e491f1814d1f8082fd0beaf9a9d0",
+      "source_count": 0
+    },
+    {
+      "capability": "grades",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "dataset.document_id",
+        "dataset.expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "f66d97f9a7374a6899376f8668cfd3eb",
+      "source_count": 0
+    },
+    {
+      "capability": "deadlines",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "dataset or documents",
+        "document_id",
+        "expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "9f5464813c034435958d1fe3636dc1e0",
+      "source_count": 0
+    },
+    {
+      "capability": "consistency",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "dataset or documents",
+        "document_id",
+        "expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "b2dc7ac4c71b4b6b934886806d21111f",
+      "source_count": 0
+    },
+    {
+      "capability": "calendar",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "required_fields": [
+        "dataset.document_id",
+        "dataset.expected_hash"
+      ],
+      "next_action": "Import permitted sources in signed-in document settings, then select their IDs and current hashes from get_local_document_status. No LMS connection is required.",
+      "request_id": "b04add77cf0147b296a0362505b001ca",
+      "source_count": 0
+    }
+  ],
+  "integrity_checks": [
+    {
+      "test": "empty_policy_scope",
+      "status": "needs_input",
+      "request_id": "e6d2ff7e35a44331b5727e13f7f9b4f7",
+      "reason_code": "INTEGRITY_SCOPE_MISSING",
+      "source_count": 0,
+      "required_fields": [
+        "scope.local_course or scope.document_ids or (scope.connection_id and scope.course_id)"
+      ],
+      "next_action": "Select a local course label or authorized independent documents. Only an institutional scope needs both connection_id and course_id. A local label grants no authority."
+    },
+    {
+      "test": "empty_assistance_scope",
+      "status": "needs_input",
+      "request_id": "5a7cef02209c4bf3ae54551527c055d2",
+      "reason_code": "INTEGRITY_SCOPE_MISSING",
+      "source_count": 0,
+      "required_fields": [
+        "scope.local_course or scope.document_ids or (scope.connection_id and scope.course_id)"
+      ],
+      "next_action": "Select a local course label or authorized independent documents. Only an institutional scope needs both connection_id and course_id. A local label grants no authority."
+    },
+    {
+      "test": "unavailable_guidance",
+      "status": "ok",
+      "request_id": "1b7750393aab4768b34e8e2161fb10ff",
+      "reason_code": "INTEGRITY_POLICY_COVERAGE_INCOMPLETE",
+      "source_count": 0,
+      "decision_state": "POLICY_UNAVAILABLE",
+      "allowed": false,
+      "permission_established": false,
+      "permitted_alternatives": [
+        "administration",
+        "requirements",
+        "assignment_planning",
+        "seek_instructor_clarification"
+      ],
+      "applicable_limits": [
+        "Administrative alternatives require independently authorized sources and sharing permission.",
+        "Only the exact permitted activity is allowed; brainstorming does not permit submission drafting.",
+        "Acknowledging uncertainty is not instructor permission and cannot override a prohibition.",
+        "This guidance does not generate assessed submission content or send any message."
+      ],
+      "evidence_needed": [
+        "Current applicable course and assessment AI-use rules with source locations and complete coverage.",
+        "Verified instructor clarification covering the exact activity, assessment and any conflicting rules."
+      ],
+      "clarification_suggestions": [
+        "Ask which AI activities are permitted for this assessment and which outputs must remain your own work.",
+        "Ask which rule controls any conflict and what disclosure or citation is required. Review and send any request yourself."
+      ]
+    },
+    {
+      "test": "unavailable_preparation",
+      "status": "permission_denied",
+      "request_id": "37d80cc91f3f49d9951b68661d3ca5e4",
+      "reason_code": "INTEGRITY_POLICY_COVERAGE_INCOMPLETE",
+      "source_count": 0,
+      "permitted_alternatives": [
+        "administration",
+        "requirements",
+        "assignment_planning",
+        "seek_instructor_clarification"
+      ],
+      "applicable_limits": [
+        "Administrative alternatives require independently authorized sources and sharing permission.",
+        "Only the exact permitted activity is allowed; brainstorming does not permit submission drafting.",
+        "Acknowledging uncertainty is not instructor permission and cannot override a prohibition.",
+        "This guidance does not generate assessed submission content or send any message."
+      ],
+      "evidence_needed": [
+        "Current applicable course and assessment AI-use rules with source locations and complete coverage.",
+        "Verified instructor clarification covering the exact activity, assessment and any conflicting rules."
+      ],
+      "clarification_suggestions": [
+        "Ask which AI activities are permitted for this assessment and which outputs must remain your own work.",
+        "Ask which rule controls any conflict and what disclosure or citation is required. Review and send any request yourself."
+      ]
+    }
+  ],
+  "inactive_connection_check": {
+    "status": "reconnect_required",
+    "summary": "This connection is disabled. Review connection status and settings; reconnection alone does not establish provider, institutional or sharing approval, or enable live integration.",
+    "data": {
+      "reason_code": "CONNECTION_INACTIVE",
+      "setup_checks": [
+        "authentication",
+        "provider_approval",
+        "institution_approval",
+        "data_sharing_approval",
+        "deployment_configuration"
+      ]
+    },
+    "request_id": "594f1782e93d483991defb1ec6da2018",
+    "source_count": 0
+  },
+  "source_content_returned": false,
+  "limits": [
+    "No personal fixture import or source-based live calculation.",
+    "No production policy authority, acknowledgment or approval created.",
+    "No Canvas, Calendar, email or publication writes."
+  ]
+}

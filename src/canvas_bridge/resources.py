@@ -11,8 +11,10 @@ def resource_root() -> Path:
     return packaged if packaged.is_dir() else Path(__file__).resolve().parents[2]
 
 
-def migrate(database_url: str):
+def migrate(database_url: str, vault_key_file=None):
     config = Config()
     config.set_main_option("script_location", str(resource_root() / "migrations"))
     config.attributes["database_url"] = database_url
+    if vault_key_file:
+        config.attributes["vault_key_file"] = vault_key_file
     command.upgrade(config, "head")

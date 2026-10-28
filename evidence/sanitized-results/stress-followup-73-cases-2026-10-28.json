@@ -1,0 +1,377 @@
+{
+  "source_fingerprint": "6f10bd61e20d0408154aa3b0414079944280da10f2971baab9af014ccb7d3707",
+  "source_unchanged_during_run": true,
+  "finished_at": "2026-10-28T18:24:08.506131+00:00",
+  "case_count": 73,
+  "counts": {
+    "PASS": 70,
+    "BLOCKED": 3
+  },
+  "cases": [
+    {
+      "id": "AI-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-07",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-08",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-09",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-10",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-11",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-12",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-13",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-14",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-15",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-16",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-17",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-18",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-19",
+      "status": "BLOCKED",
+      "detail": "This case requires an actual acknowledgment through the test UI; no human UI consent was supplied or manufactured."
+    },
+    {
+      "id": "AI-20",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DG-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-07",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-08",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-07",
+      "status": "BLOCKED",
+      "detail": "A disposable OS installation/previous supported release and controlled migration interruption are not supplied by this fixture package; this run does not replace deployment recovery acceptance."
+    },
+    {
+      "id": "PL-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "RQ-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "RQ-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-07",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-08",
+      "status": "BLOCKED",
+      "detail": "The independent page-render route does not support PPTX and no trusted slide converter is configured. Original-slide pixel delivery and observation remain unverified."
+    },
+    {
+      "id": "VI-09",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-10",
+      "status": "PASS",
+      "detail": null
+    }
+  ]
+}

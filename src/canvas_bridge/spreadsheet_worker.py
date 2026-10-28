@@ -97,7 +97,7 @@ def unescape(value):
     return text.encode("utf-16-le", errors="surrogatepass").decode("utf-16-le")
 
 
-def typed_value(cell, strings):
+def typed_value(cell, strings, rich_strings=None):
     kind = cell.get("t", "n")
     if kind not in {"n", "b", "s", "str", "inlineStr", "e", "d"}:
         raise ValueError("unsupported_workbook_cell_type")
@@ -106,7 +106,8 @@ def typed_value(cell, strings):
     value = child(cell, "v")
     raw = value.text if value is not None else None
     if kind == "inlineStr":
-        return {"type": "string", "value": rich_text(child(cell, "is"))}
+        node = child(cell, "is")
+        return {"type": "string", "value": rich_text(node), **styled_value(node)}
     if kind == "str" and value is not None:
         return {"type": "string", "value": unescape(raw or "")}
     if raw is None:
@@ -115,7 +116,11 @@ def typed_value(cell, strings):
         index = int(raw)
         if not 0 <= index < len(strings):
             raise ValueError("invalid_workbook_structure")
-        return {"type": "string", "value": strings[index]}
+        return {
+            "type": "string",
+            "value": strings[index],
+            **(rich_strings[index] if rich_strings else {}),
+        }
     if kind == "b":
         if raw not in {"0", "1"}:
             raise ValueError("invalid_workbook_structure")
@@ -127,6 +132,17 @@ def typed_value(cell, strings):
     if kind in {"str", "e", "d"}:
         return {"type": {"str": "string", "e": "error", "d": "iso_date"}[kind], "value": raw}
     raise ValueError("unsupported_workbook_cell_type")
+
+
+def styled_value(node):
+    if node is None:
+        return {}
+    if __package__:
+        from canvas_bridge.scientific_structure import runs
+    else:
+        from scientific_structure import runs
+    value = runs(node)
+    return {"rich_runs": value} if any(r["vertical_alignment"] != "baseline" for r in value) else {}
 
 
 def extract_workbook(data, max_text):
@@ -205,6 +221,7 @@ def extract_workbook(data, max_text):
 
         shared = optional_part("sharedStrings")
         strings = [rich_text(e) for e in shared] if shared is not None else []
+        rich_strings = [styled_value(e) for e in shared] if shared is not None else []
         if len(strings) > MAX_CELLS:
             raise ValueError("workbook_resource_limit")
         styles_root = optional_part("styles")
@@ -307,7 +324,7 @@ def extract_workbook(data, max_text):
                         style = matching[-1]["style"]
                     if style is None and styles:
                         style = "0"
-                    record = {"cell": ref, **typed_value(cell, strings)}
+                    record = {"cell": ref, **typed_value(cell, strings, rich_strings)}
                     if style is not None:
                         style_index = int(style)
                         if not 0 <= style_index < len(styles):

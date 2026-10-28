@@ -145,7 +145,11 @@ async def test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_li
             "/settings/demo", data={"csrf": csrf}, headers={"Origin": running}
         )
         assert "Selected courses" in login.text
+        from tests.approval_fixtures import install_approvals
+
+        install_approvals(bridge)
         bridge.settings.profile = "personal"
+        bridge.settings.live_access_enabled = True  # Fictional approved provider only.
         bridge.settings.personal_subject = "student-one"
         bridge.registry.entries["synthetic"].status = "personal_testing"
         bridge.synthetic = None

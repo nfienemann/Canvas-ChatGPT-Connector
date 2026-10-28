@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from canvas_bridge.app import create_app, create_bridge
 from canvas_bridge.auth import principal_id
@@ -19,6 +19,7 @@ from canvas_bridge.config import Settings
 from canvas_bridge.domain import opaque_id, utcnow
 from canvas_bridge.resources import migrate
 from canvas_bridge.storage import Connection
+from canvas_bridge.vault import Vault
 
 
 def initialize_demo(settings: Settings | None = None, folder: Path | None = None, *, verbose=True):
@@ -31,6 +32,13 @@ def initialize_demo(settings: Settings | None = None, folder: Path | None = None
             raise RuntimeError("A live configuration exists; refusing to replace it.")
     folder = (folder or Path(".local")).resolve()
     folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    from canvas_bridge.deployment import preflight
+
+    existing = preflight(settings or Settings())
+    if not existing.get("new_installation", False) and existing["service_health"] != "READY":
+        raise RuntimeError(
+            "Existing installation needs explicit deployment recovery; init-demo cannot replace lost keys or journals or upgrade an established schema."
+        )
     private_file = folder / "issuer-private.pem"
     if not private_file.exists():
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -48,7 +56,7 @@ def initialize_demo(settings: Settings | None = None, folder: Path | None = None
     jwk.update({"kid": "local-synthetic", "use": "sig", "alg": "RS256"})
     (folder / "jwks.json").write_text(json.dumps({"keys": [jwk]}), encoding="utf-8")
     if not (folder / "vault.key").exists():
-        (folder / "vault.key").write_bytes(os.urandom(32))
+        Vault.create(folder / "vault.key")
         (folder / "vault.key").chmod(0o600)
     if not (folder / "deletions.jsonl").exists():
         (folder / "deletions.jsonl").touch()
@@ -70,7 +78,7 @@ def initialize_demo(settings: Settings | None = None, folder: Path | None = None
             "aud": settings.resource_url,
             "sub": "synthetic-student",
             "iat": utcnow(),
-            "exp": utcnow() + timedelta(hours=24),
+            "exp": utcnow() + timedelta(hours=1),
             "scope": "academic:read preferences:write settings:write",
         },
         private_key,
@@ -79,17 +87,17 @@ def initialize_demo(settings: Settings | None = None, folder: Path | None = None
     )
     (folder / "demo-token").write_text(token, encoding="utf-8")
     (folder / "demo-token").chmod(0o600)
-    migrate(settings.database_url)
+    migrate(settings.database_url, settings.vault_key_file)
     bridge = create_bridge(settings)
     owner = principal_id(settings.issuer_url, "synthetic-student")
     with bridge.store.transaction() as session:
         conn = session.scalar(
             select(Connection).where(
                 Connection.owner == owner,
-                Connection.state == "active",
             )
         )
-        created = conn is None
+        # Restart/update must not replace a disabled connection or recreate a deleted account.
+        created = conn is None and existing.get("new_installation", False)
         if created:
             ref = opaque_id()
             conn = Connection(
@@ -97,11 +105,12 @@ def initialize_demo(settings: Settings | None = None, folder: Path | None = None
                 owner=owner,
                 institution="synthetic",
                 canvas_user="101",
+                authentication_state="verified",
                 credential=bridge.vault.seal({"access_token": os.urandom(32).hex()}, owner, ref),
             )
             session.add(conn)
             session.flush()
-        ref = conn.id
+        ref = conn.id if conn is not None else None
 
     async def seed_courses():
         result = await bridge.list_courses(owner, ref)
@@ -175,7 +184,10 @@ async def verify_read(settings: Settings):
 
 
 def doctor(settings: Settings):
+    from canvas_bridge.deployment import preflight
+
     checks = {
+        **preflight(settings),
         "profile": settings.profile,
         "vault_key_present": settings.vault_key_file.is_file(),
         "institution_registry_present": settings.institutions_file.is_file(),
@@ -186,16 +198,6 @@ def doctor(settings: Settings):
         "browser_callback_url": settings.browser_callback_url,
         "browser_requires_issuer_parameter": settings.browser_require_issuer_parameter,
     }
-    try:
-        bridge = create_bridge(settings)
-        with bridge.store.engine.connect() as connection:
-            checks["database_reachable"] = connection.execute(text("SELECT 1")).scalar() == 1
-            checks["migration"] = connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).scalar()
-        bridge.store.close()
-    except Exception as exc:
-        checks["database_error_type"] = type(exc).__name__
     print(json.dumps(checks, indent=2))
 
 
@@ -204,8 +206,24 @@ def main():
         description="Canvas Bridge operator tools; no student CLI required."
     )
     sub = parser.add_subparsers(dest="command", required=True)
+    from canvas_bridge.compliance.cli import arguments as compliance_arguments
+
+    compliance_arguments(sub)
     for name in ("init-demo", "serve", "doctor", "verify-read", "worker", "purge"):
         sub.add_parser(name)
+    upgrade_parser = sub.add_parser(
+        "deployment-upgrade",
+        help="Stop service/workers first; encrypted backup precedes schema changes.",
+    )
+    upgrade_parser.add_argument("--expected-target", required=True)
+    upgrade_parser.add_argument("--backup", type=Path, required=True)
+    upgrade_parser.add_argument("--new-installation", action="store_true")
+    upgrade_parser.add_argument("--create-key", action="store_true")
+    recovery_parser = sub.add_parser(
+        "recover-journal", help="Explicit lost-history recovery; historical backups remain blocked."
+    )
+    recovery_parser.add_argument("--expected-target", required=True)
+    recovery_parser.add_argument("--acknowledge-history-loss", action="store_true", required=True)
     personal_parser = sub.add_parser(
         "link-personal", help="Operator-only private test with your own Canvas account."
     )
@@ -217,6 +235,10 @@ def main():
     restore_parser.add_argument("source", type=Path)
     restore_parser.add_argument("--journal", required=True, type=Path)
     args = parser.parse_args()
+    if args.command == "compliance-report":
+        from canvas_bridge.compliance.cli import run as compliance_report
+
+        raise SystemExit(compliance_report(args))
     if args.command == "init-demo":
         initialize_demo()
         return
@@ -226,6 +248,37 @@ def main():
         run_personal_setup(args.institution, args.expected_canvas_user)
         return
     settings = Settings()
+    if args.command in {"deployment-upgrade", "recover-journal"}:
+        from canvas_bridge.deployment import recover_journal, upgrade
+
+        try:
+            result = (
+                upgrade(
+                    settings,
+                    args.expected_target,
+                    args.backup,
+                    new_installation=args.new_installation,
+                    create_key=args.create_key,
+                )
+                if args.command == "deployment-upgrade"
+                else recover_journal(
+                    settings,
+                    args.expected_target,
+                    acknowledge_history_loss=args.acknowledge_history_loss,
+                )
+            )
+            print(json.dumps(result, indent=2))
+        except Exception:
+            print(
+                json.dumps(
+                    {
+                        "operation": "blocked_or_failed",
+                        "recovery": "Preserve the existing key, journal and backup; run doctor. No secrets or raw database errors are printed.",
+                    }
+                )
+            )
+            raise SystemExit(1) from None
+        return
     if args.command == "serve":
         uvicorn.run(
             create_app(settings),
@@ -234,6 +287,9 @@ def main():
             access_log=False,
             server_header=False,
             proxy_headers=False,
+            limit_concurrency=64,
+            backlog=64,
+            timeout_keep_alive=5,
         )
     elif args.command == "doctor":
         doctor(settings)
@@ -246,7 +302,8 @@ def main():
 
             asyncio.run(worker(bridge))
         elif args.command == "purge":
-            print(json.dumps({"expired_snapshots_removed": bridge.store.purge_history()}))
+            asyncio.run(bridge.retention.sweep())
+            print(json.dumps({"retention_sweep": "completed"}))
         elif args.command == "backup":
             from canvas_bridge.lifecycle import backup
 

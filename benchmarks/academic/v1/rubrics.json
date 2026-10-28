@@ -1,0 +1,31 @@
+{
+  "scientific-figure-v1": {
+    "decision": "All required dimensions need independent human acceptance. No evaluated model may be its own sole judge.",
+    "dimensions": [
+      {
+        "criterion": "Identify time in hours and measured response; distinguish the log-scale second panel.",
+        "id": "axes"
+      },
+      {
+        "criterion": "Panel 1 treatment values are 2,4,6,8 at 0,1,2,3 hours; control is 2,2,3,3. Read approximate values within 0.25.",
+        "id": "values"
+      },
+      {
+        "criterion": "Error bars represent SD of three independent fictional replicates. Do not infer p-values or significance.",
+        "id": "uncertainty"
+      },
+      {
+        "criterion": "A plotted trend alone does not establish causal mechanism or population generalization.",
+        "id": "causality"
+      },
+      {
+        "criterion": "Cite the actual PDF page or PPTX slide and the exact asset hash; inspect pixels, not just extracted titles.",
+        "id": "grounding"
+      }
+    ],
+    "required_expertise": "Scientific graph interpretation and experimental design",
+    "reviewers": [],
+    "status": "draft_pending_independent_expert_review",
+    "version": "1.0.0"
+  }
+}

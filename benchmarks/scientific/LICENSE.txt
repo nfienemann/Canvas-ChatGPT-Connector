@@ -1,0 +1,11 @@
+Scientific comprehension fixtures - CC0 1.0 Universal
+
+To the extent possible under law, the authors waive copyright and related rights
+in the original synthetic data, diagrams, PNGs, PDF and case/rubric data under
+benchmarks/scientific/v3, under the CC0 1.0 Universal dedication:
+https://creativecommons.org/publicdomain/zero/1.0/
+
+All experiments, measurements, biological images and identities are fictional.
+No student record, course document or third-party figure is included. These
+fixtures are not scientific research findings. Draft rubrics are not expert
+endorsements. Software and dependencies retain their separate existing licenses.

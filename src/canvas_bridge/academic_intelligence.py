@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from copy import deepcopy
 from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -12,8 +13,10 @@ from canvas_bridge.academic_rules import (
     normalized,
     repeated_concepts,
 )
+from canvas_bridge.assignment_links import resolve_links
 from canvas_bridge.domain import Coverage, DomainError, Result, Source, utcnow
 from canvas_bridge.evidence import attach, fingerprint, reconcile_states
+from canvas_bridge.material_discovery import discovery_outcome, schedule_candidates
 from canvas_bridge.normalize import (
     assignment_requirements,
     fact_date,
@@ -26,6 +29,8 @@ from canvas_bridge.storage import Material, aware
 
 MAX_ASSIGNMENTS = 30
 MAX_DOCUMENTS = 3
+MATERIAL_SECONDS = 35
+MATERIAL_READ_SECONDS = 15
 
 
 def document(source, text, locator="HTML text", *, complete=True, parts=None):
@@ -84,6 +89,7 @@ async def collect_course(
         "inaccessible_materials": [],
         "timezone": None,
         "assignments_complete": False,
+        "policy_discovery": [],
         "outline": None,
     }
     async with bridge.client(owner, ref) as client:
@@ -219,6 +225,13 @@ async def collect_course(
                 "rubric": rubric_doc,
                 "requirements_state": requirement["state"],
                 "detail_complete": details_complete,
+                "linked_materials": (
+                    await resolve_links(
+                        bridge, owner, ref, course, client, fresh.get("description")
+                    )
+                    if current.id == work_id
+                    else {"references": [], "truncated": False}
+                ),
                 "allowed_extensions": [
                     v[:30] for v in fresh.get("allowed_extensions", [])[:30] if isinstance(v, str)
                 ]
@@ -257,12 +270,19 @@ async def collect_course(
                     )
                 )
             else:
+                bundle["policy_discovery"].append({"kind": "syllabus", "state": "NOT_FOUND"})
                 bundle["limitations"].append(
                     "Course syllabus HTML is empty or unavailable; no policy absence is inferred."
                 )
         except DomainError as exc:
             if exc.status == "reconnect_required":
                 raise
+            bundle["policy_discovery"].append(
+                {
+                    "kind": "syllabus",
+                    "state": "ACCESS_DENIED" if exc.status == "permission_denied" else "UNREADABLE",
+                }
+            )
             bundle["limitations"].append("Course syllabus/configuration could not be retrieved.")
         announcements = await client.collection(Endpoint.ANNOUNCEMENTS, course=course.source_id)
         bundle["coverage"].append(
@@ -306,6 +326,8 @@ async def collect_course(
             bundle["documents"].append(document(src, text[:10_000], complete=len(text) <= 10_000))
     listing = await outline(bridge, owner, ref, course_ref)
     bundle["outline"] = listing.data
+    bundle["limitations"].extend(listing.meta.warnings)
+    bundle["inventory_status"] = listing.data["inventory_status"]
     bundle["coverage"].append(
         Coverage(
             course_ref=course_ref,
@@ -318,7 +340,12 @@ async def collect_course(
     resources = listing.data.get("materials", [])
     for module in listing.data.get("modules", []):
         for entry in module.get("items", []):
-            if entry.get("material_availability") == "not_in_accessible_inventory":
+            if entry.get("material_availability") in {
+                "not_in_accessible_inventory",
+                "not_resolved_in_this_inventory",
+                "inaccessible",
+                "previously_discovered_access_not_rechecked",
+            }:
                 bundle["inaccessible_materials"].append(
                     {
                         "kind": "unresolved_reading_access",
@@ -332,11 +359,31 @@ async def collect_course(
                     }
                 )
     if material_ids is None:
-        targets = [
-            r["id"]
-            for r in resources
-            if re.search(r"\b(?:syllabus|schedule|calendar)\b", r["title"], re.I)
+        candidates = schedule_candidates(resources, listing.data.get("modules", []))
+        if purpose == "integrity":
+            from canvas_bridge.integrity.discovery import POLICY_NAMES
+
+            candidates = [
+                {"material_id": r["id"], "discovery_basis": ["policy_filename_hint_not_evidence"]}
+                for r in resources
+                if POLICY_NAMES.search(r.get("title", ""))
+            ] + candidates
+        linked = bundle["assignments"].get(work_id, {}).get("linked_materials", {})
+        explicit = [
+            {
+                "material_id": link["material_id"],
+                "title": link["title"],
+                "source_version": link.get("source_version"),
+                "discovery_basis": ["explicit_assignment_link"],
+            }
+            for link in linked.get("references", [])
+            if link["state"] == "resolved"
         ]
+        unique_candidates = {}
+        for candidate in [*explicit, *candidates]:
+            unique_candidates.setdefault(candidate["material_id"], candidate)
+        candidates = list(unique_candidates.values())
+        targets = [c["material_id"] for c in candidates]
         if purpose == "exam":
             chosen = exam_pack(bundle, work_id)
             # Same-module evidence identifies candidate readings, never proves
@@ -348,17 +395,41 @@ async def collect_course(
             )
     else:
         targets = list(dict.fromkeys(material_ids))
+        candidates = [
+            {"material_id": target, "discovery_basis": ["explicit_selection"]} for target in targets
+        ]
+    discovery = {
+        "mode": "automatic" if material_ids is None else "explicit",
+        "candidate_count": len(targets),
+        "document_limit": MAX_DOCUMENTS,
+        "time_budget_seconds": MATERIAL_SECONDS,
+        "inventory_complete": listing.status == "ok",
+        "documents": [],
+    }
+    bundle["material_discovery"] = discovery
+    hints = {c["material_id"]: c for c in candidates}
     if len(targets) > MAX_DOCUMENTS:
         bundle["limitations"].append(
             "Only three source documents can be read in one request; additional versions remain unchecked."
         )
-    for material_id in targets[:MAX_DOCUMENTS]:
+    deadline = asyncio.get_running_loop().time() + MATERIAL_SECONDS
+    for index, material_id in enumerate(targets):
+        record = {**hints.get(material_id, {"material_id": material_id}), "state": "pending"}
+        discovery["documents"].append(record)
+        if index >= MAX_DOCUMENTS:
+            record.update(state="skipped", reason_code="MATERIAL_DOCUMENT_LIMIT")
+            continue
+        remaining = deadline - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            record.update(state="skipped", reason_code="MATERIAL_TIME_BUDGET")
+            continue
         with bridge.store.transaction() as session:
             row = bridge.store.owned(session, Material, owner, ref, material_id)
             if row.course_id != course_ref:
                 raise DomainError("permission_denied", "Document is outside the requested course.")
         try:
-            fetched = await fetch_material(bridge, owner, ref, material_id, length=1000)
+            async with asyncio.timeout(min(remaining, MATERIAL_READ_SECONDS)):
+                fetched = await fetch_material(bridge, owner, ref, material_id, length=1000)
             bundle["sources"].extend(fetched.sources[:1])
             if not fetched.data.get("content_hash"):
                 raise DomainError(
@@ -369,6 +440,11 @@ async def collect_course(
                 if row.version_hash != fetched.data["content_hash"]:
                     raise DomainError("source_changed", "Document changed during comparison.")
                 from canvas_bridge.course_files import page_label
+
+                if row.kind == "file":
+                    from canvas_bridge.course_files import checked_row
+
+                    row = checked_row(bridge, session, owner, ref, material_id, conn.epoch)
 
                 parts = [
                     {
@@ -389,18 +465,42 @@ async def collect_course(
                     resource_id=row.id,
                     content_hash=row.version_hash,
                     extraction_status=fetched.data.get("coverage", "unknown"),
+                    source_updated_at=fact_date(row.file_state, "source_updated_at").timestamp,
                 )
-                bundle["documents"].append(
-                    document(
-                        src,
-                        row.text,
-                        parts=parts,
-                        complete=fetched.data.get("coverage") == "text_only",
-                    )
+                doc = document(
+                    src,
+                    row.text,
+                    parts=parts,
+                    complete=fetched.data.get("coverage") == "text_only",
                 )
+                doc["source_version"] = row.file_state.get("version")
+                bundle["documents"].append(doc)
+                usable = bool(row.text.strip())
+                record.update(
+                    state="reviewed"
+                    if doc["complete"] and usable
+                    else "partially_reviewed"
+                    if usable
+                    else "unreadable",
+                    reason_code=None if usable else "MATERIAL_NO_USABLE_TEXT",
+                    source_version=doc["source_version"],
+                    content_hash=row.version_hash,
+                    extraction_coverage=fetched.data.get("coverage"),
+                    locators=[p["locator"] for p in parts],
+                )
+        except TimeoutError:
+            record.update(state="failed", status="retry_later", reason_code="MATERIAL_READ_TIMEOUT")
+            bundle["limitations"].append(
+                "A selected material exceeded its read budget; it was not reviewed."
+            )
         except DomainError as exc:
             if exc.status in {"reconnect_required", "source_changed"}:
                 raise
+            record.update(
+                state="inaccessible" if exc.status == "permission_denied" else "failed",
+                status=exc.status,
+                reason_code=exc.reason_code or "MATERIAL_READ_FAILED",
+            )
             bundle["inaccessible_materials"].append(
                 {
                     "material_id": material_id,
@@ -408,6 +508,7 @@ async def collect_course(
                     "certainty": "retrieval_limitation",
                     "impact": "Requested source text could not be read.",
                     "reason": exc.message,
+                    "reason_code": exc.reason_code or "MATERIAL_READ_FAILED",
                     "next_action": "Check access or use a supported source; do not infer the document contents.",
                 }
             )
@@ -427,7 +528,14 @@ async def collect_course(
 def related_documents(bundle, item):
     target = normalized(item["title"])
     result = []
+    links = bundle["assignments"].get(item["id"], {}).get("linked_materials", {})
+    linked_ids = {
+        link["material_id"] for link in links.get("references", []) if link["state"] == "resolved"
+    }
     for doc in bundle["documents"]:
+        if doc["id"] in linked_ids:
+            result.append(doc)
+            continue
         parts = []
         for part in doc["parts"]:
             # Explicit assignment-title mentions only. General course policies
@@ -450,10 +558,36 @@ def instruction_report(bundle, work_id, draft=None):
         )
     assignment = bundle["assignments"][work_id]
     docs = [assignment["instructions"], assignment["rubric"], *related_documents(bundle, item)]
+    links = deepcopy(assignment.get("linked_materials", {"references": [], "truncated": False}))
+    readings = {
+        r["material_id"]: r for r in bundle.get("material_discovery", {}).get("documents", [])
+    }
+    for link in links["references"]:
+        reading = readings.get(link["material_id"])
+        link["reading_state"] = reading["state"] if reading else "not_reviewed"
+        link["content_reviewed"] = bool(
+            reading and reading["state"] in {"reviewed", "partially_reviewed"}
+        )
+        if reading and reading.get("reason_code"):
+            link["reading_reason_code"] = reading["reason_code"]
+    links["linked_content_reviewed"] = any(link["content_reviewed"] for link in links["references"])
+    linked_ids = {
+        link["material_id"] for link in links["references"] if link["state"] == "resolved"
+    }
     result = instruction_findings(docs, draft)
     result.update(
         work_id=work_id,
         requirements_state=assignment["requirements_state"],
+        linked_materials=links,
+        instruction_document_review={
+            "description_present": bool(assignment["instructions"]["parts"][0]["text"]),
+            "documents": [
+                record
+                for record in bundle.get("material_discovery", {}).get("documents", [])
+                if record["material_id"] in linked_ids
+            ],
+            "scope": "Explicit linked documents have individual reading outcomes; a filename is not reviewed instructions.",
+        },
         rubric_coverage="complete"
         if assignment["rubric"]["complete"]
         else "unavailable_or_partial",
@@ -531,19 +665,9 @@ def exam_pack(bundle, work_id=None):
                 for i in module["items"]
                 if i.get("material_ref")
             )
-    excerpts, remaining = [], 16_000
-    for doc in docs:
-        for part in doc["parts"]:
-            text = part["text"][: min(4000, remaining)]
-            if text:
-                excerpts.append(
-                    {
-                        **citation(doc, part, text),
-                        "text": text,
-                        "truncated": len(text) < len(part["text"]),
-                    }
-                )
-                remaining -= len(text)
+    from canvas_bridge.academic.independent_engine import bounded_excerpts
+
+    excerpts = bounded_excerpts(docs)
     return {
         "status": "ok",
         "assessment": {"work_id": exam["id"], "title": exam["title"], "source": exam["source"]},
@@ -572,17 +696,34 @@ async def academic_request(
     work_id=None,
     draft=None,
     include_grades=False,
+    include_discussions=False,
 ):
     try:
         async with asyncio.timeout(90):
             bundle = await collect_course(
                 bridge, owner, ref, course_id, material_ids, action, work_id
             )
+            integrity_decision = None
+            if action == "exam":
+                from canvas_bridge.integrity.models import Activity, AssistanceRequest, Scope
+
+                integrity_decision, _ = await bridge.integrity.evaluate(
+                    owner,
+                    AssistanceRequest(
+                        scope=Scope(connection_id=ref, course_id=course_id, assessment_id=work_id),
+                        activity=Activity.EXAM_PREPARATION,
+                    ),
+                    bundle=bundle,
+                )
+                integrity_decision.require()
             deadlines = deadline_findings(
                 bundle["documents"],
                 bundle["items"],
                 bundle["timezone"],
                 bundle["assignments_complete"],
+            )
+            bundle["material_discovery"] = discovery_outcome(
+                bundle["material_discovery"], deadlines["obligations"]
             )
             if action == "deadlines":
                 data = deadlines
@@ -653,6 +794,15 @@ async def academic_request(
                             }
                         )
                     bundle["sources"].extend(grade_result.sources)
+                discussion_report = None
+                if include_discussions:
+                    from canvas_bridge.discussion_integration import discussion_audit
+
+                    discussion_report, discussion_sources = await discussion_audit(
+                        bridge, owner, ref, course_id, bundle["items"]
+                    )
+                    findings.extend(discussion_report["findings"])
+                    bundle["sources"].extend(discussion_sources)
                 priorities = {
                     "conflicting_deadlines": 0,
                     "instruction_conflict": 0,
@@ -668,6 +818,7 @@ async def academic_request(
                     "findings": findings[:60],
                     "findings_truncated": len(findings) > 60,
                     "grade_audit": grade,
+                    "discussion_audit": discussion_report,
                     "checks": {
                         "deadlines": "bounded_sources_checked",
                         "requirements": "explicit_counts_formats_checked",
@@ -683,13 +834,40 @@ async def academic_request(
             current, _ = bridge.selected(owner, ref, [course_id])
             if current.epoch != bundle["connection"].epoch:
                 raise DomainError("source_changed", "Course selection changed during comparison.")
+            if action in {"deadlines", "audit"}:
+                from canvas_bridge.academic_evidence import course_deadline_graph
+
+                data["evidence_graph"] = course_deadline_graph(
+                    bridge, owner, ref, bundle, deadlines
+                )
             data.update(
                 course_id=course_id,
+                academic_integrity=integrity_decision.model_dump(mode="json")
+                if integrity_decision
+                else {
+                    "activity": "administration_or_requirements",
+                    "completion_permission": "not_granted",
+                },
                 limitations=bundle["limitations"] + data.get("limitations", []),
                 unread_materials=True,
                 content_boundary="untrusted_source_data",
+                material_discovery=bundle["material_discovery"],
+                inventory_status=bundle["inventory_status"],
+                inventory_coverage=bundle["outline"]["inventory_coverage"],
+                inventory_failures=bundle["outline"]["inventory_failures"],
                 source_documents=[
-                    {k: d[k] for k in ("id", "title", "version", "complete", "url")}
+                    {
+                        k: d.get(k)
+                        for k in (
+                            "id",
+                            "title",
+                            "version",
+                            "source_version",
+                            "source_updated_at",
+                            "complete",
+                            "url",
+                        )
+                    }
                     for d in bundle["documents"]
                 ],
             )

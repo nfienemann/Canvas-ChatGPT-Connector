@@ -1,0 +1,97 @@
+{
+  "suite": "installed_boundary_smoke",
+  "verification": "PASS_FOR_ACCESS_BOUNDARIES_ONLY",
+  "workspace_corpus_fingerprint": "6f10bd61e20d0408154aa3b0414079944280da10f2971baab9af014ccb7d3707",
+  "runtime": "User restarted service; verified Python service parent/child created 2026-10-28 14:27:07 America/New_York using the workspace interpreter. No running-process build attestation endpoint exists.",
+  "before": {
+    "request_id": "b92fab86a40d4f2581793134ec9f3534",
+    "connections": [
+      {
+        "state": "disconnected",
+        "authentication_state": "revoked",
+        "live_integration": "disabled",
+        "approval_allowed": false,
+        "approval_state": "NOT_ASSESSED",
+        "approval_reason": "APPROVAL_NOT_ASSESSED"
+      }
+    ],
+    "inventory_count": 0,
+    "inventory_request_id": "89fcf512d4f341ebab9076db310e7fab"
+  },
+  "after": {
+    "request_id": "4768a232979544959be7198ccfea0398",
+    "connections": [
+      {
+        "state": "disconnected",
+        "authentication_state": "revoked",
+        "live_integration": "disabled",
+        "approval_allowed": false,
+        "approval_state": "NOT_ASSESSED",
+        "approval_reason": "APPROVAL_NOT_ASSESSED"
+      }
+    ],
+    "inventory_count": 0
+  },
+  "state_unchanged": true,
+  "calls": [
+    {
+      "tool": "list_courses",
+      "status": "reconnect_required",
+      "reason_code": "CONNECTION_INACTIVE",
+      "allowed": null,
+      "permission_established": null,
+      "transmitted": null,
+      "source_count": 0,
+      "request_id": "4f14a050189944019e97dc3940351b23"
+    },
+    {
+      "tool": "list_local_documents",
+      "status": "ok",
+      "reason_code": null,
+      "allowed": null,
+      "permission_established": null,
+      "transmitted": null,
+      "source_count": 0,
+      "request_id": "9897682f2bc0451fa7751a47d31e3978"
+    },
+    {
+      "tool": "check_academic_assistance_permission",
+      "activity": "brainstorming",
+      "status": "ok",
+      "reason_code": "INTEGRITY_POLICY_COVERAGE_INCOMPLETE",
+      "allowed": false,
+      "permission_established": false,
+      "transmitted": null,
+      "source_count": 0,
+      "request_id": "94f32b513b3c4fb2ba2b5ed9bef678d8"
+    },
+    {
+      "tool": "check_academic_assistance_permission",
+      "activity": "mechanical_editing",
+      "status": "ok",
+      "reason_code": "INTEGRITY_POLICY_COVERAGE_INCOMPLETE",
+      "allowed": false,
+      "permission_established": false,
+      "transmitted": null,
+      "source_count": 0,
+      "request_id": "7e4c468bc0664383bfaab142f909aedf"
+    },
+    {
+      "tool": "prepare_academic_assistance",
+      "activity": "submission_drafting",
+      "status": "permission_denied",
+      "reason_code": "INTEGRITY_POLICY_COVERAGE_INCOMPLETE",
+      "allowed": null,
+      "permission_established": null,
+      "transmitted": false,
+      "source_count": 0,
+      "request_id": "96cbff8df1494d1a928fb408420feaf3"
+    }
+  ],
+  "diagnostic_history": "Initial three integrity smoke requests used a local-course label containing spaces. Connector schema rejected them before execution. Correctly formatted labels were retried and the successful boundary checks are recorded above.",
+  "limits": [
+    "No personal import or institutional source retrieval.",
+    "Local source-based repairs were tested with disposable synthetic data, not through the personal installed service.",
+    "No OAuth, approvals or acknowledgments changed."
+  ]
+}

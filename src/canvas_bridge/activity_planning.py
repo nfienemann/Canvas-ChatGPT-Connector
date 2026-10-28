@@ -46,6 +46,15 @@ def project_activity(bundle, group, choice, now):
         return None, None, "unresolved_source_relationship_or_deadline"
     if choice.basis != "student_request":
         return None, None, "activity_relevance_needs_student_choice"
+    evidence = group.get("discussion_evidence", [])
+    if evidence:
+        if len(evidence) != 1 or not evidence[0]["participation"]["coverage"]["complete"]:
+            return None, None, "discussion_participation_not_fully_verified"
+        participation = evidence[0]["participation"]
+        if participation["initial_post_state"] == "verified_present" and participation.get(
+            "remaining_replies_by_count"
+        ) in {None, 0}:
+            return None, None, "discussion_remaining_requirements_need_review"
     if group["work_id"]:
         if choice.intent != "remaining_work":
             return None, None, "event_preparation_requires_calendar_event"
@@ -144,6 +153,15 @@ async def propose_course_plan(bridge, owner, ref, scopes, start, end, timezone, 
         raise DomainError(
             "needs_input", "Planning input references an activity outside the chosen set."
         )
+    from canvas_bridge.discussion_integration import enrich_obligations
+
+    requested = {a.obligation_id for a in request.activities if a.basis == "student_request"}
+    discussion_sources = []
+    for bundle in bundles:
+        chosen = [g for g in bundle["items"] if g["id"] in requested]
+        discussion_sources.extend(
+            await enrich_obligations(bridge, owner, ref, bundle["course"].id, chosen)
+        )
     now = utcnow()
     items, targets, selected, review, excluded = [], {}, [], [], []
     with bridge.store.transaction() as session:
@@ -158,10 +176,23 @@ async def propose_course_plan(bridge, owner, ref, scopes, start, end, timezone, 
                 )
             )
         }
-    sources = {}
+    sources = {s.id: s for s in discussion_sources}
     for choice in request.activities:
         bundle, group = inventory[choice.obligation_id]
         item, target, problem = project_activity(bundle, group, choice, now)
+        if item and group.get("discussion_evidence"):
+            evidence = group["discussion_evidence"][0]
+            participation, topic = evidence["participation"], evidence.get("topic", {})
+            deadline = (
+                topic.get("replies_due_at")
+                if participation["initial_post_state"] == "verified_present"
+                else topic.get("initial_due_at")
+            )
+            from canvas_bridge.normalize import fact_date
+
+            item.effective_due = fact_date({"due_at": deadline}, "due_at")
+            # A submitted parent assignment does not prove the reply checkpoint.
+            item.submission_state = "unknown"
         primary = next(
             (a for a in group["source_aliases"] if a["source_type"] == "assignments"),
             group["source_aliases"][0],
@@ -183,6 +214,8 @@ async def propose_course_plan(bridge, owner, ref, scopes, start, end, timezone, 
             if choice.basis == "student_request"
             else "assistant_inference",
         }
+        if group.get("discussion_evidence"):
+            record["discussion_evidence"] = group["discussion_evidence"]
         if problem:
             aliases = group["source_aliases"][:6]
             for alias in aliases:

@@ -23,6 +23,73 @@ upgrading [G0–G5](release-gates.md). This is planned work, not deployment appr
 or a claim that the gaps are fixed. The private browser fallback remains acceptable
 to the owner for now.
 
+### Budget decision and restart plan — October 22, 2026
+
+**Owner decision:** Keep browser downloads for the current single-user private
+connector. Defer native in-chat downloads, conversation attachments and download
+UI improvements until development budget is available. Accept the ngrok **Visit
+Site** interstitial for now. Preserve the working fallback and current buttons;
+this decision requests documentation, not an implementation or deployment.
+
+Browser downloads already save originals to the user's device. The deferred work
+is delivery through ChatGPT's interface, not the ability to obtain a local copy.
+The present local connector must remain online; links still expire and fresh
+downloads must reauthorize. Continue prioritizing useful, reliable connector reads.
+
+| Stage | Decision / trigger | Related tickets |
+|---|---|---|
+| Current private use | Keep the existing browser route and ngrok interstitial unchanged. No hosting purchase, migration or native-download work now. | Existing working fallback |
+| Hosted delivery later | When the owner allocates budget and requests hosting, move the existing browser-delivery workflow to an always-on backend with stable HTTPS. Start with the current owner-only scope. | D01, D04, D05, applicable D06 |
+| Native delivery later | Revisit in-chat downloads, capability-aware UI and attachments after hosting, or in a separately requested native-delivery effort. Hosting is the chosen order, not a technical prerequisite for research. | D02, D03, applicable D06 |
+
+The future backend can fetch authorized Canvas originals, stage them privately,
+serve expiring browser links and clean up temporary files using the existing
+`/course-file-download/{capability}` and `/course-file-original/{delivery_id}`
+routes. It needs an actual application runtime; static website hosting alone is
+insufficient. Preserve access checks, private-link handling and retention. Start
+with one API process per staging root, consistent with the present memory-only
+delivery records; restart invalidates old links and requires fresh preparation.
+Multi-instance scaling is separate design work. A stable deployment can remove
+the development-tunnel interstitial and laptop dependency, but does not grant
+ChatGPT the missing host capability or create native attachments automatically.
+
+**Resume checklist for the next funded task:**
+
+1. Read the [investigation](../docs/original-file-delivery.md#in-chat-download-investigation--october-22-2026)
+   and [verification record](sanitized-results/original-file-delivery.md). Confirm
+   the requested budget/scope and current local/deployed versions. Recheck current
+   platform contracts; do not assume the October 22 capability findings remain
+   current. Preserve unrelated changes and the existing private download path.
+2. Establish a synthetic baseline with
+   `node scripts/diagnose_download_handshake.mjs` and
+   `.venv/Scripts/python.exe -m pytest tests/test_file_delivery.py tests/test_file_delivery_contract.py -q --tb=short`.
+   The diagnostic builds in memory and does not rewrite the shipped widget.
+   Record actual results; a previously completed identical suite need not be
+   repeated without relevant changes.
+3. For hosting, choose the provider, cost ceiling and operator in that funded
+   task. Prepare stable HTTPS, authenticated MCP access, secure secrets/database,
+   bounded private staging, log redaction, monitoring and rollback. Use the
+   [deployment template](../compose.yaml) as a starting point, not proof of hosted
+   readiness. Verify a synthetic deployment before an authorized owner-only
+   cutover; keep the existing private setup available for rollback.
+4. Close the hosted browser-delivery work only after testing a clean-browser
+   download without the ngrok development page, exact original-byte preservation,
+   expiry/fresh preparation, denied access, cleanup, outage/restart recovery and
+   operation with the developer's local service offline. Test each advertised
+   client and record evidence without private files or capability URLs. Expiry
+   and restart may require a new link; never claim old links survive migration.
+5. For the later native-delivery effort, capture safe live handshake diagnostics
+   first. Use the existing standard route only where the host advertises support;
+   otherwise investigate a documented alternative with synthetic originals.
+   Verify downloads and conversation attachments separately, including size,
+   integrity and retention constraints. Keep the browser route working throughout;
+   if no supported native route exists, leave that feature explicitly deferred.
+
+**Status:** Deferred until owner-allocated development budget; no target date or
+scheduled work. D02's investigation is retained, not marked as a completed fix.
+Public-release acceptance requirements below remain in force; private acceptance
+of the interstitial does not waive public security, institution or listing gates.
+
 ### Evidence and current limitation
 
 In the referenced **Fetch downloadable file** conversation, the owner reported
@@ -58,7 +125,14 @@ and redacted evidence; choosing a domain or paying for hosting alone is not proo
 ### C12-D02 — Make download actions reflect negotiated support
 
 **Priority:** P1, required for public downloads. **Owner:** integration/UX/QA.
-**Trace:** R20, R26, R29, R40; G0. **State:** planned; root cause unverified.
+**Trace:** R20, R26, R29, R40; G0. **State:** investigated locally; absent host
+capability reproduces the message; raw live negotiation and UX changes pending.
+
+The owner reports the limitation on web, desktop and mobile. An unchanged-bundle
+probe with the real pinned SDK reproduces the message only in the absent-capability
+case and dispatches downloads when support is advertised. See the
+[investigation and fix options](../docs/original-file-delivery.md#in-chat-download-investigation--october-22-2026).
+No browser fallback behavior changed.
 
 Capture client/build, SDK/protocol and redacted capability negotiation after the
 handshake. Check `downloadFile` and external-link support independently. Prefer
@@ -73,7 +147,12 @@ save. Do not infer capabilities from product name or user-agent alone.
 
 **Priority:** P2 enhancement; required only for a native-attachment claim.
 **Owner:** integration/product. **Trace:** R20, R31, R34, R40; G0.
-**State:** investigation planned; no verified adapter or attachment receipt.
+**State:** initial contract review complete; no verified adapter or attachment receipt.
+
+Optional ChatGPT file helpers are candidates for a separate synthetic prototype;
+their availability, original-file use, size/retention constraints and actual
+conversation-attachment behavior remain unverified. The standard download RPC
+does not itself close this ticket. See the [investigation](../docs/original-file-delivery.md#in-chat-download-investigation--october-22-2026).
 
 Investigate documented output-file/attachment contracts separately from the MCP
 Apps download handoff. Prototype only a supported path with synthetic originals;
@@ -129,8 +208,10 @@ leave unsupported surfaces and native attachment explicitly unverified/deferred.
 
 ### Dependencies and source boundary
 
-Run D02 capability investigation and D03 attachment research independently of
-hosting selection. D06 public-path acceptance depends on D01, D02, D04 and D05;
+Follow the budget decision above: retain private browser delivery now, address
+hosting when funded, then revisit native delivery. D02 capability investigation
+and D03 attachment research can run independently of hosting if separately
+requested. D06 public-path acceptance depends on D01, D02, D04 and D05;
 D03 can remain deferred if no native-attachment claim is made. Institutional
 access and distribution eligibility remain separate release gates.
 

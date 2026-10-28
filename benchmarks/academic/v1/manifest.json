@@ -1,0 +1,19 @@
+{
+  "expert_review": "pending",
+  "files": {
+    "assets/figure-1.png": "b8fe9b2aebaeeec01cf97dcddddd1ad387c756f9148b6022fe994585461b59f3",
+    "assets/figure-2.png": "f981233c0f58384fe264c26d41add34e0a2f7bd77fc5ba9d65a41dae72c0c3d4",
+    "assets/scientific-lecture.pdf": "2763b4da1e386a93add2ea7c03586a1ffc79f0d747a18bc2a68c4c80458f9d14",
+    "assets/scientific-lecture.pptx": "ce4fc1d7972cbda0ab0e2e462b77f7a37d29a7145b69e99dd8324302562d9fe4",
+    "dataset.json": "3125ef5ff669974b537e5fe04ec154995cd9f70744c851f1bae89c21b9a1cf92",
+    "gold.json": "b8c7d19aeb14d507cc0668e5ee27cbe3635917ff06196a786076023d4fe9da03",
+    "rubrics.json": "91af3a8e0c1799d60422c091f7a3beda3c75c67ca27ce3fea9169e96b80e09c2",
+    "scenarios.json": "74313832e4f2cb8ce79358e2bbfd624807d8a71573e96cf6b586fd720ba18221"
+  },
+  "license": "CC0-1.0",
+  "schema": "academic-benchmark-1",
+  "seed": 0,
+  "study_design": "curated_regression_census_not_random_sample",
+  "synthetic": true,
+  "version": "1.0.0"
+}

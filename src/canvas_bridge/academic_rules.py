@@ -12,7 +12,7 @@ from canvas_bridge.academic_dates import DATES, compare_deadline, parse_candidat
 from canvas_bridge.evidence import fingerprint
 
 ASSESSMENT = re.compile(
-    r"\b(exam|quiz|paper|essay|project|assignment|presentation|lab|report|test|final|midterm)\b",
+    r"\b(exam|quiz|paper|essay|project|assignment|presentation|lab|report|test|final|midterm|discussion|post|replies)\b",
     re.I,
 )
 
@@ -26,6 +26,7 @@ def citation(document, part, passage, offset=0):
         "source_id": document["id"],
         "source_url": document["url"],
         "document_version": document["version"],
+        "source_version": document.get("source_version"),
         "source_type": document["source_type"],
         "course_id": document["course_id"],
         "retrieved_at": document["retrieved_at"],
@@ -51,12 +52,18 @@ def passages(document):
 def dated_obligations(documents):
     results = []
     for document in documents:
-        for part, line, offset in passages(document):
+        for part, line, offset in requirement_clauses(document):
             if not ASSESSMENT.search(line):
                 continue
-            for match in DATES.finditer(line):
+            matches = list(DATES.finditer(line))
+            for index, match in enumerate(matches):
                 parsed = parse_candidate(match)
-                title = (line[: match.start()] + line[match.end() :]).strip(" :–—-.,")
+                title = (
+                    (line[: match.start()] + line[match.end() :])
+                    if len(matches) == 1
+                    else line[matches[index - 1].end() if index else 0 : match.start()]
+                )
+                title = title.strip(" :–—-.,")
                 title = re.sub(r"\b(?:due|on|date|scheduled for)\b", "", title, flags=re.I).strip(
                     " :–—-.,"
                 )
@@ -78,6 +85,19 @@ def dated_obligations(documents):
                         "date_offset": offset + match.start(),
                         "evidence": source,
                         "interpretation_status": "deterministic_candidate",
+                        "candidate_kind": "classroom_activity"
+                        if re.search(
+                            r"\b(?:lecture|discussion|practice|workshop|activity|activities|lab session|in.class)\b",
+                            line,
+                            re.I,
+                        )
+                        and not re.search(
+                            r"\b(?:due|submit|upload|deadline|requires?.{0,60}(?:post|replies))\b",
+                            line,
+                            re.I,
+                        )
+                        else "assessment_date_candidate",
+                        "assignment_deadline_confirmed": False,
                         "student_confirmation_needed": True,
                     }
                 )
@@ -106,8 +126,10 @@ def match_obligation(obligation, items):
     return None, "ambiguous" if candidates or exact else "no_match", candidates
 
 
-def deadline_findings(documents, items, timezone, assignments_complete):
+def deadline_findings(documents, items, timezone, assignments_complete, *, source_label="Canvas"):
     findings, obligations, comparisons = [], dated_obligations(documents), []
+    activities = [o for o in obligations if o["candidate_kind"] == "classroom_activity"]
+    obligations = [o for o in obligations if o["candidate_kind"] != "classroom_activity"]
     for obligation in obligations:
         item, match, candidates = match_obligation(obligation, items)
         base = {
@@ -124,7 +146,9 @@ def deadline_findings(documents, items, timezone, assignments_complete):
                     **base,
                     "kind": "ambiguous_match"
                     if match == "ambiguous"
-                    else "syllabus_only_candidate",
+                    else "syllabus_only_candidate"
+                    if source_label == "Canvas"
+                    else "unmatched_source_candidate",
                     "certainty": "ambiguous",
                     "impact": "Confirm the assessment and its applicable date.",
                     "next_action": "Match this passage to the assessment with the instructor or student.",
@@ -133,14 +157,18 @@ def deadline_findings(documents, items, timezone, assignments_complete):
             )
             continue
         due = item["effective_due"]
-        base["canvas_evidence"] = item["source"]
+        base["canvas_evidence" if source_label == "Canvas" else "reference_evidence"] = item[
+            "source"
+        ]
         if due["kind"] == "known_none":
             findings.append(
                 {
                     **base,
-                    "kind": "missing_canvas_deadline",
+                    "kind": "missing_canvas_deadline"
+                    if source_label == "Canvas"
+                    else "missing_reference_deadline",
                     "certainty": "confirmed_field_absence",
-                    "impact": "Canvas has no due date; the source passage may establish an obligation.",
+                    "impact": f"{source_label} data has no due date; the source passage may establish an obligation.",
                     "next_action": "Verify which source date applies; do not treat this as unscheduled or automatically upcoming.",
                 }
             )
@@ -148,14 +176,18 @@ def deadline_findings(documents, items, timezone, assignments_complete):
             findings.append(
                 {
                     **base,
-                    "kind": "unavailable_canvas_deadline",
+                    "kind": "unavailable_canvas_deadline"
+                    if source_label == "Canvas"
+                    else "unavailable_reference_deadline",
                     "certainty": "insufficient_evidence",
-                    "impact": "Canvas deadline could not be established.",
+                    "impact": f"{source_label} deadline could not be established.",
                     "next_action": "Refresh or inspect the assignment.",
                 }
             )
         else:
             comparison = compare_deadline(obligation, due, timezone)
+            if source_label != "Canvas" and "canvas_calendar_date" in comparison:
+                comparison["reference_calendar_date"] = comparison.pop("canvas_calendar_date")
             comparisons.append(
                 {"obligation_id": obligation["id"], "work_id": item["id"], **comparison}
             )
@@ -178,7 +210,7 @@ def deadline_findings(documents, items, timezone, assignments_complete):
                         **base,
                         "kind": "conflicting_deadlines",
                         "certainty": "supported_source_difference",
-                        "canvas_date": due,
+                        "canvas_date" if source_label == "Canvas" else "reference_date": due,
                         "comparison_timezone": comparison["timezone"],
                         "impact": "The sources report different dates; applicability or an amendment may explain this.",
                         "next_action": "Check the cited versions and ask which deadline applies.",
@@ -186,6 +218,7 @@ def deadline_findings(documents, items, timezone, assignments_complete):
                 )
     return {
         "obligations": obligations,
+        "classroom_activities": activities,
         "findings": findings,
         "comparisons": comparisons,
         "limitations": [
@@ -199,9 +232,26 @@ def deadline_findings(documents, items, timezone, assignments_complete):
 WORD_COUNT = re.compile(r"\b(\d[\d,]*)(?:\s*[-–]\s*(\d[\d,]*))?\s*[- ]?\s*words?\b", re.I)
 
 
+def requirement_clauses(document):
+    for part, line, offset in passages(document):
+        # Preserve source offsets while keeping neighboring recommendations from
+        # modifying unrelated requirements. Decimal points are not boundaries.
+        dates = [m.span() for m in DATES.finditer(line)]
+        starts = [0] + [
+            m.end()
+            for m in re.finditer(r"(?<=[;.!?])\s+", line)
+            if not any(a <= m.start() < b for a, b in dates)
+        ]
+        for start, end in zip(starts, [*starts[1:], len(line)], strict=True):
+            raw = line[start:end]
+            clause = raw.strip()
+            if clause:
+                yield part, clause, offset + start + len(raw) - len(raw.lstrip())
+
+
 def requirements(document):
     rules = []
-    for part, line, offset in passages(document):
+    for part, line, offset in requirement_clauses(document):
         optional = bool(
             re.search(
                 r"\b(?:recommend|recommended|suggest|suggested|optional|example|approximately|about)\b",
@@ -212,6 +262,21 @@ def requirements(document):
         ambiguous = bool(
             re.search(r"\b(?:not|rather than|no longer|between|versus|vs\.?|or)\b", line, re.I)
         )
+        if re.search(r"\bfigures?\b", line, re.I) and re.search(
+            r"\b(?:required|mandatory|recommend(?:ed)?|optional)\b", line, re.I
+        ):
+            rules.append(
+                {
+                    "type": "figure_requirement",
+                    "mandatory": not optional and not ambiguous,
+                    "interpretation_status": "recommended"
+                    if optional
+                    else "ambiguous"
+                    if ambiguous
+                    else "explicit_requirement",
+                    "evidence": citation(document, part, line, offset),
+                }
+            )
         for match in WORD_COUNT.finditer(line):
             low = int(match.group(1).replace(",", ""))
             high = int((match.group(2) or match.group(1)).replace(",", ""))
@@ -272,12 +337,14 @@ def instruction_findings(documents, draft=None):
                 )
             elif left["type"] == "submission_format":
                 conflict = not set(left["formats"]) & set(right["formats"])
-            else:
+            elif left["type"] == "criterion_weight":
                 from decimal import Decimal
 
                 conflict = left["criterion"] == right["criterion"] and Decimal(
                     left["percent"]
                 ) != Decimal(right["percent"])
+            else:
+                continue
             if conflict:
                 amendment = any(
                     re.search(

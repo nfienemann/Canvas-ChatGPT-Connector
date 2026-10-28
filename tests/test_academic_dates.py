@@ -74,7 +74,12 @@ def test_T11_T15_explicit_date_grammar(text, expected):
 )
 def test_T11_T15_uncertainty_is_not_a_date(text, reason):
     value = candidate(text)
-    assert value["date"] is None and value["normalization_status"] == "unresolved"
+    assert value["date"] is None
+    assert value["normalization_status"] == (
+        "ambiguous" if value.get("possible_utc") else "unresolved"
+    )
+    if "possible_utc" in value:
+        assert value["possible_utc"] == ["2026-11-01T05:30:00Z", "2026-11-01T06:30:00Z"]
     assert any(reason in warning for warning in value["uncertainty"])
     result = comparison(text, {"kind": "timestamp", "timestamp": "2026-11-12T19:00:00Z"})
     assert result["findings"][0]["kind"] == "source_date_unresolved"

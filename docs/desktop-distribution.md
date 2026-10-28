@@ -1,93 +1,137 @@
-# Desktop distribution
+# Desktop installation and onboarding
 
-## Audience and first run
+## Supported editions
 
-Everyday students should use a supported hosted service directly from ChatGPT;
-they should not install a server, paste a Canvas token, obtain an API key, or read
-a GitHub installation guide. No approved hosted service exists yet. The native
-packages are a **local synthetic demonstration** for evaluation and operator
-training. They are not a production hosting wizard and cannot enable live access.
+The local 0.2.0 preview targets Windows 10/11 x64. Python, Tk, native libraries and
+application components are bundled. Installation is per user, requires no terminal,
+and requests no administrator privileges. This is a setup/maintenance window;
+the existing settings page remains the only browser UI. macOS and Linux build
+scaffolding is experimental, explicitly opt-in and excluded from release CI.
 
-The download page presents a short OS-specific download table. Windows uses a
-per-user EXE setup wizard with a Start menu shortcut and an optional desktop
-shortcut. It does not request administrator access. macOS uses a DMG with the app
-and Applications shortcut. Ubuntu/compatible Debian uses a DEB that the system
-software installer can open, with an Applications-menu entry. Linux package
-installation can require administrator approval. A portable Linux tarball is
-also provided; compatibility outside the tested distribution is not established.
+| Edition | Available task and source | Connection boundary |
+|---|---|---|
+| Offline academic intelligence | Verified fictional 85% calculation; explicit inspection of the user's permitted TXT/Markdown material | No server, database, account, token or network connection; no external sharing |
+| Synthetic demonstration | Fictional courses, authenticated local MCP reads and planning | Loopback only; no institution contacted; local MCP test client is not ChatGPT |
+| Authorized institutional integration | Navigation to a reviewed approved hosted service, if included | Default catalog is empty. Host must recheck current authorization, identity, course selection and sharing; no token-paste fallback |
 
-The native launcher explains the fictional scope before initializing anything.
-The user can change the data directory, start the demo, open browser settings,
-and run the authenticated MCP read/planning check using buttons. No terminal is
-part of the ordinary path. Errors use plain language and never display tokens or
-private connection URLs. The existing settings page remains the only browser UI;
-the launcher is not a separate academic dashboard or chatbot.
+The institutional pathway is deliberately unavailable until its independently
+approved service exists. Adding a catalog entry is not an approval or live access
+grant. Offline and synthetic data directories cannot be mixed or silently adopt
+institutional databases. Shell variables and `.env` cannot enable live access.
 
-## Data and lifecycle
+## First run
 
-Default folders:
+Open the Windows installer, then **Canvas Bridge Demo**. Choose the edition,
+continue, review the privacy explanation and data location, and select **Check
+and set up**. The wizard checks system compatibility, the installed file manifest,
+local health, available sources and the fictional task before success. It never
+reports a university or AI-client connection from a local test alone.
 
-| OS | Data |
+The offline grade task computes `(80 + 90) / (100 + 100) * 100 = 85%`. Its text
+inspection requires explicit ownership/permission acknowledgment, uses bounded
+hash-authorized local reads and retains no copy. It reports extraction, not AI
+analysis. PDF/PPTX conversion and delivery are not advertised as supported in the
+frozen offline edition. Optional LibreOffice metadata detection never installs or
+executes a converter; a verified sandboxed conversion component is still required.
+
+Diagnostics distinguish server, authentication, authorization, upstream, converter,
+file limits, test-client negotiation, token expiry and clock validation. They omit
+credentials, identifiers and raw exception text. No clock-sync claim is made
+without an independent trusted time source. Synthetic local tokens last one hour;
+restart is explicit. No service, autostart, polling or notification is installed.
+
+| Setup result | Recovery |
 |---|---|
-| Windows | `%LOCALAPPDATA%\Canvas Bridge Demo` |
-| macOS | `~/Library/Application Support/Canvas Bridge Demo` |
-| Linux | `$XDG_DATA_HOME/Canvas Bridge Demo`, or `~/.local/share/Canvas Bridge Demo` |
+| `BUNDLE_INTEGRITY_FAILED` | Reinstall a verified application package; keep the separate profile |
+| `EDITION_MISMATCH` / `UNRECOGNIZED_DATA_FOLDER` | Select the matching edition or an empty dedicated folder |
+| Profile already open | Close its existing window before retrying; do not remove its lock file |
+| `DEMO_ACCESS_DISABLED` | Preserve disabled/deleted access; explicitly choose a new empty fictional profile if a new demonstration is desired |
+| Schema upgrade required | Review the copy-first upgrade; missing keys/journal require approved recovery, never replacement credentials |
+| Converter missing / not verified | Continue with local grade/TXT/Markdown tasks; optional conversion is unavailable |
+| `UPDATE_EXPIRED_OR_CLOCK_INCORRECT` | Check normal automatic system date/time and obtain a current approved package |
+| `INSTALLER_PUBLISHER_UNVERIFIED` / `UPDATE_SIGNATURE_INVALID` | Obtain the publisher-approved release; do not bypass verification |
+| `ROLLBACK_SCHEMA_INCOMPATIBLE` | Keep the current app or obtain a compatible signed release; no database downgrade |
+| `DATA_REMOVAL_REQUIRES_REVIEW` / `DATA_REMOVAL_INCOMPLETE` | Inspect the remaining folder; unknown files are preserved, and an I/O failure may leave a partially removed profile |
 
-`Canvas Bridge Launcher/preferences.json` alongside the default folder remembers
-only the chosen directory. Data and keys are separate from application binaries.
-An OS lock prevents concurrent access by two launchers, including after a crash.
-The server binds a reserved loopback socket and chooses another port if necessary.
-Operator environment variables and `.env` files cannot change the demo's profile,
-database, network binding or credentials. Resources resolve inside the package;
-working-directory changes and spaces/Unicode in the profile path are tested.
+## Updates, rollback and recovery
 
-Starting again renews the fictional sign-in token, runs migrations and preserves
-keys, existing connections and course selections. Closing stops the server and
-closes database pools. Nothing installs a background service or enables autostart.
-Uninstall removes program files; it deliberately keeps data. Privacy controls
-inside the running demo delete account records. After closing, the user can remove
-the displayed demo folder through their file manager to remove all demo files.
+The wizard accepts only `.cbu` packages containing exactly a signed release manifest,
+signature and installer. Ed25519 trust anchors and expected Windows publisher
+thumbprints are packaged public configuration. Verification checks validity dates,
+product/platform/edition, version direction, database compatibility, bounded sizes,
+SHA-256 and Windows Authenticode before installation. Release notes and explicit
+installation confirmation follow verification. The installer is checked again
+before launch. There is no unsigned update fallback or automatic download.
 
-## Build and verification
+Trust anchors are empty in the development checkout: signed updates are blocked
+with recovery guidance. Checksums detect corruption; they do not authenticate a
+publisher. No production identity was created or claimed. Publisher signing uses
+Windows SDK SignTool and Inno Setup's signed installer/uninstaller support. The
+operator must protect the real signing key and configure reviewed public anchors.
 
-Contributor build: `uv sync --frozen --group packaging`, then
-`uv run --group packaging python scripts/build_desktop.py`. Windows build machines
-also need Inno Setup 6. End users need none of these dependencies. Python, native
-libraries, Tk, migration scripts, institution fixtures, project license status and
-third-party notices are bundled using explicit resource lists. No entire checkout,
-`.env`, local DB, test credential or operator directory is added.
+Binary rollback needs an explicitly selected, signed older release that supports
+the current schema and the 0.2.0 minimum version for access-preservation controls.
+Legacy releases below that floor are refused even if signed. It never restores an old database, reconnects a disabled
+connection, restores deleted records or widens course selection. Restoring used data
+from an old backup is not a desktop rollback mechanism. Start-up refuses outdated
+schema until the user approves a local copy-first migration. Migration holds the
+profile lock, checks keys/journal and database integrity, verifies preferences,
+credentials and access state on the migrated copy, then atomically replaces the
+original. Failure keeps the original. Temporary migration copies are removed; no
+new persistent backup is retained. This is validation of migration behavior, not a
+claim that every future schema change is compatible. Older incompatible releases
+require operator assistance, without bypassing recovery controls.
 
-`scripts/smoke_desktop.py` installs/copies the finished package in a disposable
-location, launches it from a different directory with Python removed from PATH,
-tests the wizard controls and real MCP exchange, then checks preservation of keys.
-The Windows check also upgrades in place and uninstalls; the Linux check installs
-and removes the DEB. It refuses to replace an existing Windows user installation.
-macOS checks copying from a mounted DMG. GUI checks do not open external websites.
+## Local retention and uninstall
 
-The normal CI test job must pass before packaging. A main-branch commit containing
-`[desktop-preview]`, or the explicit workflow-dispatch option, builds Windows x64,
-macOS ARM64/Intel and Linux x64 on their own runners. All four verified packages
-are required for publication. The release job uses a short-lived GitHub token with
-contents-write permission only in that job, uploads to a draft and publishes an
-immutable commit-tagged prerelease after every upload succeeds. SHA-256 checksums
-and platform verification reports accompany downloads. This is source/binary
-distribution, not deployment of a live service.
+Defaults are `%LOCALAPPDATA%\Canvas Bridge Offline` and
+`%LOCALAPPDATA%\Canvas Bridge Demo`. Launcher preferences remember only each edition's
+chosen folder, separately from academic records. Keys and records are separate
+from installed binaries. Closing stops local tools; disabled/deleted connections
+and course choices remain disabled/deleted on restart.
 
-## Remaining public-release gates
+Windows uninstall opens a dialog with removal checkboxes **unchecked**. **Keep data
+and continue** is the default. The running wizard also has **Remove local data**.
+Explicit removal deletes the verified selected application's records, preferences,
+keys and owned delivery cache. Unknown files, symlinks/junctions or an active
+profile cause refusal for manual review. Silent uninstall and upgrades keep data.
+Custom folders remembered by the launcher are listed. An unremembered older folder
+can be reviewed and removed separately in a file manager after closing the app.
+The launcher directory stores paths only; these can also be removed separately.
 
-Development packages are unsigned (macOS may have PyInstaller's local ad-hoc
-signature). These are not verified publisher signatures. Windows Authenticode
-and Apple Developer ID signing/notarization require the owner's real signing
-identity and protected release configuration. Do not advise users to disable
-SmartScreen, Gatekeeper or antivirus. Checksums are not a substitute for signing.
+Canvas records, ChatGPT conversations, copied downloads, synchronized/OS backups
+and institutional service retention are outside this deletion. Deleting local files
+is not guaranteed forensic erasure. No credentials or records enter reports.
 
-Runner GUI checks do not establish screen-reader accessibility, fresh consumer-OS
-trust prompts, every Linux distribution, or compatibility with older OS versions.
-Windows ARM64 and Linux ARM64 are not packaged. The owner must select the project
-license before claiming an open-source release. Native packaging also cannot
-replace institution OAuth approval, live hosting/identity setup, ChatGPT client
-verification or distribution eligibility review.
+## Contributor packaging and evidence
 
-Build references: [PyInstaller](https://pyinstaller.org/en/stable/),
-[Inno Setup](https://jrsoftware.org/isinfo.php), and
-[GitHub runner architectures](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+Run `uv sync --locked --group packaging`, then `python scripts/build_desktop.py`
+in that environment. Inno Setup 6 is a build-machine dependency already installed
+by the operator. No executable downloader is included. Locked dependency versions,
+explicit resource lists, bundled notices and a per-file SHA-256 manifest support
+repeatable inputs; timestamped installers are not claimed byte-for-byte reproducible.
+
+`--release --certificate-thumbprint <approved-thumbprint> --sign-tool <SDK-path>`
+requires matching packaged trust and a real protected publisher identity; it fails
+instead of producing an unsigned release. `scripts/package_desktop_update.py`
+creates signed packages from that installer and an external protected Ed25519
+signing key. It verifies the publisher and configured public key before packaging;
+keys are never included. Contributor commands are not part of student onboarding.
+
+`scripts/smoke_desktop.py` uses disposable profiles, an unrelated working directory
+and PATH without Python, tests actual installed startup, both native wizard paths,
+authenticated MCP reads/planning, an in-place reinstall, preserved keys and uninstall.
+It refuses to replace an existing Windows user installation. Regular CI runs
+onboarding negative/regression tests. Explicit preview CI builds Windows only,
+requires both edition receipts and retains checksums. Public preview jobs retain
+the independent compliance gate; none was run or published for this implementation.
+
+See [acceptance evidence](../evidence/sanitized-results/onboarding-2026-10-26.md)
+and the [nontechnical usability protocol](review-templates/onboarding-usability.md).
+Human study results, accessibility/visual inspection on an unlocked consumer desktop,
+protected publisher signing, approved institution service and independently tested
+AI clients remain external release gates. No general student release is claimed.
+
+References: [Inno per-user privileges](https://jrsoftware.org/ishelp/topic_setup_privilegesrequired.htm),
+[signed uninstallers](https://jrsoftware.org/ishelp/topic_setup_signeduninstaller.htm),
+[Windows SignTool](https://learn.microsoft.com/en-us/windows/desktop/seccrypto/signtool).

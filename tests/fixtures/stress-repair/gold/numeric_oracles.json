@@ -1,0 +1,20 @@
+{
+  "fixture_validation_only": true,
+  "points_current_percent": "83.33333333333333333333333333",
+  "points_final_target_score": 35,
+  "points_final_target_percent": 70,
+  "weighted_percent": "82.00",
+  "drop_lowest_percent": "100",
+  "extra_credit_percent": "85",
+  "capacity_shortfall_lower_before_breaks_minutes": 150,
+  "capacity_shortfall_upper_before_breaks_minutes": 270,
+  "discussion_verified_own_top_level": 1,
+  "discussion_verified_own_replies": 1,
+  "discussion_overall_completion": "unknown_due_to_partial_coverage",
+  "figure_ratio": "1.5",
+  "figure_difference_percentage_points": "25",
+  "figure_relative_increase_percent": "50",
+  "figure_significance": "unknown",
+  "degree_status": "unofficial_provisional_missing_catalog_year",
+  "source_permission_never_implied": true
+}

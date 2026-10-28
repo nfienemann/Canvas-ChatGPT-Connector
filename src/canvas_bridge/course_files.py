@@ -6,6 +6,8 @@ import re
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 
+from canvas_bridge.document_diagnostics import OCR_DIAGNOSTICS_VERSION, diagnostics
+from canvas_bridge.document_policy import PPTX_RESPONSE_SLIDES
 from canvas_bridge.domain import DomainError, Result, Source, utcnow
 from canvas_bridge.file_download import download_file, file_format, file_metadata, file_version
 from canvas_bridge.normalize import fact_date, plain_text
@@ -50,19 +52,29 @@ def modified_at(metadata):
     return value.isoformat() if value else None
 
 
-def fresh_cache(row, metadata, settings):
+def fresh_cache(row, metadata, settings, *, now=None):
+    now = now or utcnow()
     state = row.file_state
     return bool(
         state.get("stage") in {"parsed", "partially_parsed"}
         and row.version_hash
         and state.get("parser") == PARSER
+        and (
+            state.get("format") != "pptx"
+            or state.get("source_byte_limit") == settings.pptx_source_max_bytes
+        )
         and state.get("ocr_enabled", False) == bool(settings.ocr_root)
         and state.get("ocr_configuration") == ocr_configuration(settings)
+        and (
+            state.get("format") != "pdf"
+            or not settings.ocr_root
+            or state.get("ocr_diagnostics_version") == OCR_DIAGNOSTICS_VERSION
+        )
         and file_version(metadata) is not None
         and state.get("version") == file_version(metadata)
         and state.get("expires_at")
-        and datetime.fromisoformat(state["expires_at"]) > utcnow()
-        and aware(row.retrieved_at) > utcnow() - timedelta(hours=settings.file_cache_hours)
+        and datetime.fromisoformat(state["expires_at"]) > now
+        and aware(row.retrieved_at) > now - timedelta(hours=settings.file_cache_hours)
     )
 
 
@@ -110,7 +122,7 @@ async def authorized(bridge, owner, ref, material_id):
         if (
             (
                 row.file_state.get("stage") in {"parsed", "partially_parsed"}
-                and not fresh_cache(row, metadata, bridge.settings)
+                and not fresh_cache(row, metadata, bridge.settings, now=bridge.retention.clock())
             )
             or (
                 row.file_state.get("version")
@@ -123,7 +135,11 @@ async def authorized(bridge, owner, ref, material_id):
         ):
             clear(row)
         row.title = plain_text(str(metadata.get("display_name", "Untitled file")), 1000)
-        row.file_state = {**row.file_state, "source_updated_at": modified_at(metadata)}
+        row.file_state = {
+            **row.file_state,
+            "source_updated_at": modified_at(metadata),
+            "governance_source_version": file_version(metadata),
+        }
     return row, course, metadata, epoch
 
 
@@ -230,6 +246,15 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
                     "url": row.url,
                     "extraction_state": row.file_state.get("stage", "available"),
                     "access_state": item.get("access_state", "available_at_inventory_check"),
+                    **{
+                        k: item.get(k)
+                        for k in (
+                            "reference_origin",
+                            "inventory_freshness",
+                            "inventory_checked_at",
+                            "access_verification",
+                        )
+                    },
                     "indexed": bool(row.text.strip())
                     and row.file_state.get("parser") == PARSER
                     and row.file_state.get("ocr_enabled", False) == bool(bridge.settings.ocr_root)
@@ -238,13 +263,14 @@ async def list_files(bridge, owner, ref, course_id, module_id=None):
             )
     return Result(
         status=result.status,
-        summary="Accessible course files. Use the returned file_id to read a document; listings do not prove its contents were read.",
+        summary="Discovered course file references with freshness and coverage. Each content read requires fresh authorization; a listing does not prove access or reading.",
         data={
             "files": files,
             "modules": [{"id": m["id"], "title": m["title"]} for m in modules],
             "coverage": result.data["inventory_coverage"],
             "inventory_failures": result.data["inventory_failures"],
             "inventory_reason_codes": result.data["inventory_reason_codes"],
+            "inventory_status": result.data["inventory_status"],
             "document_content_included": False,
         },
         sources=result.sources,
@@ -282,7 +308,8 @@ async def status(bridge, owner, ref, file_id):
             "format_supported": file_format(metadata) in SUPPORTED_FORMATS,
             "extraction_outcome": "not_attempted" if state == "available" else state,
             "parser": PARSER,
-            "indexed": bool(row.text.strip()) and fresh_cache(row, metadata, bridge.settings),
+            "indexed": bool(row.text.strip())
+            and fresh_cache(row, metadata, bridge.settings, now=bridge.retention.clock()),
             "content_hash": row.version_hash or None,
             "page_count": row.file_state.get("page_count"),
             "limitations": row.limitations,
@@ -329,7 +356,7 @@ async def read_file(
                 reason_code="CONTINUATION_HASH_REQUIRED",
                 processing_stage="input_validation",
             )
-        if not fresh_cache(row, metadata, bridge.settings):
+        if not fresh_cache(row, metadata, bridge.settings, now=bridge.retention.clock()):
             if index_only:
                 return None
             if not bridge.settings.file_reading_enabled:
@@ -357,7 +384,12 @@ async def read_file(
                 with bridge.store.transaction() as session:
                     current = checked_row(bridge, session, owner, ref, file_id, epoch)
                     clear(current, "downloaded")
-                extracted = await extract_document(download.data, download.kind, bridge.settings)
+                from canvas_bridge.worker_storage import processing
+
+                with processing(owner, ref, namespace=bridge.processing_namespace):
+                    extracted = await extract_document(
+                        download.data, download.kind, bridge.settings
+                    )
                 async with bridge.client(owner, ref) as client:
                     after = await file_metadata(client, course.source_id, row.source_id)
                 if download.revision is not None and file_version(after) != download.revision:
@@ -386,9 +418,17 @@ async def read_file(
                         "parser": extracted["parser"],
                         "ocr_enabled": bool(bridge.settings.ocr_root),
                         "ocr_configuration": ocr_configuration(bridge.settings),
+                        "ocr_diagnostics_version": OCR_DIAGNOSTICS_VERSION,
                         "metadata": extracted["metadata"],
+                        "privacy": extracted["privacy"],
                         "page_count": extracted["page_count"],
                         "format": extracted["format"],
+                        "source_byte_limit": bridge.settings.pptx_source_max_bytes
+                        if extracted["format"] == "pptx"
+                        else None,
+                        "resource_usage": extracted.get(
+                            "resource_usage", {"source_bytes": download.byte_size}
+                        ),
                         "expires_at": (
                             utcnow() + timedelta(hours=bridge.settings.file_cache_hours)
                         ).isoformat(),
@@ -428,17 +468,67 @@ async def read_file(
 
 
 def chunk_result(bridge, row, offset, length, page_start, page_end):
+    from canvas_bridge.scientific_documents import document_model
+
     first, last = (
         page_start or 1,
         page_end or (page_start if page_start else row.file_state["page_count"]),
     )
     if first > row.file_state["page_count"]:
         raise DomainError("needs_input", "Requested page exceeds this document's page count.")
+    requested_last = min(last, row.file_state["page_count"])
+    presentation = row.file_state.get("format") == "pptx"
+    if presentation:
+        last = min(requested_last, first + PPTX_RESPONSE_SLIDES - 1)
+        # Text is repeated in the legacy field, passages and structured slides.
+        # Keep worst-case UTF-8 plus provenance under the MCP 250 KB envelope.
+        length = min(length, 8000)
     pages = [p for p in row.locators if first <= p["page"] <= last]
     text = "\n\n".join(p["text"] for p in pages)
-    passages, cursor = [], 0
+    passages, slides, cursor = [], [], 0
     for page in pages:
         start, end = max(offset, cursor), min(offset + length, cursor + len(page["text"]))
+        if presentation:
+            a, b = max(0, start - cursor), max(0, end - cursor)
+            spans = [
+                {**s, "start": max(a, s["start"]) - a, "end": min(b, s["end"]) - a}
+                for s in page.get("text_spans", [])
+                if s["start"] < b and s["end"] > a
+            ]
+            value = page["text"][a:b] if a < b else ""
+            slides.append(
+                {
+                    "slide_number": page["page"],
+                    "hidden": page.get("hidden"),
+                    "source_file_id": row.id,
+                    "source_version": row.file_state.get("version"),
+                    "content_hash": row.version_hash,
+                    "text": value,
+                    "text_offset": a,
+                    "text_spans": spans,
+                    "text_complete_in_response": a == 0
+                    and b == len(page["text"])
+                    and page["state"] not in {"truncated", "unreadable", "resource_limit"},
+                    "notes": "\n".join(
+                        value[s["start"] : s["end"]]
+                        for s in spans
+                        if s["source_kind"] == "speaker_notes"
+                    ),
+                    "media_presence": page["media_presence"],
+                    "extraction_state": page["state"],
+                    "visual_render_status": "not_rendered",
+                    "visual_status_scope": "this_text_extraction_only",
+                    "visual_observation": None,
+                    "citations": [
+                        {
+                            "source_file_id": row.id,
+                            "locator": f"Slide {page['page']}",
+                            "content_hash": row.version_hash,
+                        }
+                    ],
+                    "warnings": page["warnings"],
+                }
+            )
         if start < end:
             passages.append(
                 {
@@ -462,17 +552,39 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             )
         cursor += len(page["text"]) + 2
     next_offset = offset + length if offset + length < len(text) else None
+    next_slide = (
+        last + 1 if presentation and last < requested_last and next_offset is None else None
+    )
     chunk_id = hashlib.sha256(
         f"{row.id}:{row.version_hash}:{first}:{last}:{offset}:{length}".encode()
     ).hexdigest()
     return Result(
-        status="ok" if row.file_state["coverage"] == "text_only" else "partial_data",
+        status="ok"
+        if row.file_state["coverage"] == "text_only"
+        and not any(
+            any(
+                s["media_presence"].get(k)
+                for k in (
+                    "images",
+                    "charts",
+                    "diagrams",
+                    "audio_video",
+                    "inherited_graphics_possible",
+                )
+            )
+            for s in slides
+        )
+        else "partial_data",
         summary="Extracted document text with page references. Visual content has not been interpreted.",
         data={
             "id": row.id,
             "file_id": row.id,
             "title": row.title,
+            "course_id": row.course_id,
+            "source_version": row.file_state.get("version"),
             "metadata": row.file_state["metadata"],
+            "document_privacy": row.file_state.get("privacy", {"content_status": "not_assessed"}),
+            "document_model": document_model(row, pages),
             "text": text[offset : offset + length],
             "passages": passages,
             "chunk_id": chunk_id,
@@ -494,6 +606,7 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
                         "extraction_method",
                         "ocr_confidence",
                         "ocr_failure",
+                        "ocr_status",
                         "sheet_name",
                         "sheet_state",
                     )
@@ -501,22 +614,46 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
                 }
                 for p in pages
             ],
-            "visual_fallback_tool": "render_course_file_page"
+            "visual_fallback_tool": "render_course_slide"
+            if row.file_state.get("format") == "pptx"
+            else "render_course_file_page"
             if row.file_state.get("format") == "pdf"
             else None,
             "coverage": row.file_state["coverage"],
+            **{
+                k: v
+                for k, v in diagnostics(
+                    row.locators, row.limitations, row.file_state["page_count"]
+                ).items()
+                if k != "limitations"
+            },
             "parser": row.file_state["parser"],
             "format": row.file_state["format"],
+            **(
+                {
+                    "slides": slides,
+                    "slide_count": row.file_state["page_count"],
+                    "slide_coverage": {
+                        "returned": [s["slide_number"] for s in slides],
+                        "extracted_slide_count": len(row.locators),
+                        "visually_inspected": [],
+                        "complete_deck_review": False,
+                    },
+                    "resource_usage": row.file_state.get("resource_usage", {}),
+                }
+                if presentation
+                else {}
+            ),
             "limitations": row.limitations,
             "content_boundary": "untrusted_source_data",
             "continuation": {
                 "file_id": row.id,
-                "offset": next_offset,
+                "offset": next_offset if next_offset is not None else 0,
                 "expected_hash": row.version_hash,
-                "page_start": first,
-                "page_end": last,
+                "page_start": next_slide if next_slide else first,
+                "page_end": requested_last,
             }
-            if next_offset is not None
+            if next_offset is not None or next_slide is not None
             else None,
         },
         sources=[
@@ -526,6 +663,7 @@ def chunk_result(bridge, row, offset, length, page_start, page_end):
             )
             for p in passages
         ]
+        or [source(row, f"Slide {s['slide_number']}") for s in slides]
         or [source(row)],
         meta=bridge.meta(),
     )
@@ -662,6 +800,7 @@ async def search_files(
             "request_budget_exhausted": budget_exhausted,
             "inventory_coverage": inventory.data["coverage"],
             "inventory_failures": inventory.data["inventory_failures"],
+            "inventory_status": inventory.data["inventory_status"],
             "unread_documents_searched": False,
             "next_step": "Use include_unread=true to read/search bounded batches and follow next_cursor, or read specific files with read_course_file. No match is not evidence that unread documents lack the topic.",
         },

@@ -7,13 +7,11 @@ import io
 import json
 import logging
 import os
-import queue
 import socket
 import sys
 import tempfile
 import threading
 import time
-import webbrowser
 from pathlib import Path
 
 import uvicorn
@@ -44,23 +42,32 @@ def default_data_directory() -> Path:
     return base / "Canvas Bridge Demo"
 
 
-def remembered_directory() -> Path:
+def remembered_directory(edition="synthetic") -> Path:
     default = default_data_directory()
+    if edition == "offline":
+        default = default.with_name("Canvas Bridge Offline")
     location = default.parent / "Canvas Bridge Launcher" / "preferences.json"
     try:
         if location.stat().st_size > 8192:
             return default
-        value = Path(json.loads(location.read_text(encoding="utf-8"))["data_directory"])
+        value = Path(
+            json.loads(location.read_text(encoding="utf-8"))[
+                "offline_directory" if edition == "offline" else "data_directory"
+            ]
+        )
         return value if value.is_absolute() else default
     except (OSError, ValueError, KeyError, TypeError):
         return default
 
 
-def remember_directory(folder: Path):
+def remember_directory(folder: Path, edition="synthetic"):
     location = default_data_directory().parent / "Canvas Bridge Launcher"
     location.mkdir(mode=0o700, parents=True, exist_ok=True)
     temporary = location / "preferences.tmp"
-    temporary.write_text(json.dumps({"data_directory": str(folder.resolve())}), encoding="utf-8")
+    values = {}
+    for mode, key in (("offline", "offline_directory"), ("synthetic", "data_directory")):
+        values[key] = str(folder.resolve() if mode == edition else remembered_directory(mode))
+    temporary.write_text(json.dumps(values), encoding="utf-8")
     temporary.replace(location / "preferences.json")
 
 
@@ -99,7 +106,7 @@ class ProfileLock:
 
 class DemoRuntime:
     def __init__(self, folder: Path, preferred_port: int = 8765):
-        self.folder = folder.expanduser().resolve()
+        self.folder = folder.expanduser().absolute()
         self.preferred_port = preferred_port
         self.lock = None
         self.socket = None
@@ -110,6 +117,9 @@ class DemoRuntime:
         self.app = None
 
     def start(self):
+        from canvas_bridge.desktop_profiles import prepare_profile
+
+        prepare_profile(self.folder, "synthetic")
         if self.lock:
             raise AlreadyRunning("This demo is already running.")
         self.folder.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -178,6 +188,17 @@ class DemoRuntime:
         return self.settings.resource_url + "/settings"
 
     def check(self) -> dict:
+        from sqlalchemy import select
+
+        from canvas_bridge.onboarding import SetupError
+        from canvas_bridge.storage import Connection
+
+        with self.app.state.bridge.store.transaction() as session:
+            if not session.scalar(select(Connection.id).where(Connection.state == "active")):
+                raise SetupError(
+                    "DEMO_ACCESS_DISABLED",
+                    "This demo has no active fictional connection. Updates preserve disabled/deleted access. Choose a new empty demo folder to explicitly start a new demonstration.",
+                )
         with contextlib.redirect_stdout(io.StringIO()) as output:
             asyncio.run(verify_read(self.settings))
         return json.loads(output.getvalue())
@@ -206,203 +227,26 @@ class DemoRuntime:
 
 
 def friendly_error(error: Exception) -> str:
+    from canvas_bridge.onboarding import SetupError
+
+    if isinstance(error, SetupError):
+        return f"{error.code}: {error}"
     if isinstance(error, AlreadyRunning):
         return str(error)
     if isinstance(error, PermissionError):
         return "This folder cannot be used. Choose a folder in your user account and try again."
     return (
-        "The demo could not finish this step. Your existing files were kept. "
+        "The application could not finish this step. "
         "Close other copies, then try again. If it still fails, report error type "
         f"{type(error).__name__} to the project owner. Do not attach your data folder."
     )
 
 
 class SetupWindow:
-    def __init__(self, root, folder: Path, *, remember=True):
-        import tkinter as tk
-        from tkinter import ttk
+    def __new__(cls, root, folder, *, remember=True, edition="offline"):
+        from canvas_bridge.desktop_wizard import SetupWizard
 
-        self.tk, self.ttk = tk, ttk
-        self.root, self.folder = root, folder
-        self.remember = remember
-        self.runtime = None
-        self.events = queue.Queue()
-        self.busy = False
-        self.closing = False
-        self.stage = "welcome"
-        root.title("Canvas Bridge · Local demo")
-        root.geometry("660x530")
-        root.minsize(590, 490)
-        root.configure(background="#f3f7f6")
-        style = ttk.Style()
-        if "clam" in style.theme_names():
-            style.theme_use("clam")
-        style.configure("TFrame", background="#f3f7f6")
-        style.configure("TLabel", background="#f3f7f6", foreground="#182e32", font=("", 11))
-        style.configure("Title.TLabel", font=("", 23, "bold"))
-        style.configure("Accent.TButton", font=("", 11, "bold"), padding=(18, 11))
-        style.configure("TButton", padding=(10, 7))
-        self.frame = ttk.Frame(root, padding=28)
-        self.frame.pack(fill="both", expand=True)
-        self.frame.columnconfigure(0, weight=1)
-        self.eyebrow = ttk.Label(self.frame, text="CANVAS BRIDGE  /  LOCAL DEMO")
-        self.eyebrow.grid(row=0, column=0, sticky="w", pady=(0, 18))
-        self.title = ttk.Label(self.frame, style="Title.TLabel", wraplength=570)
-        self.title.grid(row=1, column=0, sticky="w")
-        self.body = ttk.Label(self.frame, wraplength=570, justify="left")
-        self.body.grid(row=2, column=0, sticky="nw", pady=18)
-        self.detail = ttk.Label(self.frame, wraplength=570, justify="left")
-        self.detail.grid(row=3, column=0, sticky="nw", pady=(0, 15))
-        self.extra = ttk.Frame(self.frame)
-        self.extra.grid(row=4, column=0, sticky="ew")
-        self.status = ttk.Label(self.frame, wraplength=570, justify="left")
-        self.status.grid(row=5, column=0, sticky="sw", pady=14)
-        self.frame.rowconfigure(5, weight=1)
-        self.buttons = ttk.Frame(self.frame)
-        self.buttons.grid(row=6, column=0, sticky="ew")
-        self.secondary = ttk.Button(self.buttons, text="Close", command=self.close)
-        self.secondary.pack(side="left")
-        self.primary = ttk.Button(self.buttons, style="Accent.TButton", command=self.setup)
-        self.primary.pack(side="right")
-        root.protocol("WM_DELETE_WINDOW", self.close)
-        root.bind("<Escape>", lambda _: self.close())
-        self.welcome()
-        root.after(100, self.poll)
-
-    def clear_extra(self):
-        for widget in self.extra.winfo_children():
-            widget.destroy()
-
-    def welcome(self):
-        self.stage = "welcome"
-        self.title.configure(text="Try it on your computer")
-        self.body.configure(
-            text="Explore connection settings and test the study tools with fictional courses. Setup takes about a minute. No Python, terminal commands or API keys are needed."
-        )
-        self.detail.configure(
-            text="This preview does not connect to your university or ChatGPT. A future hosted release is intended to let students connect directly in ChatGPT without installing anything."
-        )
-        self.primary.configure(text="Set up local demo", command=self.setup)
-        self.primary.focus_set()
-
-    def setup(self):
-        from tkinter import filedialog
-
-        self.stage = "setup"
-        self.title.configure(text="A private place for your demo")
-        self.body.configure(
-            text="Fictional records and local sign-in keys stay in your user account. The demo is accessible only from this computer. Nothing starts automatically when you sign in to your computer."
-        )
-        self.detail.configure(text=f"Demo data folder:\n{self.folder}")
-        self.clear_extra()
-
-        def choose():
-            picked = filedialog.askdirectory(
-                parent=self.root, title="Choose where to keep demo data"
-            )
-            if picked:
-                self.folder = Path(picked) / "Canvas Bridge Demo"
-                self.detail.configure(text=f"Demo data folder:\n{self.folder}")
-
-        self.ttk.Button(self.extra, text="Choose another folder…", command=choose).pack(anchor="w")
-        self.status.configure(
-            text="Upgrades keep this folder. Uninstalling the application also keeps it."
-        )
-        self.primary.configure(text="Start local demo", command=self.start)
-
-    def background(self, operation, task):
-        self.busy = True
-        self.primary.configure(state="disabled")
-
-        def run():
-            try:
-                result = task()
-                self.events.put((operation, result, None))
-            except Exception as exc:
-                self.events.put((operation, None, exc))
-
-        threading.Thread(target=run, daemon=True).start()
-
-    def start(self):
-        self.clear_extra()
-        self.status.configure(text="Preparing your local demo…")
-        self.runtime = DemoRuntime(self.folder)
-        self.background("start", self.runtime.start)
-
-    def ready(self):
-        self.stage = "ready"
-        self.title.configure(text="Your local demo is ready")
-        self.body.configure(
-            text="Open connection settings, choose “Open synthetic settings,” and explore the fictional course and privacy controls. Keep this window open while using the demo."
-        )
-        self.detail.configure(
-            text=f"Only on this computer:\n{self.runtime.url}\n\nNo real university or ChatGPT account is connected."
-        )
-        self.status.configure(
-            text="You can also run a quick connection and study-tool check below."
-        )
-        self.primary.configure(text="Open demo settings", command=self.open_settings)
-        self.secondary.configure(text="Stop and close")
-        self.clear_extra()
-        self.check_button = self.ttk.Button(
-            self.extra, text="Check study tools", command=self.check
-        )
-        self.check_button.pack(anchor="w")
-
-    def open_settings(self):
-        if not webbrowser.open(self.runtime.url):
-            self.status.configure(
-                text="Your browser did not open. Copy the local address shown above into your browser."
-            )
-
-    def check(self):
-        self.check_button.configure(state="disabled")
-        self.status.configure(text="Checking the connection and fictional study tools…")
-        self.background("check", self.runtime.check)
-
-    def close(self):
-        self.closing = True
-        self.secondary.configure(state="disabled")
-        self.status.configure(text="Stopping the local demo… Your data will be kept.")
-        if not self.busy:
-            if self.runtime:
-                self.background("stop", self.runtime.stop)
-            else:
-                self.root.destroy()
-
-    def poll(self):
-        try:
-            operation, result, error = self.events.get_nowait()
-        except queue.Empty:
-            self.root.after(100, self.poll)
-            return
-        self.busy = False
-        self.primary.configure(state="normal")
-        if operation == "stop" and not error:
-            self.root.destroy()
-            return
-        if self.closing and operation != "stop":
-            self.close()
-        elif error:
-            self.closing = False
-            self.secondary.configure(state="normal")
-            if operation == "start":
-                self.setup()
-            self.status.configure(text=friendly_error(error))
-        elif operation == "start":
-            if self.remember:
-                try:
-                    remember_directory(self.folder)
-                except OSError:
-                    pass  # The running demo is usable even if this convenience cannot be saved.
-            self.ready()
-        elif operation == "check":
-            self.status.configure(
-                text=f"Check passed: {result['tool_count']} study tools, {result['observed_obligations']} fictional assignments, and a study recommendation. Live Canvas and ChatGPT have not been tested."
-            )
-        if operation == "check":
-            self.check_button.configure(state="normal")
-        self.root.after(100, self.poll)
+        return SetupWizard(root, folder, remember=remember, edition=edition)
 
 
 def smoke_test(folder: Path) -> dict:
@@ -417,27 +261,67 @@ def smoke_test(folder: Path) -> dict:
         runtime.stop()
 
 
-def ui_smoke_test(folder: Path) -> dict:
+def ui_smoke_test(folder: Path, edition="synthetic") -> dict:
     """Exercise native widgets and the bundled runtime without opening a browser."""
     import tkinter as tk
 
     root = tk.Tk()
-    window = SetupWindow(root, folder, remember=False)
+    window = SetupWindow(root, folder, remember=False, edition=edition)
+    screens = []
+
+    def assert_layout(stage):
+        root.update_idletasks()
+        for widget in (
+            window.title,
+            window.body,
+            window.detail,
+            window.extra,
+            window.status,
+            window.buttons,
+        ):
+            assert (
+                widget.winfo_rooty() + widget.winfo_height()
+                <= root.winfo_rooty() + root.winfo_height()
+            ), stage + " exceeds window height"
+            assert (
+                widget.winfo_rootx() + widget.winfo_width()
+                <= root.winfo_rootx() + root.winfo_width()
+            ), stage + " exceeds window width"
+        screens.append(stage)
+
     try:
+        assert_layout("welcome")
+        window.mode.set("institutional")
+        window.primary.invoke()
+        assert "not established" in window.status.cget("text")
+        assert_layout("institutional_unconnected")
+        window.primary.invoke()
+        window.mode.set(edition)
         window.primary.invoke()
         assert window.stage == "setup"
+        assert_layout("setup")
+        window.primary.invoke()
+        assert not window.busy and window.runtime is None
+        window.consent.set(True)
         window.primary.invoke()
         deadline = time.monotonic() + 60
         while window.busy and time.monotonic() < deadline:
             root.update()
             time.sleep(0.05)
         assert window.stage == "ready", window.status.cget("text")
+        assert_layout("ready")
         window.check_button.invoke()
         while window.busy and time.monotonic() < deadline:
             root.update()
             time.sleep(0.05)
         assert window.status.cget("text").startswith("Check passed"), window.status.cget("text")
-        return {"native_wizard": "passed", "platform": sys.platform}
+        return {
+            "native_wizard": "passed",
+            "platform": sys.platform,
+            "edition": edition,
+            "widget_bounds": screens,
+            "checks": window.result,
+        }
     finally:
         if window.runtime:
             window.runtime.stop()
@@ -448,15 +332,26 @@ def main():
     logging.disable(logging.INFO)
     parser = argparse.ArgumentParser(description="Canvas Bridge local demo")
     parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--edition", choices=["offline", "synthetic"], default="offline")
+    parser.add_argument("--uninstall-data", action="store_true")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--ui-smoke-test", action="store_true")
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
+    if args.uninstall_data:
+        from canvas_bridge.desktop_wizard import uninstall_data_window
+
+        uninstall_data_window()
+        return
     if args.smoke_test or args.ui_smoke_test:
         with tempfile.TemporaryDirectory(prefix="Canvas Bridge test ") as temporary:
             try:
                 run = ui_smoke_test if args.ui_smoke_test else smoke_test
-                result = run(args.data_dir or Path(temporary))
+                result = (
+                    run(args.data_dir or Path(temporary), edition=args.edition)
+                    if args.ui_smoke_test
+                    else run(args.data_dir or Path(temporary))
+                )
             except Exception as exc:
                 if args.report:
                     args.report.write_text(
@@ -474,7 +369,12 @@ def main():
     import tkinter as tk
 
     root = tk.Tk()
-    SetupWindow(root, args.data_dir or remembered_directory(), remember=args.data_dir is None)
+    SetupWindow(
+        root,
+        args.data_dir or remembered_directory(),
+        remember=args.data_dir is None,
+        edition=args.edition,
+    )
     root.mainloop()
 
 

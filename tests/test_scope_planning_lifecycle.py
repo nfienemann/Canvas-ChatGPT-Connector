@@ -55,7 +55,9 @@ def test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility()
     result = propose(
         [a, b], PlanRequest(windows=[Window(start=NOW, end=NOW + timedelta(hours=2))]), NOW
     )
-    assert result["feasibility"] == "shortfall" and not result["blocks"]
+    assert result["feasibility"] == "provisional" and not result["blocks"]
+    assert result["known_shortfall_minutes"] == 0
+    assert result["information_status"] == "uncertain"
 
 
 def test_T20_pinned_conflict_requires_correction_not_silent_move():

@@ -130,9 +130,10 @@ def test_docx_invalid_main_document_has_a_specific_reason(changes):
 def test_docx_empty_body_has_one_readable_section_with_partial_coverage():
     result = extract(docx(""), "docx")
     assert result["page_count"] == 1
-    assert result["pages"] == [
+    assert [{k: v for k, v in p.items() if k != "structure"} for p in result["pages"]] == [
         {"page": 1, "text": "", "state": "no_text", "locator_kind": "section"}
     ]
+    assert result["pages"][0]["structure"]["visual_inspection_status"] == "not_performed"
     assert result["coverage"] == "partial"
 
 
@@ -378,7 +379,8 @@ async def test_docx_mcp_transport_uses_actual_worker(
                 assert found.structuredContent["data"]["results"][0]["page"] == 1
                 rendered = await session.call_tool("render_course_file_page", {**args, "page": 1})
                 assert rendered.structuredContent["status"] == "unsupported_feature"
-                assert "PDF only" in rendered.structuredContent["summary"]
+                assert "supports PDF" in rendered.structuredContent["summary"]
+                assert "experimental PPTX" in rendered.structuredContent["summary"]
                 after = await session.call_tool("get_file_extraction_status", args)
                 assert after.structuredContent["data"]["extraction_outcome"] == "parsed"
                 assert after.structuredContent["data"]["indexed"]

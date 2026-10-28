@@ -177,6 +177,20 @@ class SyntheticProvider:
             course = parts[4]
             if len(parts) == 6 and parts[5] in {"quizzes", "discussion_topics"}:
                 return httpx.Response(200, json=self.data.get(parts[5], {}).get(course, []))
+            if parts[5] == "discussion_topics" and len(parts) >= 7:
+                topic = parts[6]
+                if len(parts) == 7:
+                    row = next(
+                        (
+                            t
+                            for t in self.data.get("discussion_topics", {}).get(course, [])
+                            if str(t["id"]) == topic
+                        ),
+                        None,
+                    )
+                else:
+                    row = self.data.get("discussion_" + parts[7], {}).get((course, topic))
+                return httpx.Response(200, json=row) if row is not None else httpx.Response(404)
             if parts[5] == "assignment_groups":
                 return httpx.Response(
                     200, json=self.data.get("assignment_groups", {}).get(course, [])

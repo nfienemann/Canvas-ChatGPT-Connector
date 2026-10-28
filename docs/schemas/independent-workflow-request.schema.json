@@ -1,0 +1,671 @@
+{
+  "$defs": {
+    "CalendarContext": {
+      "additionalProperties": false,
+      "properties": {
+        "calendar_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Calendar Id",
+          "type": "string"
+        },
+        "timezone": {
+          "maxLength": 100,
+          "title": "Timezone",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "format": "date-time",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "window_start": {
+          "format": "date-time",
+          "title": "Window Start",
+          "type": "string"
+        },
+        "window_end": {
+          "format": "date-time",
+          "title": "Window End",
+          "type": "string"
+        },
+        "pagination_complete": {
+          "title": "Pagination Complete",
+          "type": "boolean"
+        },
+        "mapping_search_complete": {
+          "default": false,
+          "title": "Mapping Search Complete",
+          "type": "boolean"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/CalendarEvent"
+          },
+          "maxItems": 200,
+          "title": "Events",
+          "type": "array"
+        },
+        "busy_times": {
+          "items": {
+            "$ref": "#/$defs/Window"
+          },
+          "maxItems": 100,
+          "title": "Busy Times",
+          "type": "array"
+        },
+        "availability_complete": {
+          "default": false,
+          "title": "Availability Complete",
+          "type": "boolean"
+        },
+        "origin": {
+          "const": "existing_google_calendar_connection",
+          "default": "existing_google_calendar_connection",
+          "title": "Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "calendar_id",
+        "timezone",
+        "retrieved_at",
+        "window_start",
+        "window_end",
+        "pagination_complete",
+        "events"
+      ],
+      "title": "CalendarContext",
+      "type": "object"
+    },
+    "CalendarEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "title": "Title",
+          "type": "string"
+        },
+        "start": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End"
+        },
+        "all_day_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "All Day Date"
+        },
+        "bridge_marker": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bridge Marker"
+        },
+        "canvas_source_url": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canvas Source Url"
+        },
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "confirmed",
+            "tentative",
+            "cancelled",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "CalendarEvent",
+      "type": "object"
+    },
+    "DocumentSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "document_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Document Id",
+          "type": "string"
+        },
+        "expected_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Hash",
+          "type": "string"
+        },
+        "start_part": {
+          "default": 1,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Start Part",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 3,
+          "maximum": 5,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "role": {
+          "default": "material",
+          "enum": [
+            "material",
+            "instructions",
+            "rubric",
+            "schedule",
+            "draft"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "document_id",
+        "expected_hash"
+      ],
+      "title": "DocumentSelection",
+      "type": "object"
+    },
+    "Effort": {
+      "additionalProperties": false,
+      "properties": {
+        "minimum_minutes": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Minimum Minutes",
+          "type": "integer"
+        },
+        "maximum_minutes": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Maximum Minutes",
+          "type": "integer"
+        },
+        "origin": {
+          "enum": [
+            "student_estimate",
+            "instructor_estimate",
+            "rule_of_thumb",
+            "assistant_estimate"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "as_of": {
+          "format": "date-time",
+          "title": "As Of",
+          "type": "string"
+        },
+        "assumptions": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Assumptions",
+          "type": "string"
+        }
+      },
+      "required": [
+        "minimum_minutes",
+        "maximum_minutes",
+        "origin"
+      ],
+      "title": "Effort",
+      "type": "object"
+    },
+    "GradeScenario": {
+      "additionalProperties": false,
+      "properties": {
+        "scores": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "maxProperties": 100,
+          "title": "Scores",
+          "type": "object"
+        },
+        "target_percent": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Percent"
+        },
+        "acknowledge_visible_scope": {
+          "default": false,
+          "title": "Acknowledge Visible Scope",
+          "type": "boolean"
+        }
+      },
+      "title": "GradeScenario",
+      "type": "object"
+    },
+    "Importance": {
+      "additionalProperties": false,
+      "properties": {
+        "grade_weight_percent": {
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Grade Weight Percent",
+          "type": "number"
+        },
+        "basis": {
+          "const": "student_provided",
+          "default": "student_provided",
+          "title": "Basis",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "grade_weight_percent",
+        "explanation"
+      ],
+      "title": "Importance",
+      "type": "object"
+    },
+    "PinnedBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "work_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Work Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "work_id"
+      ],
+      "title": "PinnedBlock",
+      "type": "object"
+    },
+    "PlanRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/Window"
+          },
+          "maxItems": 100,
+          "title": "Windows",
+          "type": "array"
+        },
+        "busy_times": {
+          "items": {
+            "$ref": "#/$defs/Window"
+          },
+          "maxItems": 100,
+          "title": "Busy Times",
+          "type": "array"
+        },
+        "pinned_blocks": {
+          "items": {
+            "$ref": "#/$defs/PinnedBlock"
+          },
+          "maxItems": 100,
+          "title": "Pinned Blocks",
+          "type": "array"
+        },
+        "effort_overrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Effort"
+          },
+          "maxProperties": 100,
+          "title": "Effort Overrides",
+          "type": "object"
+        },
+        "priority_overrides": {
+          "additionalProperties": {
+            "maximum": 10,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxProperties": 100,
+          "title": "Priority Overrides",
+          "type": "object"
+        },
+        "importance": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Importance"
+          },
+          "maxProperties": 100,
+          "title": "Importance",
+          "type": "object"
+        },
+        "date_only_timezones": {
+          "additionalProperties": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxProperties": 100,
+          "title": "Date Only Timezones",
+          "type": "object"
+        },
+        "opportunity_minutes": {
+          "default": 45,
+          "maximum": 720,
+          "minimum": 5,
+          "title": "Opportunity Minutes",
+          "type": "integer"
+        },
+        "break_minutes": {
+          "default": 10,
+          "maximum": 60,
+          "minimum": 0,
+          "title": "Break Minutes",
+          "type": "integer"
+        },
+        "buffer_minutes": {
+          "default": 10,
+          "maximum": 120,
+          "minimum": 0,
+          "title": "Buffer Minutes",
+          "type": "integer"
+        },
+        "max_block_minutes": {
+          "default": 50,
+          "maximum": 180,
+          "minimum": 10,
+          "title": "Max Block Minutes",
+          "type": "integer"
+        },
+        "minimum_block_minutes": {
+          "default": 15,
+          "maximum": 180,
+          "minimum": 5,
+          "title": "Minimum Block Minutes",
+          "type": "integer"
+        },
+        "availability_origin": {
+          "default": "student_input",
+          "enum": [
+            "student_input",
+            "provided_via_conversation"
+          ],
+          "title": "Availability Origin",
+          "type": "string"
+        }
+      },
+      "title": "PlanRequest",
+      "type": "object"
+    },
+    "PolicyReview": {
+      "additionalProperties": false,
+      "description": "Explicit student interpretation, never an instructor verification.",
+      "properties": {
+        "policy_version": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "confirmed_rule_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Confirmed Rule Ids",
+          "type": "array"
+        },
+        "complete_policy_confirmed": {
+          "default": false,
+          "title": "Complete Policy Confirmed",
+          "type": "boolean"
+        },
+        "applicability_confirmed": {
+          "default": false,
+          "title": "Applicability Confirmed",
+          "type": "boolean"
+        },
+        "empty_categories": {
+          "default": "refuse",
+          "enum": [
+            "refuse",
+            "renormalize"
+          ],
+          "title": "Empty Categories",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_version",
+        "confirmed_rule_ids"
+      ],
+      "title": "PolicyReview",
+      "type": "object"
+    },
+    "Window": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Window",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "enum": [
+        "planning",
+        "assessment",
+        "requirements",
+        "grades",
+        "deadlines",
+        "consistency",
+        "calendar"
+      ],
+      "title": "Capability",
+      "type": "string"
+    },
+    "dataset": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DocumentSelection"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/DocumentSelection"
+      },
+      "maxItems": 5,
+      "title": "Documents",
+      "type": "array"
+    },
+    "plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PlanRequest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "calendar": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CalendarContext"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "assessment_description": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assessment Description"
+    },
+    "grade_mode": {
+      "default": "current_graded",
+      "enum": [
+        "current_graded",
+        "syllabus_current",
+        "projected_final",
+        "required_score"
+      ],
+      "title": "Grade Mode",
+      "type": "string"
+    },
+    "scenario": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/GradeScenario"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "policy_review": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PolicyReview"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "capability"
+  ],
+  "title": "IndependentRequest",
+  "type": "object"
+}

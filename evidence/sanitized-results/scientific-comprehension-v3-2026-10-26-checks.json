@@ -1,0 +1,96 @@
+{
+  "schema": "scientific-comprehension-local-checks-3",
+  "generated_at": "2026-10-26T10:22:40.147559+00:00",
+  "source_sha256": "d82fdf601fbc88a131b8d0fe53722c840564d65ca7c9007000d83aff06bbabc9",
+  "scientific_corpus_sha256": "8476a9ef8127d1f777b74a3971b88cfe23b0167fb0e8eb6525831ded8b66b2ff",
+  "full_run_during_implementation": {
+    "tests": 1612,
+    "failures": 3,
+    "errors": 0,
+    "skipped": 28,
+    "passed": 1581,
+    "seconds": 527.763,
+    "report_sha256": "e47f718c1d609c60559e833a49ed037b8b5caf888428b9815195e6ed7a98423e",
+    "failed_cases": [
+      "tests.test_desktop::test_desktop_failed_initialization_releases_lock",
+      "tests.test_mcp_contract::test_T21_T38_personal_browser_and_mcp_reject_other_users_and_public_linking",
+      "tests.test_personal::test_T21_personal_settings_require_an_owner_and_live_prerequisites"
+    ],
+    "skip_reasons": [
+      "Explicit trusted native converter runtime required",
+      "Operator OCR runtime not installed",
+      "Requires a real Linux kernel; Windows has separate AppContainer proofs.",
+      "TEST_DATABASE_URL must name a disposable PostgreSQL database."
+    ]
+  },
+  "final_scientific_tests": {
+    "tests": 31,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 31,
+    "seconds": 18.106,
+    "report_sha256": "a904e5c6a0254d0dfaecda4e459e3c75e9b939895a3aba57fb27206f3dbe6b8a",
+    "failed_cases": [],
+    "skip_reasons": []
+  },
+  "final_affected_tests": {
+    "tests": 334,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 4,
+    "passed": 330,
+    "seconds": 119.03,
+    "report_sha256": "341a6a39508de38850413da1f9082ba87d56c0eb923198f4d5ccab621bb6b62b",
+    "failed_cases": [],
+    "skip_reasons": [
+      "Explicit trusted native converter runtime required"
+    ]
+  },
+  "corrected_compatibility_test_files": {
+    "tests": 19,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 19,
+    "seconds": 12.554,
+    "report_sha256": "0ec402e7c9c1f47fca93f8bfee32faf38a7ac79a812bea7f8ee9ed442ec8ac94",
+    "failed_cases": [],
+    "skip_reasons": []
+  },
+  "full_run_failures_resolved_in_targeted_rerun": true,
+  "second_full_run_performed": false,
+  "ruff_check_src_tests_scripts": "passed",
+  "ruff_format_src_tests_scripts": "passed",
+  "bandit_scientific_and_figure_modules": "passed",
+  "git_diff_check": "passed",
+  "compliance_registry": {
+    "valid": true,
+    "controls": 23,
+    "authorization_granted": false
+  },
+  "fixture_layout_qa": {
+    "pages_inspected": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "corrected_and_reinspected_pages": [
+      3,
+      10
+    ],
+    "independent_expert_review": false
+  },
+  "limitations": [
+    "Full run preceded final scientific hardening; final affected tests cover those changes.",
+    "Native converter, Linux, PostgreSQL and OCR skips are not acceptance evidence.",
+    "No live Canvas, deployed ChatGPT host, independent interpretation or competitor evaluation was performed."
+  ]
+}

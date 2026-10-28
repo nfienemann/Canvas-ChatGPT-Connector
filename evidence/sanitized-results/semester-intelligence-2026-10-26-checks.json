@@ -1,0 +1,68 @@
+{
+  "schema": "semester-intelligence-local-checks-1",
+  "generated_at": "2026-10-26T11:00:48.801911+00:00",
+  "source_sha256": "3392efd2f007b9a758bbfac44d0abc0ed345cb376f48dbfec5104ace1591ce65",
+  "full_suite": {
+    "tests": 1656,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 28,
+    "passed": 1628,
+    "seconds": 565.088,
+    "report_sha256": "e889be70d15fa70aa3e9b908f575c509e2ae2f6af5c0bc68be1353cff995cf70",
+    "failed_cases": [],
+    "skip_reasons": [
+      "Explicit trusted native converter runtime required",
+      "Operator OCR runtime not installed",
+      "Requires a real Linux kernel; Windows has separate AppContainer proofs.",
+      "TEST_DATABASE_URL must name a disposable PostgreSQL database."
+    ]
+  },
+  "semester_suite": {
+    "tests": 32,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 32,
+    "seconds": 8.38,
+    "report_sha256": "033aef8d49143636f3296b4c3fb7950d76cfc247a4e869ddc69623492f394c80",
+    "failed_cases": [],
+    "skip_reasons": []
+  },
+  "full_suite_boundary": "Production source unchanged since full suite start. Two additional test-only cases added during that run are included in the separately completed 32-case semester suite.",
+  "academic_benchmark": {
+    "run_id": "e532f99eb8889603d4dfac1956a0d0aed4dcc3ec97a84a23a811bce3878cb2f9",
+    "baseline_run_id": "e8fef8feb2ac171da865a77940a4fe26e9805d450ede2e56519a6d6156899989",
+    "paired_tasks": 83,
+    "objective_passed": 81,
+    "review_required": 2,
+    "regressions": [],
+    "gate": {
+      "critical_pass": true,
+      "no_regressions": true,
+      "objective_pass": true,
+      "review_complete": false
+    }
+  },
+  "ruff_check_src_tests_scripts": "passed",
+  "ruff_format_src_tests_scripts": "passed",
+  "bandit_semester_modules": "passed",
+  "compliance_registry": {
+    "valid": true,
+    "controls": 23,
+    "authorization_granted": false
+  },
+  "implementation_iterations": [
+    "An added test initially used the wrong enum import; corrected and the complete semester suite passed.",
+    "The first full run was deliberately stopped before completion to tighten unknown-submission resolution and citation identity/egress binding. It is not counted as a passing run."
+  ],
+  "limitations": [
+    "No live Canvas, deployment, external notification delivery, host schedule or private academic data was used.",
+    "Native converter, Linux, PostgreSQL and OCR skips do not establish those runtimes.",
+    "Two pre-existing interpretive benchmark cases still require independent review.",
+    "The benchmark is a synthetic backend regression census, not a competitor or ordinary-model comparison."
+  ],
+  "full_suite_semester_case_count": 30,
+  "source_fingerprint_verified_after_full_run": true,
+  "git_diff_check": "passed"
+}

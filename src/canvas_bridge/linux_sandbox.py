@@ -46,6 +46,10 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
     spreadsheet = Path(__file__).with_name("spreadsheet_worker.py")
+    scientific = Path(__file__).with_name("scientific_structure.py")
+    presentation = Path(__file__).with_name("presentation_worker.py")
+    policy = Path(__file__).with_name("document_policy.py")
+    privacy = Path(__file__).with_name("privacy_text.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     bootstrap = Path(__file__).with_name("linux_worker.py")
@@ -54,6 +58,10 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     digest = hashlib.sha256(
         worker.read_bytes()
         + spreadsheet.read_bytes()
+        + scientific.read_bytes()
+        + presentation.read_bytes()
+        + policy.read_bytes()
+        + privacy.read_bytes()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -108,7 +116,11 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         if pillow_libs.is_dir():
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
+        shutil.copy2(privacy, stage / "privacy_text.py")
         shutil.copy2(spreadsheet, stage / "spreadsheet_worker.py")
+        shutil.copy2(scientific, stage / "scientific_structure.py")
+        shutil.copy2(presentation, stage / "presentation_worker.py")
+        shutil.copy2(policy, stage / "document_policy.py")
         shutil.copy2(visual, stage / "visual_worker.py")
         shutil.copy2(ocr, stage / "ocr_worker.py")
         ocr_runtime.copy(ocr_root, stage)
@@ -125,8 +137,14 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     return runtime
 
 
-def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
-    if sys.platform != "linux" or not re.fullmatch(r"[a-z_]+\.py", script) or not 0 < timeout <= 15:
+def run(runtime: Path, work: Path, *, script="worker.py", timeout=15, memory_mb=384):
+    if (
+        sys.platform != "linux"
+        or not re.fullmatch(r"[a-z_]+\.py", script)
+        or not 0 < timeout <= 15
+        or type(memory_mb) is not int
+        or not 128 <= memory_mb <= 384
+    ):
         raise DomainError("unsupported_feature", "Invalid Linux extraction launch.")
     runtime, work = runtime.resolve(), work.resolve()
     if work == runtime or work.is_relative_to(runtime) or runtime.is_relative_to(work):
@@ -147,13 +165,21 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
         str(work),
         script,
         str(os.getpid()),
+        str(memory_mb),
     ]
     # No preexec_fn (unsafe in a threaded service), shell, inherited environment,
     # descriptors, output pipe accumulation or document-controlled executable.
     with subprocess.Popen(  # noqa: S603 - trusted executable/runtime and validated local script.
         command,
         cwd=work,
-        env={"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "OMP_THREAD_LIMIT": "1"},
+        env={
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C.UTF-8",
+            "OMP_THREAD_LIMIT": "1",
+            "TMPDIR": str(work),
+            "HOME": str(work),
+            "XDG_CACHE_HOME": str(work),
+        },
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -161,11 +187,25 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15):
         start_new_session=True,
     ) as process:
         try:
-            code = process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired as exc:
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-            raise TimeoutError("Isolated extraction exceeded its wall-time limit.") from exc
+            import time
+
+            from canvas_bridge.worker_storage import require_running
+
+            deadline = time.monotonic() + timeout
+            while True:
+                require_running()
+                try:
+                    code = process.wait(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError(
+                            "Isolated extraction exceeded its wall-time limit."
+                        ) from None
+        finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
     if code == 77:
         raise DomainError(
             "unsupported_feature",

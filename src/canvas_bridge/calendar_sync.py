@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from canvas_bridge.domain import DomainError, Model, Result, WorkItem, utcnow
+from canvas_bridge.domain import DomainError, Model, Result, utcnow
 from canvas_bridge.evidence import fingerprint
 from canvas_bridge.planning import Window, is_actionable, propose
 from canvas_bridge.storage import Snapshot, aware
@@ -66,11 +66,11 @@ def marker(owner, ref, item):
     return "canvas-bridge:" + fingerprint([owner, ref, item.course_id, item.id])[:40]
 
 
-def calendar_proposal(items, context, owner, ref, now):
+def calendar_proposal(items, context, owner, ref, now, *, source_label="Canvas"):
     limitations = [
         "Calendar evidence was supplied through ChatGPT's existing connection; this server has no Google credentials.",
         "A proposal is not an executed action. Ask for explicit confirmation of the concrete events before calling Google Calendar write tools.",
-        "After approval, reread Canvas and Calendar versions, apply only the confirmed proposal, and read back the resulting events.",
+        f"After approval, reread {source_label} source and Calendar versions, apply only the confirmed proposal, and read back the resulting events.",
         "After an uncertain create result, search the exact mapping marker before retrying. Never blindly retry.",
     ]
     freshness = now - context.retrieved_at
@@ -128,7 +128,10 @@ def calendar_proposal(items, context, owner, ref, now):
             continue
         tag = marker(owner, ref, item)
         matches = [
-            e for e in active if e.bridge_marker == tag or e.canvas_source_url == item.source.url
+            e
+            for e in active
+            if e.bridge_marker == tag
+            or (item.source.url and e.canvas_source_url == item.source.url)
         ]
         if len(matches) > 1:
             uncertain.append(
@@ -157,7 +160,7 @@ def calendar_proposal(items, context, owner, ref, now):
                 continue
         candidate = {
             "work_id": item.id,
-            "title": item.title + " — Canvas deadline",
+            "title": item.title + f" — {source_label} deadline",
             "calendar_id": context.calendar_id,
             "timing": timing,
             "source": item.source.model_dump(mode="json"),
@@ -231,8 +234,9 @@ async def propose_sync(bridge, owner, ref, snapshot_id, context, study_request=N
             "needs_input",
             "Refresh a complete workload snapshot before proposing calendar synchronization.",
         )
-    items = [WorkItem.model_validate(i) for i in snapshot.items]
+    items = bridge.scoped_snapshot_items(snapshot)
     result = calendar_proposal(items, context, owner, ref, utcnow())
+    result["workload_scope"] = snapshot.workload_scope
     if study_request:
         if not context.availability_complete or result["status"] == "needs_input":
             result["study_plan"] = {

@@ -1,0 +1,85 @@
+{
+  "archive_sha256": "de3e3e1193947004462e7213a344cbd5b1d5d62eae77c09364b02ca7a906deff",
+  "files": [
+    {
+      "file": "DEPENDENCY_MATRIX.md",
+      "sha256": "3a96428c8eb5f3a7b301d5ae651ede5354cdbf84a45d86c200ca6049cb56753d"
+    },
+    {
+      "file": "IMPLEMENTATION_ROADMAP.md",
+      "sha256": "8ca79b132e88c79016f498da2a0cb9592c684c5816fe6bad3b7294d8a42fcddf"
+    },
+    {
+      "file": "README.md",
+      "sha256": "6d7992ea4725f4a862c1d0de059961669ff918a616f15afdb490f9dc367d3e4f"
+    },
+    {
+      "file": "specs/CB-01-academic-evidence-reconciliation-conflict-resolution.md",
+      "sha256": "2fffa5e070230deec3ddc7a60c275f995c4bd790b0547fe9bc67c91c31c516fe"
+    },
+    {
+      "file": "specs/CB-02-academic-change-impact-engine.md",
+      "sha256": "840e22263f14ecd3331c99273d20855f6387fb8f7b1a798a3bdaca6900cf8033"
+    },
+    {
+      "file": "specs/CB-03-evidence-sufficiency-uncertainty-protocol.md",
+      "sha256": "e6e37dede24c6ee95608e040b096a70ec0f2e90ef16fe23f5ceb95895ce3d68c"
+    },
+    {
+      "file": "specs/CB-04-academic-state-recovery-dependency-invalidation.md",
+      "sha256": "5ee2939ca1efd32990803cb5c9d3a44f8e641b76c603f1bb3f7cbecc8eb53cad"
+    },
+    {
+      "file": "specs/CB-05-cross-provider-academic-identity-migration.md",
+      "sha256": "ef307892c9af23c70cc5b805981da1dbe435dc33a4eed09f743cbb09e84b9848"
+    },
+    {
+      "file": "specs/CB-06-revocation-data-lineage-derived-artifact-retention.md",
+      "sha256": "530e0b32c7c1e82b60fd0615921fd745e14392bad65c22b6923b463f40fa1880"
+    },
+    {
+      "file": "specs/CB-07-assignment-lifecycle-completion-state-machine.md",
+      "sha256": "aa809e6c26d85b5393a4b79b2747e45e762d81beb62fe0f451bfae2b9eea281e"
+    },
+    {
+      "file": "specs/CB-08-cross-course-knowledge-graph-competency-evidence.md",
+      "sha256": "37fb61cb69bad1af9ca55eadae468147baad8b62999aa144d4ad8a09eab11925"
+    },
+    {
+      "file": "specs/CB-09-workload-feasibility-contingency-simulation.md",
+      "sha256": "0e390306cb89d2625e656b800f358de296e32b1d12fcfae370e40eed68a18bb0"
+    },
+    {
+      "file": "specs/CB-10-degree-progress-prerequisite-dependency-analysis.md",
+      "sha256": "b9fb84c8bdad156a54815be60d239fa058bbcd99052b662666c1df9f1ee549e0"
+    },
+    {
+      "file": "specs/CB-11-instructor-clarification-escalation-workflow.md",
+      "sha256": "6ab6f4a56a2dcf6e3c6bf2dffbb92d0bbb90ef05171b814953802c6e2975484c"
+    },
+    {
+      "file": "specs/CB-12-prompt-injection-document-trust-boundaries.md",
+      "sha256": "dedd9305127abe9a305f0f818d2d20708bc5e6c38aee51659c1c8a8ca618278f"
+    },
+    {
+      "file": "specs/CB-13-upgrade-migration-downgrade-recovery.md",
+      "sha256": "5ef0dc5ea2966c501342141359df3d5d8e288c5e7ae82425207cd938ad8b3c40"
+    },
+    {
+      "file": "specs/CB-14-evaluation-regression-testing-framework.md",
+      "sha256": "48ded469b949bb6e98cbe982aa5b26e32be5d95a8947802f8cdb10affbd94d1d"
+    },
+    {
+      "file": "specs/CB-15-student-data-correction-deletion-export.md",
+      "sha256": "8b819a97b7956111239651d872278c15b8076164ec01517c75c1014076b6e6c4"
+    },
+    {
+      "file": "specs/CB-16-privacy-safe-failure-diagnosis-support-reporting.md",
+      "sha256": "a7c56440a59a611086b2a8e9283e0a255ebe908c295b6af893e615caf20232c2"
+    },
+    {
+      "file": "specs/CB-17-portfolio-publication-clearance-attribution.md",
+      "sha256": "66b19242e4a6e05b22b65ca3b28c6b20d337f1bc5d3eacbcbf1f0e04a300aaa3"
+    }
+  ]
+}

@@ -1,0 +1,515 @@
+{
+  "schema_version": "test-run-1",
+  "source": {
+    "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+    "dirty": true,
+    "digest": "e98036a05746654ca3bc1d706be244d01027f00b70e9c37a9b8f8d1ea9ac8907",
+    "files": 443,
+    "scope": "reviewed-source-v1"
+  },
+  "finished_on": "2026-10-28",
+  "source_unchanged": true,
+  "exit_code": 0,
+  "interrupted": false,
+  "complete_selection": true,
+  "cases": {
+    "tests/test_approval_policy_contract.py::test_all_mcp_surfaces_classified_and_no_approval_mutation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_approval_revoked_after_tool_runs_suppresses_response": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_cached_live_tools_and_alternate_readers_deny_without_network": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_http_download_recipient_and_revocation_are_enforced": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_signed_token_does_not_identify_an_approved_recipient": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_independent_intelligence.py::test_all_independent_workflows_without_connection": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 7
+    },
+    "tests/test_independent_intelligence.py::test_analysis_purpose_cannot_be_inferred_from_study_permission": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_independent_intelligence.py::test_calendar_requires_inspection_and_deduplicates": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_caller_labels_and_institutional_ids_cannot_switch_adapter": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_current_permissions_rechecked_after_reasoning": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_imported_source_text_cannot_grant_privileges": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_independent_ambiguity_cannot_invent_year_or_timezone": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_independent_grade_unknowns_are_not_zero": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 4
+    },
+    "tests/test_independent_intelligence.py::test_independent_input_rechecks_authoritative_restrictions": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_independent_intelligence.py::test_independent_local_preferences_validate_stored_schema": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_known_restricted_assessment_is_withheld_from_mixed_package": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_legacy_preference_write_is_owner_scoped_after_disconnect": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_local_state_storage_error_is_actionable_in_mcp": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_local_storage_failure_never_requests_lms": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_mixed_and_legacy_payloads_never_become_independent": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_mixed_document_selection_preserves_valid_partial_evidence": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_no_connection_and_unknown_legacy_state_are_safe": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_pure_planning_matches_existing_engine": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_saved_local_preferences_do_not_need_active_lms": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_independent_intelligence.py::test_syllabus_review_and_scenarios_reuse_exact_grade_engine": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_truncated_source_reports_coverage_and_continuation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_course_choice": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T14_T18_personal_disconnect_revokes_only_its_approved_origin": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T18_personal_import_cannot_overwrite_or_resurrect_deleted_account": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T21_personal_identity_allowlist_still_checks_signature_and_claims": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T21_personal_settings_require_an_owner_and_live_prerequisites": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T23_personal_prompt_refuses_echo_fallback_and_redacts_failures": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_recovery_independence.py::test_actual_registered_contract_inventory": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_all_registered_institutional_prechecks": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 7
+    },
+    "tests/test_recovery_independence.py::test_egress_consent_and_revocation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_encrypted_import_and_explicit_browser_delete": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_import_during_account_deletion_cannot_resurrect": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_import_owner_consent_expiry_and_provenance": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_independent_pdf_isolated_render_delivery": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_independent_supported_formats": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_recovery_independence.py::test_institution_states_never_disable_independent_preferences": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_recovery_independence.py::test_known_institutional_bytes_cannot_be_reimported_after_cache_deletion": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_mixed_or_unknown_source_classification_denies": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_offline_mcp_independence": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_prompt_injection_has_no_policy_authority": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_recovery_independence.py::test_visual_consent_cannot_override_detected_page_identifiers": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_active_download_deletion_destroys_key_and_blocks_stale_link": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_auth_secrets_cannot_enter_academic_cache": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_backup_excludes_credentials_raw_documents_and_jobs_and_restores_inactive": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_backup_restore_rejects_unbounded_or_invalid_lifetimes": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 3
+    },
+    "tests/test_retention.py::test_cache_deletion_fences_prior_backup": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_connection_lifetime_fails_closed_then_purges_secret_and_fences": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_delete_caches_and_records_are_owned_confirmed_and_fenced": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_deletion_cancels_inflight_download_and_reports_pending_cleanup": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_encrypted_database_roundtrip_and_engine_key_isolation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_existing_plaintext_migration_encrypts_in_place": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_expired_analysis_is_unreadable_before_sweep_then_physically_removed": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_failed_worker_cleanup_is_reported_and_retried": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_journal_pruning_keeps_recent_fences_and_verifies_old_entries": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_new_vault_uses_windows_secret_protection_and_preserves_legacy_support": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_page_raw_expiry_and_export_never_extend_retention": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_receipts_expire_without_erasure_claims": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_restore_preserves_original_record_expiry": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_settings_deletion_requires_session_csrf_confirmation_and_owner": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_shortened_file_retention_applies_before_export_and_to_sweep": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_staged_blobs_are_encrypted_authenticated_and_byte_exact": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 4
+    },
+    "tests/test_retention.py::test_worker_cancellation_and_pending_receipts_isolate_service_instances": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_retention.py::test_worker_error_cancellation_and_orphan_recovery": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    }
+  },
+  "runtime": "windows"
+}

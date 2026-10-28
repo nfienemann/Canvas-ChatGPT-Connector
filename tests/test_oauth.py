@@ -6,18 +6,29 @@ from sqlalchemy import select
 
 from canvas_bridge.domain import DomainError, utcnow
 from canvas_bridge.linking import begin_link, digest, finish_link, refresh_credential
-from canvas_bridge.policy import Institution
+from canvas_bridge.oauth_security import binding
+from canvas_bridge.policy import Institution, OAuthCapabilities
 from canvas_bridge.storage import Connection, OAuthState
 
 
 def configure(bridge, monkeypatch):
+    from tests.approval_fixtures import install_approvals
+
+    install_approvals(bridge)
     bridge.settings.profile = "hosted"
+    bridge.settings.live_access_enabled = True
     bridge.registry.entries["synthetic"] = Institution(
         id="synthetic",
         name="Fictional school",
         origin="https://canvas.synthetic.invalid",
         status="pilot_supported",
-        scopes=["url:GET|/api/v1/courses"],
+        scopes=["url:GET|/api/v1/courses", "url:GET|/api/v1/users/:user_id/profile"],
+        oauth=OAuthCapabilities(
+            pkce="S256",
+            refresh_rotation="stable",
+            granular_scopes=True,
+            documentation_reference="fictional-provider-test",
+        ),
         client_id_env="FIXTURE_CANVAS_CLIENT",
         client_secret_env="FIXTURE_CANVAS_SECRET",
     )
@@ -64,7 +75,11 @@ async def test_T14_refresh_race_only_one_provider_exchange(bridge, owner, seeded
         conn = session.get(Connection, seeded)
         conn.token_expires_at = utcnow() - timedelta(seconds=1)
         conn.credential = bridge.vault.seal(
-            {"access_token": "old", "refresh_token": "renewal"},
+            {
+                "access_token": "old",
+                "refresh_token": "renewal",
+                "identity_binding": binding(bridge, bridge.registry.entries["synthetic"]),
+            },
             owner,
             seeded,
         )
@@ -96,7 +111,13 @@ async def test_T18_disconnect_during_refresh_cannot_resurrect_token(
         conn = session.get(Connection, seeded)
         conn.token_expires_at = utcnow() - timedelta(seconds=1)
         conn.credential = bridge.vault.seal(
-            {"access_token": "old", "refresh_token": "r"}, owner, seeded
+            {
+                "access_token": "old",
+                "refresh_token": "r",
+                "identity_binding": binding(bridge, bridge.registry.entries["synthetic"]),
+            },
+            owner,
+            seeded,
         )
 
     async def exchange(*args, **kwargs):

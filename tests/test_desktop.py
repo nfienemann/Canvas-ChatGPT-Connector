@@ -56,6 +56,9 @@ def test_T35_desktop_port_collision_lock_and_restart_preserve_data(tmp_path):
             assert first.settings.port != busy_port
             vault_before = (tmp_path / "vault.key").read_bytes()
             store = Store(first.settings.database_url)
+            from canvas_bridge.vault import Vault
+
+            store.protect(Vault(first.settings.vault_key_file))
             with store.transaction() as session:
                 connection_id = session.scalar(select(Connection.id))
                 course = session.scalar(select(Course).order_by(Course.id))
@@ -71,6 +74,7 @@ def test_T35_desktop_port_collision_lock_and_restart_preserve_data(tmp_path):
         second.start()
         assert (tmp_path / "vault.key").read_bytes() == vault_before
         store = Store(second.settings.database_url)
+        store.protect(Vault(second.settings.vault_key_file))
         with store.transaction() as session:
             assert session.scalar(select(Connection.id)) == connection_id
             assert not session.get(Course, course_id).selected
@@ -81,8 +85,8 @@ def test_T35_desktop_port_collision_lock_and_restart_preserve_data(tmp_path):
 
 def test_desktop_failed_initialization_releases_lock(tmp_path):
     (tmp_path / "vault.key").write_bytes(b"damaged")
-    for _ in range(2):
-        with pytest.raises(ValueError):
+    for diagnostic in ("VAULT_KEY_UNREADABLE_OR_MISMATCH", "explicit deployment recovery"):
+        with pytest.raises(RuntimeError, match=diagnostic):
             DemoRuntime(tmp_path, preferred_port=0).start()
     assert (tmp_path / "vault.key").read_bytes() == b"damaged"
 

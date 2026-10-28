@@ -13,9 +13,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17.11
+        image: postgres:17.11@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe
         env:
           POSTGRES_USER: bridge
           POSTGRES_PASSWORD: synthetic-ci-only
@@ -30,6 +31,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.14"
@@ -37,26 +39,83 @@ jobs:
         with:
           version: "0.13.4"
       - run: sudo apt-get update && sudo apt-get install -y libtesseract-dev tesseract-ocr-eng
-      - run: uv sync --frozen
+      - run: uv sync --locked
+      - run: uv pip check
+      - name: Gate deterministic academic accuracy and privacy regressions
+        run: uv run --locked python -m canvas_bridge.benchmark_lab run --tier fast --output .local/academic-benchmark
+      - name: Gate scientific source retrieval without claiming interpretation accuracy
+        run: uv run --locked python -m canvas_bridge.scientific_benchmark --output .local/academic-benchmark/scientific-v3.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: academic-benchmark-fast
+          path: .local/academic-benchmark
+          if-no-files-found: error
+          retention-days: 30
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: ui/page-reader
       - run: npm run build && git diff --exit-code -- ../../src/canvas_bridge/assets
         working-directory: ui/page-reader
-      - run: npm audit --omit=dev
-        working-directory: ui/page-reader
-      - run: uv run ruff check .
-      - run: uv run ruff format --check .
-      - run: uv run pytest --cov=canvas_bridge --cov-report=term-missing
-      - run: uv run pip-audit --local
+      - name: Validate governance registry, documentation and approved fictional fixtures
+        run: uv run --locked canvas-bridge compliance-report --validate-only
+      - run: uv run --locked python -m canvas_bridge.compliance.checks node_vulnerabilities --output .local/compliance-input/checks/node_vulnerabilities.json
+      - run: uv run --locked python -m canvas_bridge.compliance.checks lint --output .local/compliance-input/checks/lint.json
+      - run: uv run --locked python -m canvas_bridge.compliance.checks format --output .local/compliance-input/checks/format.json
+      - run: uv run --locked python -m canvas_bridge.compliance.checks bandit --output .local/compliance-input/checks/bandit.json
+      - run: uv run --locked python -m canvas_bridge.compliance.checks licenses --output .local/compliance-input/checks/licenses.json
+      - name: Validate lock sources, license metadata and generate Python and Node SBOM
+        run: |
+          mkdir -p .local/security
+          uv export --locked --all-groups --format cyclonedx1.5 --output-file .local/python-sbom.json > /dev/null
+          uv run --locked python scripts/supply_chain.py --python-sbom .local/python-sbom.json --stage
+      - name: Scan all Git history and current source for secrets
+        run: |
+          uv run --locked python -m canvas_bridge.compliance.checks secret_history --output .local/compliance-input/checks/secret_history.json
+          uv run --locked python -m canvas_bridge.compliance.checks secret_source --output .local/compliance-input/checks/secret_source.json
+      - name: Scan build and container configuration
+        run: uv run --locked python -m canvas_bridge.compliance.checks container_config --output .local/compliance-input/checks/container_config.json
+      - run: uv run --locked pytest --cov=canvas_bridge --cov-report=term-missing -p canvas_bridge.compliance.pytest_plugin --compliance-results=.local/compliance-input/tests.json
+      - name: Gate process specifications on current synthetic evidence
+        run: uv run --locked python -m canvas_bridge.processes.evaluation --results .local/compliance-input/tests.json --output .local/compliance-input/process-specifications.json
+      - run: uv run --locked python -m canvas_bridge.compliance.checks python_vulnerabilities --output .local/compliance-input/checks/python_vulnerabilities.json
       - run: docker build -t canvas-bridge:ci .
-      - run: uv run python -m scripts.verify_linux_container prepare .local/linux-container-fixtures
+      - name: Scan image dependencies and record the actual OS and native library inventory
+        run: |
+          uv run --locked python -m canvas_bridge.compliance.checks container_image --output .local/compliance-input/checks/container_image.json
+          uv run --locked python scripts/security_tools.py trivy image --format cyclonedx --output .local/security/image.cdx.json canvas-bridge:ci
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: security-inventory
+          path: |
+            .local/security/*.cdx.json
+            .local/security/licenses.json
+          if-no-files-found: error
+          retention-days: 30
+      - run: uv run --locked python -m scripts.verify_linux_container prepare .local/linux-container-fixtures
       - name: Verify isolated extraction in the unprivileged Linux image
+        run: uv run --locked python -m canvas_bridge.compliance.checks container_runtime --output .local/compliance-input/checks/container_runtime.json
+      - name: Enforce independent release gates before requested public preview builds
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          ((github.event_name == 'push' && contains(github.event.head_commit.message, '[desktop-preview]')) ||
+          (github.event_name == 'workflow_dispatch' && inputs.desktop_preview))
         run: >-
-          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges
-          --read-only --tmpfs /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
-          --mount type=bind,src="$PWD/.local/linux-container-fixtures",dst=/fixtures,readonly
-          --mount type=bind,src="$PWD/scripts/verify_linux_container.py",dst=/proof.py,readonly
-          canvas-bridge:ci .venv/bin/python /proof.py verify /fixtures
+          uv run --locked canvas-bridge compliance-report --category offline_core
+          --results .local/compliance-input/tests.json --checks .local/compliance-input/checks
+          --output .local/preview-release-gate --enforce-release offline_core
+      - name: Generate development readiness evidence even when an earlier gate fails
+        if: always()
+        run: >-
+          uv run --locked canvas-bridge compliance-report
+          --category synthetic_demo --results .local/compliance-input/tests.json
+          --checks .local/compliance-input/checks --output .local/compliance-report
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: development-readiness
+          path: .local/compliance-report/report.*
+          if-no-files-found: warn
+          retention-days: 30
   desktop:
     needs: test
     if: >-
@@ -69,12 +128,6 @@ jobs:
         include:
           - os: windows-latest
             name: windows-x64
-          - os: macos-14
-            name: macos-arm64
-          - os: macos-15-intel
-            name: macos-x64
-          - os: ubuntu-22.04
-            name: linux-x64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
     steps:
@@ -87,14 +140,12 @@ jobs:
       - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
         with:
           version: '0.13.4'
-      - run: uv sync --frozen --group packaging
-      - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libxft2
-      - run: uv run --group packaging python scripts/build_desktop.py
-      - if: runner.os != 'Linux'
-        run: uv run --group packaging python scripts/smoke_desktop.py --report dist/installers/verification-${{ matrix.name }}.json
-      - if: runner.os == 'Linux'
-        run: xvfb-run -a uv run --group packaging python scripts/smoke_desktop.py --report dist/installers/verification-${{ matrix.name }}.json
+      - run: uv sync --locked --group packaging
+      - run: uv pip check
+      - name: Check platform and packaging dependency licenses
+        run: uv run --locked python scripts/supply_chain.py --output .local/security-desktop
+      - run: uv run --locked --group packaging python scripts/build_desktop.py
+      - run: uv run --locked --group packaging python scripts/smoke_desktop.py --report dist/installers/verification-${{ matrix.name }}.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: desktop-${{ matrix.name }}

@@ -1,0 +1,378 @@
+{
+  "source_fingerprint": "9ea6beeee3714ff693ea1c0991339610646454e97398d7ad0907e3b07b10d5e8",
+  "source_unchanged_during_run": true,
+  "finished_at": "2026-10-28T17:40:32.418017+00:00",
+  "case_count": 73,
+  "counts": {
+    "PASS": 51,
+    "FAIL": 3,
+    "BLOCKED": 19
+  },
+  "cases": [
+    {
+      "id": "AI-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-04",
+      "status": "FAIL",
+      "detail": "AssertionError: assert False is True"
+    },
+    {
+      "id": "AI-05",
+      "status": "BLOCKED",
+      "detail": "The original fixture brainstorming clause was not recognized as permission; no earlier allow exists for the escalation test."
+    },
+    {
+      "id": "AI-06",
+      "status": "BLOCKED",
+      "detail": "The original fixture brainstorming clause was not recognized as permission; no earlier allow exists for the escalation test."
+    },
+    {
+      "id": "AI-07",
+      "status": "FAIL",
+      "detail": "AssertionError: assert False is True"
+    },
+    {
+      "id": "AI-08",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-09",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-10",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-11",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-12",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-13",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-14",
+      "status": "BLOCKED",
+      "detail": "Mixed provider/local evidence was withheld by the classification fence before integrity reconciliation; no expanded permission was returned."
+    },
+    {
+      "id": "AI-15",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-16",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-17",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-18",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "AI-19",
+      "status": "BLOCKED",
+      "detail": "This case requires an actual acknowledgment through the test UI; no human UI consent was supplied or manufactured."
+    },
+    {
+      "id": "AI-20",
+      "status": "BLOCKED",
+      "detail": "The original fixture brainstorming clause was not recognized as permission; no earlier allow exists for the escalation test."
+    },
+    {
+      "id": "DE-01",
+      "status": "BLOCKED",
+      "detail": "The independent reader retains competing passages; exact scoped deadline/checkpoint resolution needs explicit native fact adaptation."
+    },
+    {
+      "id": "DE-02",
+      "status": "BLOCKED",
+      "detail": "Date supersession kernel passed, but the native process scope has no section/individual-extension field; exact cross-section/student isolation is not established."
+    },
+    {
+      "id": "DE-03",
+      "status": "BLOCKED",
+      "detail": "Date supersession kernel passed, but the native process scope has no section/individual-extension field; exact cross-section/student isolation is not established."
+    },
+    {
+      "id": "DE-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DE-05",
+      "status": "BLOCKED",
+      "detail": "FactDate requires an explicit UTC offset for timestamps; no two-instant local DST ambiguity object exists in independent-academic-1."
+    },
+    {
+      "id": "DE-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DG-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-02",
+      "status": "BLOCKED",
+      "detail": "The independent reader retains competing passages; exact scoped deadline/checkpoint resolution needs explicit native fact adaptation."
+    },
+    {
+      "id": "DP-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "DP-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-05",
+      "status": "BLOCKED",
+      "detail": "Native grade engine explicitly does not support unequal-point drop optimization; it refused calculation."
+    },
+    {
+      "id": "GR-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-07",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "GR-08",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "KN-04",
+      "status": "BLOCKED",
+      "detail": "This scenario requires an additional stateful/provider/practice adapter not implemented in this imported-corpus harness. Existing repository tests are separate evidence, not a pass for this case."
+    },
+    {
+      "id": "OP-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-03",
+      "status": "BLOCKED",
+      "detail": "Export denial and deletion passed in the disposable process store; full backup-restore deletion-journal acceptance remains a separate suite."
+    },
+    {
+      "id": "OP-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "OP-07",
+      "status": "BLOCKED",
+      "detail": "A disposable OS installation/previous supported release and controlled migration interruption are not supplied by this fixture package; this run does not replace deployment recovery acceptance."
+    },
+    {
+      "id": "PL-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "PL-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "RQ-01",
+      "status": "FAIL",
+      "detail": "AssertionError: assert []"
+    },
+    {
+      "id": "RQ-02",
+      "status": "BLOCKED",
+      "detail": "A prose recommendation was retained, but no structured figure-requirement classification is available for the exact assertion."
+    },
+    {
+      "id": "ST-01",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-02",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "ST-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-01",
+      "status": "BLOCKED",
+      "detail": "Automated text execution cannot establish model-visible pixels; separate observed visual acceptance is required."
+    },
+    {
+      "id": "VI-02",
+      "status": "BLOCKED",
+      "detail": "Automated text execution cannot establish model-visible pixels; separate observed visual acceptance is required."
+    },
+    {
+      "id": "VI-03",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-04",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-05",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-06",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-07",
+      "status": "PASS",
+      "detail": null
+    },
+    {
+      "id": "VI-08",
+      "status": "BLOCKED",
+      "detail": "Automated text execution cannot establish model-visible pixels; separate observed visual acceptance is required."
+    },
+    {
+      "id": "VI-09",
+      "status": "BLOCKED",
+      "detail": "The DOCX reader retained all cell text and ranges, but independent read_local_document flattens table cell coordinates; column-relationship acceptance is not established."
+    },
+    {
+      "id": "VI-10",
+      "status": "PASS",
+      "detail": null
+    }
+  ]
+}

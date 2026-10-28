@@ -1,0 +1,88 @@
+{
+  "suite": "live_connector_smoke",
+  "deployed_build": "not_established; service not restarted or modified",
+  "before_request_id": "159e15b7f9e84b19bdcd709599808c6d",
+  "after_request_id": "e23493e7aa284d3d89c663028db62363",
+  "before": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_policy": {
+        "allowed": false,
+        "reason_code": "APPROVAL_NOT_ASSESSED",
+        "authority": "provider",
+        "state": "NOT_ASSESSED",
+        "decision_id": "81d998f57d1040b6a8a0cd0f932a4535"
+      }
+    }
+  ],
+  "after": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_policy": {
+        "allowed": false,
+        "reason_code": "APPROVAL_NOT_ASSESSED",
+        "authority": "provider",
+        "state": "NOT_ASSESSED",
+        "decision_id": "fffd2b6c583245c2be7d643f86f89be9"
+      }
+    }
+  ],
+  "inventory_request_id": "997d9e907dee4a76848d95ff18471fb3",
+  "inventory_count": 0,
+  "calls": [
+    {
+      "capability": "planning",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "da8bc9e3002e45b6b2351cbedd590cf0",
+      "source_count": 0
+    },
+    {
+      "capability": "assessment",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "29b47e24ff3a441cb39388837457abac",
+      "source_count": 0
+    },
+    {
+      "capability": "requirements",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "5a159e7642e440cd97c97c4c3440319b",
+      "source_count": 0
+    },
+    {
+      "capability": "grades",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "4688d3abcfad44b1854236a8b646abb3",
+      "source_count": 0
+    },
+    {
+      "capability": "deadlines",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "request_id": "72379735d1304b08a0f5f3b1f7d05a3f",
+      "source_count": 0
+    },
+    {
+      "capability": "consistency",
+      "status": "needs_input",
+      "reason_code": "INDEPENDENT_INPUT_MISSING",
+      "request_id": "e627c54ad00948238c4ae5304b942fec",
+      "source_count": 0
+    },
+    {
+      "capability": "calendar",
+      "status": "permission_denied",
+      "reason_code": "EGRESS_ERROR_REDACTED",
+      "request_id": "a98c4846db7b43c388f7f6ce0b67a8b7",
+      "source_count": 0
+    }
+  ],
+  "source_content_returned": false
+}

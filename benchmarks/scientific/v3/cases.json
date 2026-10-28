@@ -1,0 +1,186 @@
+{
+  "schema": "scientific-benchmark-3",
+  "synthetic": true,
+  "cases": [
+    {
+      "id": "western-blot",
+      "page": 1,
+      "figure_label": "Figure 1",
+      "query": "Control and treatment protein bands; loading bands",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Identify target and loading bands separately.",
+        "Do not infer an exact fold change or significance from band darkness."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "flow-cytometry",
+      "page": 2,
+      "figure_label": "Figure 2",
+      "query": "Control and treatment fluorescence channels",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Identify both fluorescence channels and quadrant thresholds.",
+        "A drawn threshold is not a validated gating strategy; percentages are not printed."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "qpcr",
+      "page": 3,
+      "figure_label": "Figure 3",
+      "query": "Control and treatment fluorescence by amplification cycle",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "The plotted threshold crossings are labeled 18 and 22 cycles.",
+        "Amplification efficiency and normalization are unspecified; do not claim a fold change."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "mass-spectrometry",
+      "page": 4,
+      "figure_label": "Figure 4",
+      "query": "Ion intensity across mass to charge ratios",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "The highest labeled peak is m/z 150 at relative intensity 100.",
+        "No compound identity, charge assignment or library match is established."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "microscopy",
+      "page": 5,
+      "figure_label": "Figure 5",
+      "query": "Synthetic cell fluorescence with a scale bar",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Identify the scale bar and visible cell-like regions.",
+        "This is generated image data, not evidence of a cell phenotype or viability."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "cell-signaling",
+      "page": 6,
+      "figure_label": "Figure 6",
+      "query": "Proposed receptor kinase transcription mechanism",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Distinguish the solid directed links from the dashed proposed connection.",
+        "A mechanism diagram does not demonstrate that the pathway operated in an experiment."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "dose-response",
+      "page": 7,
+      "figure_label": "Figure 7",
+      "query": "Treatment concentration and normalized response",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Identify the logarithmic concentration axis in nM and normalized response percent.",
+        "The 50 percent point at 10 nM is explicit; uncertainty and fitted IC50 are not supplied."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "confocal",
+      "page": 8,
+      "figure_label": "Figure 8",
+      "query": "Red green channels and merged optical section",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Keep red, green and merged panels separate; only one optical section is shown.",
+        "Overlap does not establish molecular interaction or a three-dimensional reconstruction."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "multi-panel",
+      "page": 9,
+      "figure_label": "Figure 9",
+      "query": "Different measurements across panels A and B",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Panel A has time and response axes; panel B has concentration and signal axes.",
+        "Do not mix units or transfer an axis scale between panels."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    },
+    {
+      "id": "complex-table",
+      "page": 10,
+      "figure_label": "Figure 10",
+      "query": "Treatment replicates and units in merged headers",
+      "required_dimensions": [
+        "axes_units_or_labels",
+        "observations_vs_text",
+        "controls_or_comparison",
+        "numerical_grounding",
+        "limitations"
+      ],
+      "rubric": [
+        "Map each value to condition, replicate and unit; ND is not zero.",
+        "Preserve scientific notation and the multi-level header relationships."
+      ],
+      "rubric_status": "draft_requires_independent_expert_review"
+    }
+  ]
+}

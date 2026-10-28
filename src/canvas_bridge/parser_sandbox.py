@@ -6,9 +6,10 @@ import json
 import os
 import shutil
 import sys
-import tempfile
 import threading
+import time
 import zipfile
+from contextlib import nullcontext
 from pathlib import Path
 
 import defusedxml
@@ -19,8 +20,10 @@ import pypdfium2_cfg
 import pypdfium2_raw
 
 from canvas_bridge import ocr_runtime
+from canvas_bridge.document_policy import source_limit
 from canvas_bridge.domain import DomainError
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
+from canvas_bridge.worker_storage import job_directory, sweep_orphans
 
 _slot = threading.Lock()
 
@@ -41,11 +44,27 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
     spreadsheet = Path(__file__).with_name("spreadsheet_worker.py")
+    scientific = Path(__file__).with_name("scientific_structure.py")
+    presentation = Path(__file__).with_name("presentation_worker.py")
+    presentation_render = Path(__file__).with_name("presentation_render_worker.py")
+    presentation_native = Path(__file__).with_name("presentation_native.py")
+    presentation_subset = Path(__file__).with_name("presentation_subset.py")
+    emf_worker = Path(__file__).with_name("emf_worker.py")
+    policy = Path(__file__).with_name("document_policy.py")
+    privacy = Path(__file__).with_name("privacy_text.py")
     visual = Path(__file__).with_name("visual_worker.py")
     ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
         + spreadsheet.read_bytes()
+        + scientific.read_bytes()
+        + presentation.read_bytes()
+        + presentation_render.read_bytes()
+        + presentation_native.read_bytes()
+        + presentation_subset.read_bytes()
+        + emf_worker.read_bytes()
+        + policy.read_bytes()
+        + privacy.read_bytes()
         + visual.read_bytes()
         + PIL.__version__.encode()
         + ocr.read_bytes()
@@ -91,7 +110,15 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     shutil.copy2(worker, runtime / "worker.py")
+    shutil.copy2(privacy, runtime / "privacy_text.py")
     shutil.copy2(spreadsheet, runtime / "spreadsheet_worker.py")
+    shutil.copy2(scientific, runtime / "scientific_structure.py")
+    shutil.copy2(presentation, runtime / "presentation_worker.py")
+    shutil.copy2(presentation_render, runtime / "presentation_render_worker.py")
+    shutil.copy2(presentation_native, runtime / "presentation_native.py")
+    shutil.copy2(presentation_subset, runtime / "presentation_subset.py")
+    shutil.copy2(emf_worker, runtime / "emf_worker.py")
+    shutil.copy2(policy, runtime / "document_policy.py")
     shutil.copy2(visual, runtime / "visual_worker.py")
     shutil.copy2(ocr, runtime / "ocr_worker.py")
     ocr_runtime.copy(ocr_root, runtime)
@@ -137,7 +164,26 @@ def validate_result(result: dict, data: bytes) -> dict:
             "workbook_resource_limit",
             "memory_limit",
             "dependency_unavailable",
+            "pptx_expansion_limit",
+            "invalid_pptx_archive",
         }
+        details = {}
+        if reason == "pptx_expansion_limit":
+            supplied = result.get("details", {})
+            if supplied.get("budget") not in {
+                "zip_members",
+                "zip_expanded_bytes",
+                "zip_member_bytes",
+                "zip_compression_ratio",
+                "xml_member_bytes",
+                "zip_read_bytes",
+                "slide_count",
+            } or any(
+                type(supplied.get(k)) is not int or supplied[k] < 0 for k in ("observed", "limit")
+            ):
+                raise ValueError("Invalid presentation budget diagnostic")
+            details = {k: supplied[k] for k in ("budget", "observed", "limit")}
+            details["retryable"] = False
         raise DomainError(
             "retry_later"
             if reason in {"memory_limit", "dependency_unavailable"}
@@ -145,8 +191,13 @@ def validate_result(result: dict, data: bytes) -> dict:
             "File extraction could not finish: "
             + (reason if reason in allowed else "extraction_failed")
             + ".",
-            reason_code="EXTRACTION_" + (reason.upper() if reason in allowed else "FAILED"),
-            processing_stage="text_extraction",
+            reason_code="PPTX_EXPANSION_LIMIT"
+            if reason == "pptx_expansion_limit"
+            else "EXTRACTION_" + (reason.upper() if reason in allowed else "FAILED"),
+            processing_stage="zip_expansion"
+            if reason == "pptx_expansion_limit"
+            else "text_extraction",
+            details=details,
         )
     parsed = result["extraction"]
     if parsed["parser"] != PARSER:
@@ -167,10 +218,52 @@ def validate_result(result: dict, data: bytes) -> dict:
     ):
         raise ValueError("Invalid sandbox extraction result.")
     previous = 0
+    structure_bytes = 0
     for page in parsed["pages"]:
         if not isinstance(page["text"], str) or not previous < page["page"] <= parsed["page_count"]:
             raise ValueError("Invalid sandbox page attribution.")
         previous = page["page"]
+        structure = page.get("structure")
+        if structure is not None:
+            size = len(json.dumps(structure, ensure_ascii=True).encode())
+            structure_bytes += size
+            if (
+                size > 80_000
+                or structure_bytes > 160_000
+                or structure.get("schema_version") != "scientific-structure-3"
+                or structure.get("visual_inspection_status") != "not_performed"
+                or any(
+                    not isinstance(structure.get(k), list) or len(structure[k]) > 80
+                    for k in (
+                        "text_blocks",
+                        "tables",
+                        "equations",
+                        "figures",
+                        "captions",
+                        "speaker_notes",
+                    )
+                )
+            ):
+                raise ValueError("Invalid scientific structure attribution or budget.")
+        if parsed.get("format") == "pptx":
+            if (
+                page.get("slide_number") != page["page"]
+                or page.get("locator_kind") != "slide"
+                or page.get("visual_render_status") != "not_rendered"
+                or page.get("visual_observation") is not None
+                or page.get("media_presence", {}).get("graphics_inspected") is not False
+                or page.get("state") not in {"extracted", "no_text", "truncated", "unreadable"}
+            ):
+                raise ValueError("Invalid presentation attribution")
+            end = 0
+            for span in page.get("text_spans", []):
+                if span.get("source_kind") not in {
+                    "slide_shapes_and_tables",
+                    "chart_cached_text_and_values",
+                    "speaker_notes",
+                } or not end <= span["start"] < span["end"] <= len(page["text"]):
+                    raise ValueError("Invalid slide text attribution")
+                end = span["end"]
         if parsed.get("format") == "xlsx":
             if (
                 page.get("locator_kind") != "sheet"
@@ -186,7 +279,9 @@ def validate_result(result: dict, data: bytes) -> dict:
                 ] <= len(page["text"]):
                     raise ValueError("Invalid workbook cell attribution.")
                 end = span["end"]
-    return parsed
+    from canvas_bridge.privacy_text import document_privacy
+
+    return document_privacy(parsed)
 
 
 def extract_isolated(
@@ -197,13 +292,33 @@ def extract_isolated(
     runtime_root: Path | None = None,
     visual: dict | None = None,
     ocr_root: Path | None = None,
+    presentation_root: Path | None = None,
 ) -> dict:
-    if len(data) > 10_000_000:
+    if (
+        visual is not None
+        and kind == "pdf"
+        and (
+            type(visual.get("memory_mb", 384)) is not int
+            or not 128 <= visual.get("memory_mb", 384) <= 384
+        )
+    ):
+        raise DomainError(
+            "needs_input",
+            "Invalid visual worker memory limit.",
+            reason_code="VISUAL_MEMORY_LIMIT_INVALID",
+        )
+    if len(data) > source_limit(kind):
         raise DomainError(
             "unsupported_feature",
             "File exceeds the extraction size limit.",
             reason_code="EXTRACTION_FILE_TOO_LARGE",
             processing_stage="input_validation",
+            details={
+                "budget_code": "SOURCE_FILE_TOO_LARGE",
+                "observed": len(data),
+                "limit": source_limit(kind),
+                "retryable": False,
+            },
         )
     if not _slot.acquire(blocking=False):
         raise DomainError(
@@ -213,6 +328,8 @@ def extract_isolated(
             processing_stage="worker_queue",
         )
     stage = "runtime_setup"
+    worker_usage = {}
+    started = time.perf_counter()
     try:
         if sys.platform == "linux":
             from canvas_bridge.linux_sandbox import private_root, run
@@ -224,10 +341,24 @@ def extract_isolated(
 
             runtime = ensure_runtime(root, ocr_root)
 
+        if visual is not None and kind == "pptx":
+            if presentation_root is None or os.name != "nt":
+                raise DomainError(
+                    "unsupported_feature",
+                    "A supported PPTX renderer is not configured.",
+                    reason_code="PPTX_RENDERER_UNAVAILABLE",
+                    processing_stage="slide_rendering",
+                )
+            from canvas_bridge.presentation_runtime import prepare
+
+            office_runtime = prepare(runtime, presentation_root)
+            visual = {**visual, "office_root": str(office_runtime)}
+
         stage = "job_setup"
         jobs = root.resolve() / "jobs"
         jobs.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="document-", dir=jobs) as directory:
+        sweep_orphans(root)
+        with job_directory(jobs) as directory:
             work = Path(directory).resolve()
             # Packaged Windows hosts can redirect AppData for a newly created
             # child while resolving the existing parent to its logical path.
@@ -245,7 +376,27 @@ def extract_isolated(
                 json.dumps(visual if visual is not None else {"kind": kind}), encoding="utf-8"
             )
             stage = "worker_execution"
-            run(runtime, work, script="visual_worker.py" if visual is not None else "worker.py")
+            worker_usage = (
+                run(
+                    runtime,
+                    work,
+                    script="presentation_render_worker.py",
+                    timeout=75,
+                    presentation=True,
+                )
+                if visual is not None and kind == "pptx"
+                else run(
+                    runtime,
+                    work,
+                    script="visual_worker.py" if visual is not None else "worker.py",
+                    **(
+                        {"memory_mb": visual.get("memory_mb", 384)}
+                        if visual is not None and kind == "pdf"
+                        else {}
+                    ),
+                )
+                or {}
+            )
             stage = "result_read"
             path = work / "result.json"
             with path.open("rb") as stream:
@@ -258,14 +409,53 @@ def extract_isolated(
                     processing_stage=stage,
                 )
             stage = "result_validation"
+            if visual is not None and visual.get("conversion_only"):
+                from canvas_bridge.presentation_derivatives import validate_derivative
+
+                with (
+                    (work / "input.pdf").open("rb")
+                    if json.loads(output).get("ok")
+                    else nullcontext(None) as stream
+                ):
+                    pdf = stream.read(10_000_001) if stream else b""
+                converted = validate_derivative(json.loads(output), data, pdf, visual["page"])
+                converted["resource_usage"] = {
+                    **worker_usage,
+                    "source_bytes": len(data),
+                    "processing_ms": round((time.perf_counter() - started) * 1000),
+                    "worker_output_bytes": len(output),
+                }
+                return converted, pdf
             if visual is not None:
                 from canvas_bridge.visual_files import validate_rendering
 
-                return validate_rendering(json.loads(output), data, visual)
-            return validate_result(json.loads(output), data)
+                rendered = validate_rendering(json.loads(output), data, {**visual, "kind": kind})
+                if kind == "pptx":
+                    rendered["resource_usage"] = {
+                        **worker_usage,
+                        "source_bytes": len(data),
+                        "processing_ms": round((time.perf_counter() - started) * 1000),
+                        "worker_output_bytes": len(output),
+                    }
+                return rendered
+            parsed = validate_result(json.loads(output), data)
+            if kind == "pptx":
+                parsed["resource_usage"] = {
+                    **parsed.get("resource_usage", {}),
+                    **worker_usage,
+                    "processing_ms": round((time.perf_counter() - started) * 1000),
+                    "worker_output_bytes": len(output),
+                }
+            return parsed
     except DomainError as exc:
         if exc.processing_stage is None:
             exc.processing_stage = stage
+        if kind == "pptx" and visual is not None:
+            exc.details["resource_usage"] = {
+                **worker_usage,
+                "source_bytes": len(data),
+                "processing_ms": round((time.perf_counter() - started) * 1000),
+            }
         raise
     except TimeoutError as exc:
         raise DomainError(
@@ -315,6 +505,7 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
         if len(page["text"].strip()) >= 40 or page["state"] in {"truncated", "resource_limit"}:
             continue
         if attempted >= 4:
+            page["ocr_status"] = "skipped_budget"
             parsed["warnings"].append(
                 f"Page {page['page']}: OCR batch limit (4 pages); use visual page reading."
             )
@@ -332,12 +523,14 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
                 visual={"page": page["page"], "rotation": 0, "ocr": True},
             )
             recognition = visual["ocr"]
+            page["ocr_confidence"] = recognition["mean_confidence"]
             text = recognition["text"].strip()
             budget = MAX_TEXT - sum(len(p["text"]) + 2 for p in parsed["pages"])
             if text and len(text) <= budget and recognition["mean_confidence"] >= 50:
                 page.update(
                     text=text,
                     state="ocr_extracted",
+                    ocr_status="extracted",
                     extraction_method=recognition["method"],
                     ocr_confidence=recognition["mean_confidence"],
                     words=recognition["words"],
@@ -347,14 +540,16 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
                     w
                     for w in parsed["warnings"]
                     if not w.startswith(f"Page {page['page']}: no text layer")
-                    and w != "No readable text was extracted."
+                    and not w.startswith("No readable text was extracted.")
                 ]
             else:
+                page["ocr_status"] = "unusable"
                 parsed["warnings"].append(
                     f"Page {page['page']}: OCR returned no usable text, low-confidence text or exceeded the text budget."
                 )
         except DomainError as exc:
-            page["ocr_failure"] = exc.data
+            page["ocr_status"] = "failed"
+            page["ocr_failure"] = {"status": exc.status, **exc.data}
             parsed["warnings"].append(
                 f"Page {page['page']}: OCR unavailable, failed or exceeded isolation limits. Visual reading may still work."
             )
@@ -363,4 +558,16 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
         parsed["warnings"].append(
             "OCR is an uncertain English transcription, not a verified table. Check dates, numbers, names and merged cells against render_course_file_page; colors are not interpreted."
         )
-    return parsed
+    if not any(p["text"].strip() for p in parsed["pages"]):
+        failures = [p["ocr_failure"] for p in parsed["pages"] if p.get("ocr_failure")]
+        if failures:
+            failure = failures[0]
+            raise DomainError(
+                failure.get("status", "retry_later"),
+                "OCR failed and no usable document text is available; this is not a zero-match result.",
+                reason_code=failure.get("reason_code") or "OCR_EXTRACTION_FAILED",
+                processing_stage=failure.get("processing_stage") or "ocr",
+            )
+    from canvas_bridge.privacy_text import document_privacy
+
+    return document_privacy(parsed)

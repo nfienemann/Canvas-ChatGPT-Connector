@@ -1,5 +1,11 @@
 # Original Canvas file delivery
 
+**October 25 local policy update:** The [data egress gateway](data-egress-governance.md)
+adds recipient, source, modality and byte-hash review. Live bearer links are
+disabled; reviewed inline originals and authenticated HTTP delivery require a
+verified destination environment. The earlier bearer-link proofs below are
+historical. The running service has not been updated by this local implementation.
+
 `prepare_course_file_download` fetches an unchanged authorized original. It does
 not run a parser, rewrite archives, normalize text, execute macros/formulas,
 recalculate a workbook, or convert a file. `read_course_file` still extracts text.
@@ -233,3 +239,99 @@ Primary contracts checked on October 22, 2026:
 [OpenAI plugin reference](https://developers.openai.com/plugins/reference),
 [MCP Apps downloadFile](https://apps.extensions.modelcontextprotocol.io/api/classes/app.App.html#downloadfile),
 [Canvas Files API](https://developerdocs.instructure.com/services/canvas/resources/files).
+
+## In-chat download investigation — October 22, 2026
+
+**Finding:** The reported message is caused by the absence of the host-advertised
+`downloadFile` capability. The evidence points to a ChatGPT host capability
+limitation for the tested clients, with separate connector UX and attachment
+gaps. It does not prove that every ChatGPT build permanently lacks support.
+The owner reports the same message on web, desktop and mobile; exact builds and
+raw initialization responses were not available for inspection.
+
+### What was established
+
+1. In [download.js](../ui/page-reader/download.js), the unsupported branch returns
+   **before** calling `get_course_file_download_payload` or `app.downloadFile`.
+   That particular message cannot be a rejection caused by Canvas authorization,
+   a file's bytes/size, an expired link, or ngrok's interstitial: none of those
+   paths has run at that point. They remain possible later delivery failures.
+2. The card enables actions after `app.connect()` resolves. The pinned SDK
+   stores the `hostCapabilities` returned by `ui/initialize`; `downloadFile` is
+   a declared optional **host** field. The app's empty capabilities object is
+   not a missing request for download permission. Adding a server OAuth scope,
+   CSP network origin, or an app capability does not turn on this host feature.
+3. The [synthetic handshake probe](../scripts/diagnose_download_handshake.mjs)
+   executes the unchanged shipped bundle against the real pinned SDK's
+   `AppBridge`, with a minimal simulated DOM/message transport. It reproduces
+   the exact unsupported message when the capability is omitted. When present,
+   embedded bytes and linked resources reach `ui/download-file`; a host rejection
+   produces the separate failure message. The SDK preserves the capability.
+   The bundle also matches an in-memory build of current source/dependencies.
+4. A live read-only connection-status call confirms original delivery is enabled,
+   with 50 MiB total and 128 KiB inline limits, and native attachment is
+   `not_implemented`. In [service.py](../src/canvas_bridge/service.py),
+   `host_support: not_negotiated` is a fixed server field, not a captured client
+   result. Server MCP negotiation and iframe MCP Apps negotiation are separate;
+   their different protocol dates are not, by themselves, a version mismatch.
+5. The existing 11 delivery-contract tests pass. Their component cases replace
+   `App` with a mock, so the new real-SDK probe supplies additional handshake
+   evidence. Neither test layer proves a real ChatGPT save or attachment. The
+   available browser inventory contained no original ChatGPT session or download
+   widget, so no raw live host handshake was captured.
+
+### Connector gaps and what fixing them requires
+
+| Area | Responsibility and required work |
+|---|---|
+| Standard in-chat download | ChatGPT must advertise and implement `ui/download-file`. Current connector dispatch works against the real SDK's synthetic host. First capture a redacted initialization result in each affected client: host/version, protocol, presence of `downloadFile`/`openLinks`/`serverTools`, widget version/hash and optional helper availability. If the flag is absent, record it as unavailable and supply a synthetic reproduction to the host provider through a separately authorized support action. Do not force unsupported RPCs. |
+| Stale or incorrectly negotiated widget | If live capture contradicts the displayed message, compare the deployed/cached widget with the inspected bundle and trace the negotiation. Change code or dependencies only for a demonstrated mismatch. A future breaking widget update needs a new resource URI and corresponding tool metadata; restarting the server alone may leave cached UI in use. |
+| Primary action and explanation | Our card currently enables **Download original** even without host support and reveals the fallback only after that click. A later UX change can select the supported route at initialization and explain the limitation accurately. This improves the experience but cannot add host support. No UI change was made in this investigation. |
+| Native conversation attachment | Our connector does not create a host-owned original-file attachment or obtain an attachment receipt. This is additional implementation work even if `downloadFile` becomes available, because a host download handoff is not a conversation attachment. |
+
+The official [file-helper reference](https://developers.openai.com/plugins/reference#file-apis)
+documents optional `uploadFile` and `getFileDownloadUrl` helpers, including use
+with host file IDs; the upload example is for a user-selected file. It mentions
+tool-result file references without establishing an original-file attachment
+adapter for this connector. These are candidates to investigate, not a confirmed
+drop-in replacement for `downloadFile`. The
+[UI guide](https://developers.openai.com/plugins/build/chatgpt-ui#layer-on-chatgpt-extensions)
+calls for feature detection, and its resource guidance treats the URI as a cache
+key. Documentation was reviewed on October 22, 2026; it does not establish the
+actual capability set of the owner's three clients.
+
+A ChatGPT-specific alternative needs a separate synthetic prototype that proves
+the intended original-file transfer is supported, returns a valid host file ID,
+preserves bytes/name/type, and has an observable user-facing outcome. Test file
+types, size limits, rejection and timeout, plus whether the result is a download,
+library copy or conversation attachment. Keep library persistence off unless
+requested and document retention/deletion boundaries for any transferred copy.
+The current payload supplies inline bytes only up to 128 KiB and caps serialized
+messages at 250,000 bytes; larger originals are private URLs, and the widget has
+no network CSP origins. Arbitrary-size upload cannot be solved merely by adding
+one `uploadFile` call. It needs a supported bounded transfer mechanism and a
+privacy/security review. No public URL, model API key, or new student account is
+an acceptable shortcut.
+
+**Owner's subsequent budget decision:** Keep browser downloads and the ngrok
+interstitial unchanged for private single-user use. Defer native delivery and UI
+improvements until development budget is available; prioritize connector
+usefulness/reliability, then hosted browser delivery, then native integration.
+The [budget decision and restart checklist](../evidence/implementation-tickets.md#budget-decision-and-restart-plan--october-22-2026)
+is the current work sequence. Hosting can run the same authorized fetch, private
+staging, expiring-link and cleanup workflow without the developer's laptop; it
+does not enable a missing ChatGPT host capability by itself.
+
+**When native work resumes:** collect safe live handshake evidence; resolve any
+actual version/negotiation defect; otherwise retain the browser route while
+checking a documented host-specific alternative with synthetic files. A UX improvement is
+small connector work; enabling an absent host RPC depends on ChatGPT; attachment
+and large-file transfer need a separate verified adapter. There is no evidence
+that a paid tunnel, token refresh or unconditional SDK upgrade fixes the reported
+message. Large linked-resource downloads will still need independent validation
+against interstitials and expiry once a host route is available.
+
+The working browser fallback, authorization, credentials, service and deployed
+catalog were left unchanged. No original academic file was fetched for this
+investigation. See the [verification record](../evidence/sanitized-results/original-file-delivery.md)
+and [C12-D02/D03 roadmap](../evidence/implementation-tickets.md#public-release-download-roadmap--october-22-2026).

@@ -8,6 +8,7 @@ from pydantic import AwareDatetime, Field, model_validator
 
 from canvas_bridge.domain import Effort, Model, WorkItem
 from canvas_bridge.planning_dates import instant, resolve_timing
+from canvas_bridge.work_eligibility import completion_reason
 
 
 class Window(Model):
@@ -73,22 +74,18 @@ class PlanRequest(Model):
         return self
 
 
-def is_actionable(item: WorkItem) -> bool:
-    if item.assessment_state == "excused" or (
-        item.assessment_state == "graded" and item.revision_state in {"none_known", "unknown"}
-    ):
-        return False
-    if item.availability_state in {"closed", "inaccessible", "future_locked"}:
-        return False
-    if (
-        item.submission_state == "not_applicable"
-        and item.personal_progress == "student_marked_done"
-    ):
-        return False
-    return not (
-        item.submission_state in {"submitted", "resubmitted"}
-        and item.revision_state in {"none_known", "unknown"}
+def omission_reason(item: WorkItem, *, allow_future=False):
+    return completion_reason(item) or (
+        "source_" + item.availability_state
+        if item.availability_state in {"closed", "inaccessible"}
+        else "not_open_now"
+        if item.availability_state == "future_locked" and not allow_future
+        else None
     )
+
+
+def is_actionable(item: WorkItem) -> bool:
+    return omission_reason(item) is None
 
 
 def prioritize(
@@ -98,12 +95,14 @@ def prioritize(
     overrides=None,
     importance=None,
     timings=None,
+    *,
+    allow_future=False,
 ) -> list[dict]:
     now = instant(now)
     overrides, importance = overrides or {}, importance or {}
     ranked = []
     for item in items:
-        if not is_actionable(item):
+        if omission_reason(item, allow_future=allow_future):
             continue
         timing = timings[item.id] if timings else resolve_timing(item, now)
         due = item.effective_due.timestamp
@@ -144,13 +143,20 @@ def prioritize(
             tier, reason = 2, "A reported date leaves more time; review the remaining work."
         effort = item.effort_remaining
         minutes = min(opportunity, effort.maximum_minutes) if effort else min(opportunity, 15)
+        receipt_label = (
+            "completion evidence"
+            if item.source.source_type == "local_document"
+            else "Canvas submission receipt"
+        )
         action = (
-            f"Verify the Canvas submission receipt for {item.title}; you marked the work done, so do not redo it based only on this status."
+            f"Verify the {receipt_label} for {item.title}; you marked the work done, so do not redo it based only on this status."
             if item.personal_progress == "student_marked_done"
             else f"Confirm the source date, timezone or availability for {item.title} before scheduling it."
             if timing.blocked
             else f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
             if undated and not hard_limit
+            else f"After the reported opening, recheck access and work on {item.title} for up to {minutes} minutes."
+            if item.availability_state == "future_locked" and effort
             else f"Work on {item.title} for up to {minutes} minutes."
             if effort
             else f"Spend up to {minutes} minutes reviewing the requirements for {item.title} "
@@ -259,10 +265,27 @@ def propose(
         request.priority_overrides,
         request.importance,
         timings,
+        allow_future=bool(request.windows),
     )
+    omitted = [
+        {"work_id": item.id, "reason": reason}
+        for item in by_id.values()
+        if (reason := omission_reason(item, allow_future=bool(request.windows)))
+    ]
+    accounting = {
+        item.id: {"state": "pending_review", "reason": "availability_unknown"}
+        for item in by_id.values()
+    }
+    for row in omitted:
+        accounting[row["work_id"]] = {"state": "omitted", "reason": row["reason"]}
     if not request.windows:
         return {
             "feasibility": "availability_unknown",
+            "known_capacity_status": "unknown",
+            "information_status": "uncertain",
+            "known_shortfall_minutes": 0,
+            "omitted_work": omitted,
+            "work_accounting": accounting,
             "recommendations": ranked[:5],
             "blocks": [],
             "unmet_work": [],
@@ -279,8 +302,8 @@ def propose(
         windows = subtract(windows, busy.start, busy.end)
     blocks, unmet, pinned_minutes, pinned_end = [], [], {}, {}
     for pin in sorted(request.pinned_blocks, key=lambda w: w.start):
-        if pin.work_id not in by_id or not is_actionable(by_id[pin.work_id]):
-            raise ValueError("Pinned block references work that is not currently actionable.")
+        if pin.work_id not in by_id or omission_reason(by_id[pin.work_id], allow_future=True):
+            raise ValueError("Pinned block references work that is not eligible for planning.")
         if pin.start < now or not any(a <= pin.start and pin.end <= b for a, b in windows):
             raise ValueError(
                 "Pinned block conflicts with availability, busy time, buffer or another block."
@@ -308,6 +331,7 @@ def propose(
                 "minutes": minutes,
                 "pinned": True,
                 "overdue_recovery": timing.overdue,
+                "conditional_on_future_access": item.availability_state == "future_locked",
             }
         )
         windows = subtract(
@@ -390,9 +414,9 @@ def propose(
         finish = pinned_end.get(item.id, now)
         # Overdue-but-open work uses the close time and labels lateness, not an invented extension.
         deadline, overdue = timing.deadline, timing.overdue
-        for window in windows:
+        for left, window_end in list(windows):
+            cursor = max(left, earliest)
             while remaining > 0:
-                cursor, window_end = max(window[0], earliest), window[1]
                 end = min(window_end, deadline) if deadline else window_end
                 usable = int((end - cursor).total_seconds() // 60)
                 if usable < min(request.minimum_block_minutes, remaining):
@@ -407,11 +431,17 @@ def propose(
                         "minutes": minutes,
                         "overdue_recovery": overdue,
                         "pinned": False,
+                        "conditional_on_future_access": item.availability_state == "future_locked",
                     }
                 )
                 remaining -= minutes
                 finish = max(finish, block_end)
-                window[0] = block_end + timedelta(minutes=request.break_minutes)
+                windows = subtract(
+                    windows,
+                    cursor - timedelta(minutes=request.break_minutes),
+                    block_end + timedelta(minutes=request.break_minutes),
+                )
+                cursor = block_end + timedelta(minutes=request.break_minutes)
         if remaining:
             unmet.append(
                 {"work_id": item.id, "reason": "insufficient_capacity", "minutes": remaining}
@@ -426,18 +456,38 @@ def propose(
         or timings[row["work_id"]].overdue
         for row in ranked
     )
+    known_shortfall = sum(
+        x["minutes"] or 0 for x in unmet if x["reason"] == "insufficient_capacity"
+    )
+    uncertain = (
+        unknown_constraints
+        or any(x["reason"] != "insufficient_capacity" for x in unmet)
+        or any(x["reason"] in {"source_closed", "source_inaccessible"} for x in omitted)
+    )
+    for row in ranked:
+        ref = row["work_id"]
+        pending = next((x for x in unmet if x["work_id"] == ref), None)
+        accounting[ref] = {
+            "state": "unmet" if pending else "allocated",
+            "reason": pending["reason"] if pending else None,
+            "allocated_minutes": sum(b["minutes"] for b in blocks if b["work_id"] == ref),
+        }
     return {
         "feasibility": "timing_unresolved"
         if unmet
         and all(x["reason"] in {t.blocked for t in timings.values() if t.blocked} for x in unmet)
         else "shortfall"
-        if unmet
-        else ("provisional" if unknown_constraints else "feasible"),
+        if known_shortfall
+        else ("provisional" if uncertain else "feasible"),
+        "known_capacity_status": "shortfall" if known_shortfall else "fits",
+        "information_status": "uncertain" if uncertain else "sufficient",
+        "omitted_work": omitted,
+        "work_accounting": accounting,
         "recommendations": ranked[:5],
         "blocks": sorted(blocks, key=lambda b: b["start"]),
         "unmet_work": unmet,
         "timing_constraints": timing_evidence,
-        "known_shortfall_minutes": sum(x["minutes"] or 0 for x in unmet),
+        "known_shortfall_minutes": known_shortfall,
         "shortfall_basis": "Capacity within reported timing and labeled conservative date-only bounds. Unknown timing is not counted as a numerical shortage.",
         "availability_origin": request.availability_origin,
         "assumptions": [

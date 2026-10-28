@@ -1,0 +1,477 @@
+{
+  "$defs": {
+    "Effort": {
+      "additionalProperties": false,
+      "properties": {
+        "minimum_minutes": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Minimum Minutes",
+          "type": "integer"
+        },
+        "maximum_minutes": {
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Maximum Minutes",
+          "type": "integer"
+        },
+        "origin": {
+          "enum": [
+            "student_estimate",
+            "instructor_estimate",
+            "rule_of_thumb",
+            "assistant_estimate"
+          ],
+          "title": "Origin",
+          "type": "string"
+        },
+        "as_of": {
+          "format": "date-time",
+          "title": "As Of",
+          "type": "string"
+        },
+        "assumptions": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Assumptions",
+          "type": "string"
+        }
+      },
+      "required": [
+        "minimum_minutes",
+        "maximum_minutes",
+        "origin"
+      ],
+      "title": "Effort",
+      "type": "object"
+    },
+    "FactDate": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "default": "not_returned",
+          "enum": [
+            "timestamp",
+            "local_date",
+            "known_none",
+            "not_returned",
+            "permission_denied",
+            "not_refreshed",
+            "unsupported"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "timestamp": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp"
+        },
+        "local_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Local Date"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        }
+      },
+      "title": "FactDate",
+      "type": "object"
+    },
+    "GradeGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        },
+        "drop_lowest": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Drop Lowest",
+          "type": "integer"
+        },
+        "drop_highest": {
+          "default": 0,
+          "maximum": 100,
+          "minimum": 0,
+          "title": "Drop Highest",
+          "type": "integer"
+        },
+        "drop_basis": {
+          "default": "equal_points",
+          "enum": [
+            "equal_points",
+            "percentage"
+          ],
+          "title": "Drop Basis",
+          "type": "string"
+        },
+        "never_drop": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Never Drop",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "GradeGroup",
+      "type": "object"
+    },
+    "IndependentAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group Id"
+        },
+        "possible": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Possible"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "score_state": {
+          "default": "unavailable",
+          "enum": [
+            "posted",
+            "ungraded",
+            "unavailable",
+            "excused",
+            "conflicting"
+          ],
+          "title": "Score State",
+          "type": "string"
+        },
+        "excluded_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Excluded Reason"
+        },
+        "eligibility_verified": {
+          "default": false,
+          "title": "Eligibility Verified",
+          "type": "boolean"
+        },
+        "submission_state": {
+          "default": "unknown",
+          "title": "Submission State",
+          "type": "string"
+        },
+        "missing": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missing"
+        },
+        "late": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Late"
+        },
+        "source_url": {
+          "default": "",
+          "title": "Source Url",
+          "type": "string"
+        },
+        "source_version": {
+          "default": "",
+          "title": "Source Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "IndependentAssessment",
+      "type": "object"
+    },
+    "IndependentGrades": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "default": "unknown",
+          "enum": [
+            "points",
+            "weighted",
+            "unknown"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/GradeGroup"
+          },
+          "maxItems": 30,
+          "title": "Groups",
+          "type": "array"
+        },
+        "assessments": {
+          "items": {
+            "$ref": "#/$defs/IndependentAssessment"
+          },
+          "maxItems": 100,
+          "title": "Assessments",
+          "type": "array"
+        },
+        "policy_origin": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "syllabus_interpretation"
+          ],
+          "title": "Policy Origin",
+          "type": "string"
+        },
+        "rules": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Rules",
+          "type": "array"
+        },
+        "unsupported_rules": {
+          "items": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Unsupported Rules",
+          "type": "array"
+        },
+        "complete": {
+          "default": false,
+          "title": "Complete",
+          "type": "boolean"
+        }
+      },
+      "title": "IndependentGrades",
+      "type": "object"
+    },
+    "IndependentWork": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 60,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "due": {
+          "$ref": "#/$defs/FactDate"
+        },
+        "effort": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "progress": {
+          "default": "unknown",
+          "enum": [
+            "not_started",
+            "in_progress",
+            "student_marked_done",
+            "unknown"
+          ],
+          "title": "Progress",
+          "type": "string"
+        },
+        "prerequisites": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Prerequisites",
+          "type": "array"
+        }
+      },
+      "required": [
+        "key",
+        "title"
+      ],
+      "title": "IndependentWork",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "independent-academic-1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "work": {
+      "items": {
+        "$ref": "#/$defs/IndependentWork"
+      },
+      "maxItems": 50,
+      "title": "Work",
+      "type": "array"
+    },
+    "grades": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/IndependentGrades"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "timezone": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timezone"
+    },
+    "complete": {
+      "default": false,
+      "title": "Complete",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "IndependentAcademicInput",
+  "type": "object"
+}

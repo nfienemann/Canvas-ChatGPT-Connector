@@ -23,30 +23,31 @@ the repository.
 
 ## Try the local demonstration
 
-The desktop preview bundles everything it needs. Use the **Windows setup wizard**,
-**macOS disk image**, or **Linux software-installer package** from
-[Downloads](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases).
-No Python, Git, terminal commands or model API keys are needed.
+The Windows x64 setup wizard bundles its runtime and offers separate **Offline
+academic intelligence** and **Synthetic demonstration** editions. Open Canvas
+Bridge Demo, choose an edition, review data use, then select **Check and set up**.
+Setup must complete a fictional academic task before it reports success. No terminal,
+Python installation, API token, manual server configuration or administrator access
+is required. Local data removal is an explicit option during uninstall.
 
-| Your computer | Local demo download |
-|---|---|
-| Windows 10/11, x64 | [Download the setup wizard](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Windows-x64-Setup.exe) |
-| Mac with Apple silicon, macOS 14+ | [Download the Mac app](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-arm64.dmg) |
-| Mac with Intel, macOS 15+ | [Download the Intel Mac app](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-macOS-x64.dmg) |
-| Ubuntu 22.04+ / compatible Debian, x64 | [Download the Linux package](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases/download/demo-bb3e957b7e01/CanvasBridgeDemo-Linux-x64.deb) |
+The new onboarding build is a local development preview; it has not been published.
+[Earlier downloads](https://github.com/nfienemann/Canvas-ChatGPT-Connector/releases)
+are historical packages and do not establish support for this wizard. Current
+release support targets Windows 10/11 x64. macOS and Linux are experimental only.
+Publisher signing and nontechnical participant testing remain release gates.
 
-Open **Canvas Bridge Demo → Set up local demo → Start local demo**. The launcher
-opens the local settings page and includes a **Check study tools** button. It picks
-an available port, keeps data in your user account, and stops when you close it.
-Upgrades and uninstall preserve your separate data folder.
-
-These packages are unsigned development previews; Windows/macOS may show publisher
-warnings or block them. Signed Windows builds and Apple notarization remain gates
-before general student distribution. No real institution or ChatGPT connection is
-included. The future hosted student experience is intended to need **no install**:
-connect in ChatGPT, sign in, and choose courses.
+Institutional integration uses a separately approved hosted service. The local
+wizard cannot grant approvals and includes no approved service by default. The
+future hosted student experience remains installation-free. See
+[desktop setup, updates and deletion](docs/desktop-distribution.md) and the
+[onboarding acceptance record](evidence/sanitized-results/onboarding-2026-10-26.md).
 
 ## Run from source (contributors only)
+
+The [17 academic process workflows](docs/process-specifications/implementation.md)
+add evidence reconciliation, local state recovery, planning, degree projections and
+privacy controls behind `BRIDGE_PROCESS_FEATURES_ENABLED=false`. Their implementation
+and synthetic tests are separate from activation and installed-client acceptance.
 
 Install Python 3.14 and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 From the repository root:
@@ -73,13 +74,30 @@ uv run canvas-bridge verify-read
 fictional coursework and request a study recommendation. It does **not** prove
 that a ChatGPT account or university has been connected.
 
-The initializer writes private, randomly generated test keys and a 24-hour test
+The initializer writes private, randomly generated test keys and a one-hour test
 token under `.local/`, plus an ignored `.env`. Run it again to renew the local
 test token. Never use the synthetic issuer for live student data. The demo binds
 only to loopback. Its SQLite database is an isolated development convenience;
 live profiles require PostgreSQL.
 
 ## Available behavior
+
+Contributors can generate a sanitized security review package with
+`uv run canvas-bridge compliance-report`. See the [evidence workflow](docs/compliance-evidence.md)
+for execution receipts, control/approval registers, reviewer walkthroughs and
+separate release gates. Successful report generation is not release approval.
+
+The first [provider-independent architecture milestone](docs/provider-architecture.md)
+extracts grade calculation and local document text processing. Contributors can run
+`uv run canvas-academic demo-grade` without Canvas credentials, account setup or LMS
+requests. Live adapters retain the existing approval gates; other workflows migrate
+incrementally as described in the architecture guide.
+
+The [provider and extension SDK](docs/provider-extension-sdk.md) adds versioned
+capability discovery and bounded declarative modules. Try
+`uv run canvas-academic demo-forecast --future-points 100 --future-percent 90`.
+Permitted local numeric imports use the same forecast without an LMS connection;
+extension registration never grants provider or downstream sharing permission.
 
 | Area | Implemented behavior |
 |---|---|
@@ -89,8 +107,8 @@ live profiles require PostgreSQL.
 | Course knowledge | Modules, Canvas pages and authorized PDF/DOCX/PPTX/TXT/Markdown text; page citations, [bounded unread-document search](docs/document-search.md) and version-bound continuation |
 | Grades | Own visible reported fields, deterministic supported Canvas/syllabus calculations and reconciliation; unsupported policy stays indeterminate |
 | Local writes | Explicit version-checked preferences, personal progress and saved plans; no Canvas mutation |
-| Lifecycle | Encrypted credentials, OAuth binding/refresh leases, disconnect and account-wide deletion, JSON export, leased jobs, retention, encrypted backup and deletion-fenced restore |
-| Settings | Server-rendered authentication, course selection, timezone and privacy controls with CSRF protection |
+| Lifecycle | Encrypted credentials and academic fields, bounded retention, encrypted temporary downloads, worker cleanup, expiring backups and inactive credential-free restores |
+| Settings | Server-rendered authentication, course selection, stored-data inventory, confirmed cache/record deletion, disconnect and account deletion with CSRF protection |
 
 PDF/TXT/Markdown reading is verified in the private Windows source deployment,
 including an actual 15-page course paper returned through the installed connector.
@@ -146,9 +164,64 @@ this repository is not evidence of approval. See the
 - [Contributor guide](docs/contributor-guide.md)
 - [Threat model](docs/threat-model.md)
 - [Privacy and retention](docs/data-flow-retention.md)
+- [Data lifecycle controls and storage inventory](docs/data-lifecycle-controls.md)
+- [Third-party privacy pipeline and limits](docs/third-party-privacy.md)
 - [Tool contracts](docs/tool-contracts.md)
 - [Original product specification](Codex_Spec.md)
 
 Source publication was requested by the owner. An open-source license has not
 been selected; see [license status](LICENSE-STATUS.md). No affiliation with
 Instructure, Canvas, OpenAI or any university is implied.
+
+## Discussion participation (local synthetic verification)
+
+Read-only discussion discovery, prompts and self-participation evidence are now
+available through three dedicated tools and the existing optional course audit
+and obligation flows. Partial coverage never establishes nonparticipation.
+Group participation and peer-thread disclosure remain unavailable; external live
+approval gates remain intact. See [the contract and status matrix](docs/discussion-reading.md).
+
+## Academic benchmark laboratory
+
+The [offline benchmark lab](docs/academic-benchmark-lab.md) exercises 12 fictional
+courses with independently checkable gold answers, per-category measurements,
+failure capsules and CI regression gates. It adds no MCP tools. Model/alternative
+comparisons require actual execution evidence; interpretive rubrics remain pending
+independent expert review. Run `python -m canvas_bridge.benchmark_lab run --tier fast`.
+
+## Unified academic evidence
+
+The [versioned evidence graph](docs/academic-evidence-graph.md) connects deadline
+and grading assertions to permitted sources, keeps conflicts and uncertainty
+visible, and tracks source-dependent invalidation. Existing tools consume the
+model. Historical comparisons require an authorized in-memory session; no
+automatic durable grade history or new Canvas access is introduced.
+
+## Scientific document evidence
+
+[Scientific comprehension v3](docs/scientific-document-comprehension-v3.md) adds
+source-bound document structure, original-slide figure retrieval and separately
+attributed visual/textual explanations to existing tools. Ten fictional scientific
+fixtures have a deterministic retrieval gate; interpretation stays unscored until
+independent expert review. Word/Excel visual rendering and deployed host acceptance
+remain explicit gaps. Run `python -m canvas_bridge.scientific_benchmark`.
+
+## Semester intelligence
+
+The [independent academic path](docs/independent-academic-intelligence.md) supports
+permitted local planning, assessment evidence, requirement comparison, grades,
+deadlines and calendar proposals without an LMS connection. Local-only saved
+preferences remain readable after disconnect; institutional records keep their gates.
+
+The [academic workflow engine](docs/academic-workflows.md) provides seven bounded
+read-only sequences with shared evidence, capability negotiation, explicit partial
+results and existing calendar proposals. [Cross-course study](docs/cross-course-study.md)
+adds source-specific concepts, labeled generated practice and voluntary local outcomes.
+Missing sources remain unknown; neither feature starts monitoring or infers mastery.
+
+The [semester overview](docs/semester-intelligence.md) combines selected courses into
+cited obligations, consequential changes, grade uncertainties and explainable
+priorities. Stable findings support explicit acknowledgment and user-controlled
+planning preferences. Analysis is on demand; notification preferences do not start
+monitoring. A future delivery adapter still requires explicit opt-in and an approved
+host schedule. Run `python -m pytest tests/test_semester_intelligence.py -q`.

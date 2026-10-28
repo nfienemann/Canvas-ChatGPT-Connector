@@ -1,4 +1,4 @@
-# Native PDF page reader
+# Native page and slide reader
 
 This is a static MCP Apps view inside ChatGPT, not a separate application or
 service. Node is required only to rebuild the checked-in browser asset:
@@ -19,6 +19,16 @@ it uses ChatGPT's documented `uploadFile` and `setWidgetState.imageIds` helpers.
 The source/receipt remain attached to the image. Source text is never executed.
 An image transfer is not a verified interpretation. ChatGPT must inspect it and
 preserve uncertain names, dates, colors and merged-cell relationships.
+
+The v5 view offers a 30-second automatic-send countdown after the preview loads.
+Only visible preview time counts: at least half the image and all action controls
+must be in view, and the document must be visible. The primary button sends now;
+**Cancel automatic send** stops the timer and remains available during the
+authorization recheck, until image delivery starts. Users can then clarify in chat
+or send manually. Cancellation and attempted/completed sends are saved in private
+widget state, preserving existing image IDs and other state. A failed attempt
+never automatically retries. Clients without widget-state or visibility support
+retain the manual button. No server rendering or permission logic changes.
 
 The page can receive image bytes either in the full MCP result's ImageContent
 or private metadata. Initial text-only results still enable a fresh authorized

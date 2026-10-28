@@ -86,6 +86,8 @@ class Source(Model):
     course_id: str | None = None
     resource_id: str | None = None
     content_hash: str | None = None
+    semantic_hash: str | None = None
+    hash_basis: str | None = None
     extraction_status: str = "not_recorded"
     uncertainty: list[str] = Field(default_factory=list)
 
@@ -99,7 +101,9 @@ class WorkItem(Model):
     title: str = Field(max_length=1000)
     kind: str = "assignment"
     effective_due: FactDate = Field(default_factory=FactDate)
-    due_date_status: Literal["reported", "no_canvas_due_date", "unavailable"] = "unavailable"
+    due_date_status: Literal[
+        "reported", "no_canvas_due_date", "known_no_due_date", "unavailable"
+    ] = "unavailable"
     schedule_status: Literal["dated", "unknown"] = "unknown"
     schedule_basis: str = "Assessment timing has not been established."
     available_from: FactDate = Field(default_factory=FactDate)
@@ -151,6 +155,14 @@ class WorkItem(Model):
             if self.effective_due.kind == "known_none"
             else "A usable Canvas due date was not returned; scheduling remains unknown."
         )
+        if self.source.source_type in {"local_document", "user_manual", "independent_import"}:
+            if self.effective_due.kind == "known_none":
+                self.due_date_status = "known_no_due_date"
+            self.schedule_basis = (
+                "Date supplied by the independent source; no institutional verification."
+                if known
+                else "Independent source timing is unknown or explicitly absent."
+            )
         return self
 
 
@@ -174,6 +186,8 @@ class Meta(Model):
     coverage: list[Coverage] = Field(default_factory=list)
     next_cursor: str | None = None
     warnings: list[str] = Field(default_factory=list)
+    egress: dict[str, Any] | None = None
+    privacy: dict[str, Any] | None = None
 
 
 class Result(Model):

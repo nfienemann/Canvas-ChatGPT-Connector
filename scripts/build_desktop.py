@@ -13,8 +13,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
+from canvas_bridge.onboarding import DESKTOP_VERSION
+
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = "0.1.0"
+VERSION = DESKTOP_VERSION
+DIST = ROOT / "dist"
+SIGNING = None
 NAME = "CanvasBridgeDemo"
 
 
@@ -92,6 +96,8 @@ def build_bundle():
         "--windowed",
         "--name",
         NAME,
+        "--distpath",
+        str(DIST),
         "--specpath",
         "build",
         "--paths",
@@ -114,8 +120,16 @@ def build_bundle():
         "--hidden-import",
         "uvicorn.lifespan.on",
     ]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/assets/onboarding-trust.json'}:canvas_bridge/assets",
+    ]
     # Explicit resources only. Never add the working directory, .env, .local or keys.
     args += ["--add-data", f"{ROOT / 'institutions.json'}:canvas_bridge/resources"]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/privacy/output_fields.json'}:canvas_bridge/privacy",
+    ]
     args += [
         "--add-data",
         f"{ROOT / 'src/canvas_bridge/assets/page-reader.js'}:canvas_bridge/assets",
@@ -147,10 +161,40 @@ def build_bundle():
         ]
     args += [str(ROOT / "packaging/desktop_entry.py")]
     run(*args)
+    if SIGNING:
+        sign(DIST / NAME / (NAME + ".exe"))
+    bundle = DIST / NAME
+    manifest = {"schema": "desktop-bundle-1", "version": VERSION, "files": {}}
+    for file in sorted(bundle.rglob("*")):
+        if file.is_file() and file.name != "bundle-manifest.json":
+            with file.open("rb") as stream:
+                manifest["files"][file.relative_to(bundle).as_posix()] = hashlib.file_digest(
+                    stream, "sha256"
+                ).hexdigest()
+    (bundle / "bundle-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def sign(path):
+    run(
+        SIGNING["tool"],
+        "sign",
+        "/fd",
+        "SHA256",
+        "/td",
+        "SHA256",
+        "/tr",
+        "http://timestamp.digicert.com",
+        "/sha1",
+        SIGNING["thumbprint"],
+        path,
+    )
+    from canvas_bridge.desktop_updates import authenticode
+
+    authenticode(path, SIGNING["thumbprint"])
 
 
 def package():
-    output = ROOT / "dist/installers"
+    output = DIST / "installers"
     output.mkdir(parents=True, exist_ok=True)
     architecture = "arm64" if platform.machine().lower() in {"arm64", "aarch64"} else "x64"
     if sys.platform == "win32":
@@ -167,6 +211,15 @@ def package():
             compiler,
             f"/DSourceRoot={ROOT}",
             f"/DAppVersion={VERSION}",
+            f"/DBundleRoot={DIST}",
+            *(
+                [
+                    "/DSignedRelease",
+                    f"/Sbridge-sign=$q{SIGNING['tool']}$q sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /sha1 {SIGNING['thumbprint']} $f",
+                ]
+                if SIGNING
+                else []
+            ),
             ROOT / "packaging/windows.iss",
         )
     elif sys.platform == "darwin":
@@ -223,6 +276,10 @@ def package():
         shutil.make_archive(
             str(output / f"CanvasBridgeDemo-Linux-{architecture}"), "gztar", ROOT / "dist", NAME
         )
+    if SIGNING:
+        from canvas_bridge.desktop_updates import authenticode
+
+        authenticode(output / "CanvasBridgeDemo-Windows-x64-Setup.exe", SIGNING["thumbprint"])
     files = sorted(p for p in output.iterdir() if p.is_file() and p.name != "SHA256SUMS.txt")
     hashes = []
     for file in files:
@@ -234,7 +291,36 @@ def package():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--package-only", action="store_true")
+    parser.add_argument("--dist-root", type=Path, default=DIST)
+    parser.add_argument("--experimental-platform", action="store_true")
+    parser.add_argument("--release", action="store_true")
+    parser.add_argument("--certificate-thumbprint")
+    parser.add_argument("--sign-tool", type=Path)
     arguments = parser.parse_args()
+    DIST = arguments.dist_root.resolve()
+    if sys.platform != "win32" and not arguments.experimental_platform:
+        raise SystemExit(
+            "Only Windows x64 is a supported release target. Other platforms require explicit experimental build intent."
+        )
+    if arguments.release:
+        import re
+
+        from canvas_bridge.onboarding import trust_configuration
+
+        trust = trust_configuration()
+        thumb = (arguments.certificate_thumbprint or "").upper()
+        if (
+            sys.platform != "win32"
+            or not re.fullmatch(r"[A-F0-9]{40}", thumb)
+            or thumb not in trust.get("publisher_thumbprints", [])
+            or not trust.get("release_keys")
+            or not arguments.sign_tool
+            or not arguments.sign_tool.is_file()
+        ):
+            raise SystemExit(
+                "A release requires a reviewed publisher, protected signing identity, release trust keys and Windows SDK SignTool. No unsigned fallback is allowed."
+            )
+        SIGNING = {"thumbprint": thumb, "tool": arguments.sign_tool.resolve()}
     if not arguments.package_only:
         build_bundle()
     package()

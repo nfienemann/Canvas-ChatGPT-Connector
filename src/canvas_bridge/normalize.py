@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from html.parser import HTMLParser
 
+from canvas_bridge.assignment_identity import RAW_FIELDS, semantic_hash
 from canvas_bridge.domain import FactDate, Source, WorkItem, utcnow
 from canvas_bridge.evidence import fingerprint
 from canvas_bridge.policy import source_id
@@ -214,21 +215,8 @@ def normalize_assignment(
             course_id=course,
             resource_id=ref,
             extraction_status=requirements["state"],
-            content_hash=fingerprint(
-                {
-                    k: raw.get(k)
-                    for k in (
-                        "name",
-                        "description",
-                        "due_at",
-                        "unlock_at",
-                        "lock_at",
-                        "points_possible",
-                        "submission_types",
-                        "updated_at",
-                        "submission",
-                    )
-                }
-            ),
+            semantic_hash=semantic_hash(raw, origin),
+            hash_basis="content_hash: selected privacy-minimized Canvas fields; semantic_hash: assignment_semantic_v1 excludes rotating file authorization and submission-preview query parameters, retains dates, state, rubric and link identity",
+            content_hash=fingerprint({k: raw.get(k) for k in RAW_FIELDS}),
         ),
     )

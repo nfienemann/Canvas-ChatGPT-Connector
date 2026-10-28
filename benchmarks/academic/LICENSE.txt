@@ -1,0 +1,13 @@
+Original fictional fixture content, including the synthetic course records,
+explicit gold answers, review rubrics and generated scientific plots, is dedicated
+to the public domain under CC0 1.0 Universal (SPDX: CC0-1.0).
+
+These fixtures contain no real academic records, people, institutions, research
+results or third-party course materials. The university and all records are
+invented. Rendered fonts and authoring dependencies retain their own licenses;
+no font or authoring software package is included in this corpus.
+
+This dedication applies only to the new fictional fixture content. It does not
+select a license for repository code; see ../../LICENSE-STATUS.md for the
+separate code licensing decision.
+CC0 terms: https://creativecommons.org/publicdomain/zero/1.0/

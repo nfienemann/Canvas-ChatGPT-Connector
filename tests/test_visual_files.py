@@ -24,6 +24,7 @@ from canvas_bridge.parser_sandbox import extract_document, extract_isolated
 from canvas_bridge.storage import Material
 from canvas_bridge.visual_files import render_file, validate_rendering
 from canvas_bridge.visual_schedule import ScheduleRow, interpret_schedule
+from canvas_bridge.visual_worker import RENDERER
 from tests.test_course_files import file_client as file_client
 from tests.test_course_files import response
 from tests.test_file_reading import readable as readable
@@ -353,7 +354,7 @@ async def test_T11_ocr_batch_and_low_confidence_are_partial(settings, monkeypatc
 @pytest.mark.parametrize("defect", ["hash", "page", "size", "confidence", "geometry", "verified"])
 def test_T13_reject_invalid_ocr_worker_evidence(defect):
     rendering = {
-        "renderer": "canvas-bridge-pdf-image-v1",
+        "renderer": RENDERER,
         "content_hash": hashlib.sha256(b"pdf").hexdigest(),
         "page": 1,
         "page_count": 1,

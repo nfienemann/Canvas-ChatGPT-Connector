@@ -14,7 +14,7 @@
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -28,7 +28,7 @@
         "tests/test_grade_audit.py::test_T08_T02_hidden_totals_not_reconstructed_and_cross_user_denied",
         "tests/test_grade_audit.py::test_T08_T02_deselection_during_audit_prevents_response"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -42,7 +42,7 @@
         "tests/test_integration_findings.py::test_T03_T20_undated_records_need_relevance_before_automatic_allocation",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -76,7 +76,7 @@
         "tests/test_planning_dates.py::test_T04_T20_calendar_composition_uses_same_date_boundaries",
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -89,7 +89,7 @@
         "tests/test_integration_findings.py::test_T05_failed_requirements_fetch_is_never_empty_success",
         "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -106,7 +106,7 @@
         "tests/test_integration_findings.py::test_T06_T05_mcp_assignment_contract_preserves_states",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -125,7 +125,7 @@
         "tests/test_scope_planning_lifecycle.py::test_T07_offline_personal_done_not_recommended_online_status_preserved",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -164,7 +164,7 @@
         "tests/test_grade_audit.py::test_T08_assessment_budget_never_claims_complete_grade",
         "tests/test_grade_audit.py::test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -178,7 +178,7 @@
         "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search",
         "tests/test_service_security.py::test_T09_closed_and_locked_assignment_never_exposes_content"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -194,7 +194,7 @@
         "tests/test_obligations.py::test_T10_conflicting_explicit_links_never_guess",
         "tests/test_obligations.py::test_T01_T10_query_scope_is_fixed_and_never_expands_includes"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -234,7 +234,7 @@
         "tests/test_visual_files.py::test_T11_ocr_unavailable_preserves_text_and_explicit_failure",
         "tests/test_visual_files.py::test_T11_ocr_batch_and_low_confidence_are_partial"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -257,9 +257,11 @@
         "tests/test_settings_oauth.py::test_T12_T19_browser_bound_callback_rejects_mixup_before_exchange",
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
-        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T12_reader_resource_is_static_and_has_no_external_origins"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -299,9 +301,11 @@
         "tests/test_visual_files.py::test_T13_T25_schedule_scope_version_and_tbd",
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
-        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence"
+        "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -322,7 +326,7 @@
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -346,7 +350,7 @@
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -391,7 +395,7 @@
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -407,7 +411,7 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -440,7 +444,7 @@
         "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
         "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -469,7 +473,7 @@
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
         "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -481,7 +485,7 @@
         "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority",
         "tests/test_service_security.py::test_T22_no_generic_academic_route"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -527,7 +531,7 @@
         "tests/test_service_security.py::test_T23_dns_rebinding_to_private_is_rejected",
         "tests/test_service_security.py::test_T22_T23_continuations_cannot_widen_route_or_authority"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -538,7 +542,7 @@
       "fixture_functions": [
         "tests/test_obligations.py::test_T21_T24_restricted_quiz_content_omitted"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -568,7 +572,7 @@
         "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache",
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -582,7 +586,7 @@
         "tests/test_file_reading.py::test_T13_T26_search_is_current_scoped_and_distinguishes_unindexed",
         "tests/test_service_security.py::test_T09_T26_material_access_loss_blocks_cached_search"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -596,7 +600,7 @@
         "tests/test_integration_findings.py::test_T27_history_reports_baseline_scope_and_incomplete_observations",
         "tests/test_service_security.py::test_T27_first_observed_is_not_invented_history"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -609,7 +613,7 @@
         "tests/test_grade_audit.py::test_T08_T28_weight_mismatch_explained_without_asserting_error",
         "tests/test_grade_audit.py::test_T28_projection_and_required_score_are_reproducible_and_conditional"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -630,7 +634,7 @@
         "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -678,7 +682,7 @@
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_complete_export_has_material_history_and_no_credentials",
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -692,10 +696,10 @@
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_document_search.py::test_T11_T35_document_budget_and_inventory_continuation",
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files"
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -709,7 +713,7 @@
         "tests/test_mcp_contract.py::test_T12_T21_T36_real_http_mcp_read_and_write_scope",
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -722,7 +726,7 @@
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -737,7 +741,7 @@
         "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -749,7 +753,7 @@
         "tests/test_postgres.py::test_T39_worker_admin_connection_checks_job_ownership",
         "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -760,7 +764,7 @@
       "fixture_functions": [
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -771,7 +775,7 @@
       "fixture_functions": [
         "tests/test_domain_planning.py::test_T41_unknown_effort_proposes_bounded_review_and_large_urgent_work_is_first"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -784,7 +788,7 @@
         "tests/test_planning_dates.py::test_T04_T42_pinned_date_only_after_cutoff_rejected_without_move",
         "tests/test_scope_planning_lifecycle.py::test_T20_T42_replan_preserves_pins_excludes_busy_and_keeps_breaks"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -805,7 +809,7 @@
         "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     },
@@ -842,7 +846,7 @@
         "tests/test_obligations.py::test_T46_missing_posting_time_has_specific_coverage_reason",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
-      "coverage": "partial_fixture_coverage",
+      "coverage": "fixture_functions_present_not_execution_evidence",
       "actual_chatgpt": "not_run",
       "actual_institution": "not_run"
     }

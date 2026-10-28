@@ -35,7 +35,9 @@ async def test_T21_invalid_token_rejected(settings, token_factory, overrides):
 async def test_T21_valid_identity_uses_subject_not_email(settings, token_factory):
     token = await JWTVerifier(settings).verify_token(token_factory(email="same@example.invalid"))
     assert token.subject == "student-one"
-    assert token.claims == {"iss": settings.issuer_url}
+    assert token.claims["iss"] == settings.issuer_url
+    assert token.claims["client_id"] == "fixture-chatgpt-client"
+    assert isinstance(token.claims["iat"], int)
 
 
 async def test_T21_expired_key_cache_fails_closed(settings, token_factory):
@@ -208,7 +210,10 @@ async def test_T39_staff_power_does_not_expand_student_access(bridge, owner, see
     with bridge.store.transaction() as session:
         from canvas_bridge.storage import Course
 
-        assert session.scalar(select(Course).where(Course.source_id == "11")).accessible is False
+        assert (
+            next(c for c in session.scalars(select(Course)) if c.source_id == "11").accessible
+            is False
+        )
 
 
 async def test_T07_personal_effort_is_applied_without_canvas_completion(bridge, owner, seeded):

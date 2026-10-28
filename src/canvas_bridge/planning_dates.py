@@ -5,6 +5,7 @@ from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from canvas_bridge.domain import FactDate, WorkItem
+from canvas_bridge.work_eligibility import completion_reason
 
 
 def instant(value: datetime) -> datetime:
@@ -52,7 +53,10 @@ class Timing:
             "planning_not_before": self.opens.isoformat() if self.opens else None,
             "planning_finish_by": self.deadline.isoformat() if self.deadline else None,
             "blocked_reason": self.blocked,
-            "overdue_recovery": self.overdue,
+            "past_due": self.overdue,
+            "overdue_recovery": self.overdue
+            and completion_reason(item) is None
+            and item.availability_state not in {"closed", "inaccessible"},
             "date_only_timezone": self.timezone,
             "timezone_basis": "student_or_conversation_input" if self.timezone else None,
             "assumptions": self.assumptions,
@@ -124,6 +128,12 @@ def resolve_timing(
     if result.overdue:
         due = None  # Existing overdue recovery is bounded by the close, not an invented extension.
     result.deadline = min(t for t in (due, close) if t) if due or close else None
+    if item.availability_state == "future_locked":
+        if not result.opens:
+            result.blocked = result.blocked or "source_opening_unknown"
+        result.assumptions.append(
+            "Future blocks are conditional on the reported opening and continued access; recheck Canvas before execution. No locked content was retrieved."
+        )
     if result.opens and result.deadline and result.opens >= result.deadline:
         result.blocked = result.blocked or "source_timing_bounds_conflict"
     return result

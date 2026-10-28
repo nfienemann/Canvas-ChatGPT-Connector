@@ -1,10 +1,17 @@
 # Security reporting
 
-Do not post credentials, course bodies, grades, private logs or reproductions using
-real student data in public issues. Report vulnerabilities through GitHub private
-vulnerability reporting if the owner has enabled it; otherwise ask the owner for
-a private reporting channel without including sensitive details.
+This is a development project with external deployment gates. No public incident
+contact or response-time commitment has been appointed. Before any pilot or
+distribution, the owner must establish a monitored private security channel and
+institution/provider escalation contacts.
 
-This is a synthetic development release, not an approved production student-data
-service. Known isolation, unauthorized-action, secret-leak or deletion-resurrection
-failures block the affected release. See the threat model and release gates.
+Do not put tokens, student records, private approval evidence or exploit-bearing
+documents in public issues. Use the deployment's designated private operator
+channel when one exists. Report affected version/hash, synthetic reproduction,
+expected boundary and observed result with sensitive content removed.
+
+Maintainers follow the [incident runbook](docs/runbooks/incidents.md) and
+[vulnerability/patch procedure](docs/supply-chain-security.md). The
+[threat model](docs/threat-model.md) and [release gates](evidence/release-gates.md)
+describe implemented controls and outstanding deployment evidence. A passing
+scanner or functioning credential does not establish authorization or compliance.

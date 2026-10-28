@@ -12,6 +12,7 @@ from canvas_bridge.course_files import (
     read_file,
     source,
 )
+from canvas_bridge.document_diagnostics import diagnostics
 from canvas_bridge.domain import Coverage, DomainError, Result, utcnow
 from canvas_bridge.evidence import attach, fingerprint
 from canvas_bridge.parser_worker import PARSER
@@ -21,18 +22,24 @@ CURSOR_SECONDS = 1800
 
 
 def inventory_version(inventory):
+    # Bind continuation to the source manifest, not transient observations.
+    # Every actual read still reauthorizes and checks the current source version.
     return fingerprint(
         {
             "files": [
                 {
                     k: f.get(k)
-                    for k in ("file_id", "source_version", "title", "filename", "type", "size")
+                    for k in (
+                        "file_id",
+                        "source_version",
+                        "title",
+                        "filename",
+                        "type",
+                        "size",
+                    )
                 }
                 for f in sorted(inventory.data["files"], key=lambda f: f["file_id"])
             ],
-            "coverage": inventory.data["coverage"],
-            "failures": inventory.data["inventory_failures"],
-            "status": inventory.status,
         }
     )
 
@@ -46,6 +53,7 @@ def continuation(bridge, owner, ref, cursor, binding):
         "failed": 0,
         "partial": 0,
         "unversioned": False,
+        "inventory_incomplete": False,
         "expires": utcnow().timestamp() + CURSOR_SECONDS,
     }
     if not cursor:
@@ -91,6 +99,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
     version = inventory_version(inventory)
     binding = fingerprint([course_id, connection.epoch, query.strip(), limit, version, PARSER])
     state = continuation(bridge, owner, ref, cursor, binding)
+    state["inventory_incomplete"] |= inventory.status != "ok"
     if state["file"] > len(files):
         raise DomainError("permission_denied", "Document continuation is outside this inventory.")
     results, sources, statuses = [], {}, []
@@ -145,6 +154,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
             )
             state["unversioned"] |= file["source_version"] is None
             first_page = state["page"]
+            first_match = len(results)
             state["hash"] = row.version_hash
             while state["page"] < len(row.locators) and len(results) < limit:
                 page = row.locators[state["page"]]
@@ -178,6 +188,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                     }
                 )
             complete = state["page"] == len(row.locators)
+            diagnostic = diagnostics(row.locators, row.limitations, row.file_state["page_count"])
             statuses.append(
                 {
                     **info,
@@ -187,14 +198,25 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                     "page_count": row.file_state["page_count"],
                     "positions_searched_this_response": state["page"] - first_page,
                     "document_search_finished": complete,
-                    "limitations": row.limitations[:8],
-                    "additional_limitation_count": max(0, len(row.limitations) - 8),
+                    "limitations": diagnostic["limitations"][:8],
+                    "additional_limitation_count": max(0, len(diagnostic["limitations"]) - 8),
+                    "document_diagnostics": diagnostic["document_diagnostics"][:8],
+                    "parser_warnings": diagnostic["parser_warnings"][:8],
+                    "ocr_coverage": diagnostic["ocr_coverage"],
+                    "ocr_confidence": diagnostic["ocr_confidence"],
+                    "search_outcome": "matched"
+                    if len(results) > first_match
+                    else "no_usable_text"
+                    if not row.text.strip()
+                    else "incomplete_search"
+                    if row.file_state["coverage"] != "text_only"
+                    else "no_match_in_extracted_text",
                 }
             )
             document_source = source(
                 row, "Document text; matching page/slide/section references are in results."
             )
-            document_source.uncertainty = row.limitations[:8]
+            document_source.uncertainty = diagnostic["limitations"][:8]
             if len(row.limitations) > 8:
                 document_source.uncertainty.append(
                     "Additional extraction warnings are available from read_course_file."
@@ -220,6 +242,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                     "status": exc.status,
                     **exc.data,
                     "document_search_finished": False,
+                    "search_outcome": "failed",
                 }
             )
             state["failed"] += 1
@@ -228,6 +251,9 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                 {
                     **info,
                     "state": "failed",
+                    "status": "retry_later",
+                    "reason_code": "DOCUMENT_SEARCH_TIMEOUT",
+                    "search_outcome": "failed",
                     "reason": "Document search reached its time budget; no text from this file was returned.",
                     "document_search_finished": False,
                 }
@@ -252,8 +278,19 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
         or state["failed"]
         or state["partial"]
         or state["unversioned"]
-        or inventory.status != "ok"
+        or state["inventory_incomplete"]
     )
+    coverage_reasons = [
+        reason
+        for reason, present in (
+            ("DOCUMENTS_REMAIN", more),
+            ("DOCUMENT_FAILURES", state["failed"]),
+            ("PARTIAL_EXTRACTION", state["partial"]),
+            ("UNVERSIONED_SOURCE", state["unversioned"]),
+            ("INVENTORY_INCOMPLETE", state["inventory_incomplete"]),
+        )
+        if present
+    ]
     pending = [
         {"file_id": f["file_id"], "title": f["title"]}
         for f in files[state["file"] :]
@@ -285,15 +322,18 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
             ),
             "inventory_coverage": inventory.data["coverage"],
             "inventory_failures": inventory.data["inventory_failures"],
+            "inventory_status": inventory.data["inventory_status"],
             "inventory_version": version,
             "next_cursor": next_cursor,
             "search_pass_finished": not more,
             "text_coverage_complete_in_bounded_inventory": full_text,
+            "coverage_reasons": coverage_reasons,
             "pass_progress": {
                 "completed_documents": state["completed"],
                 "failed_documents": state["failed"],
                 "partially_extracted_documents": state["partial"],
                 "unversioned_document_seen": state["unversioned"],
+                "inventory_incomplete_seen": state["inventory_incomplete"],
                 "remaining_documents": len(files) - state["file"],
                 "bounded_inventory_documents": len(files),
             },

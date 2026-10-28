@@ -1,0 +1,18 @@
+title = "Canvas Bridge secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Source manifest SHA-256 checksums, verified against the five historical findings on 2026-10-25"
+condition = "AND"
+paths = ['''(?:^|/)evidence/sanitized-results/source-manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"(?:src/canvas_bridge|tests)/[a-zA-Z0-9_/.-]+\.py": "[a-f0-9]{64}",?\s*$''']
+
+[[allowlists]]
+description = "Fictional authenticated user identifier in the synthetic stress fixture"
+condition = "AND"
+paths = ['''(?:^|/)tests/fixtures/stress-repair/schema_neutral_records\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"authenticated_user_id": "synthetic-self-001",?\s*$''']

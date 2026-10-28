@@ -6,12 +6,73 @@ import asyncio
 import logging
 import socket
 import ssl
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from weakref import WeakKeyDictionary
 
 import httpcore
 import httpx
 
 from canvas_bridge.domain import DomainError
 from canvas_bridge.policy import public_ip
+from canvas_bridge.request_limits import RequestLimits
+
+network_permit = ContextVar("network_permit", default=None)
+_loop_limits = WeakKeyDictionary()
+
+
+def outbound_limits():
+    # Every client, retry, download and identity request shares one process quota.
+    loop = asyncio.get_running_loop()
+    if loop not in _loop_limits:
+        _loop_limits[loop] = RequestLimits()
+    return _loop_limits[loop]
+
+
+def deny_network():
+    raise DomainError(
+        "permission_denied",
+        "An authorized request context is required for external access.",
+        reason_code="POLICY_CONTEXT_REQUIRED",
+    )
+
+
+class GuardedHTTP:
+    """Every send (including mock transports, retries and redirects) is fenced."""
+
+    def __init__(self, client, check):
+        self._client, self._check = client, check
+
+    @asynccontextmanager
+    async def stream(self, method, url, **kwargs):
+        self._check(method, str(url))
+        token = network_permit.set((method, str(url)))
+        try:
+            async with self._client.stream(method, url, **kwargs) as response:
+                yield response
+        finally:
+            network_permit.reset(token)
+
+    async def send(self, request, **kwargs):
+        self._check(request.method, str(request.url))
+        token = network_permit.set((request.method, str(request.url)))
+        try:
+            return await self._client.send(request, **kwargs)
+        finally:
+            network_permit.reset(token)
+
+    async def aclose(self):
+        await self._client.aclose()
+
+
+def infrastructure_http(client, *, method, url):
+    """Exact identity/credential-cleanup endpoint; cannot fetch academic content."""
+
+    def check(actual_method, actual_url):
+        if actual_method != method or actual_url != url:
+            deny_network()
+
+    return GuardedHTTP(client, check)
 
 
 class PublicBackend(httpcore.AsyncNetworkBackend):
@@ -52,15 +113,27 @@ class PublicBackend(httpcore.AsyncNetworkBackend):
 
 
 class CoreStream(httpx.AsyncByteStream):
-    def __init__(self, stream):
-        self.stream = stream
+    def __init__(self, stream, lease, deadline):
+        self.stream, self.lease = stream, lease
+        self.deadline = deadline
 
     async def __aiter__(self):
-        async for chunk in self.stream:
-            yield chunk
+        try:
+            async with asyncio.timeout_at(self.deadline):
+                async for chunk in self.stream:
+                    yield chunk
+        except TimeoutError as exc:
+            self.lease.failure()
+            raise httpx.ReadTimeout("Upstream stream deadline exceeded.") from exc
+        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError) as exc:
+            self.lease.failure()
+            raise httpx.ReadError("Upstream stream unavailable.") from exc
 
     async def aclose(self):
-        await self.stream.aclose()
+        try:
+            await self.stream.aclose()
+        finally:
+            self.lease.close()
 
 
 class PublicTransport(httpx.AsyncBaseTransport):
@@ -73,29 +146,47 @@ class PublicTransport(httpx.AsyncBaseTransport):
         )
 
     async def handle_async_request(self, request):
+        if network_permit.get() != (request.method, str(request.url)):
+            deny_network()
+        lease = outbound_limits().acquire(request.url.host)
+        deadline = asyncio.get_running_loop().time() + 90
+        handed_off = False
         try:
-            response = await self.pool.handle_async_request(
-                httpcore.Request(
-                    method=request.method,
-                    url=httpcore.URL(
-                        scheme=request.url.raw_scheme,
-                        host=request.url.raw_host,
-                        port=request.url.port,
-                        target=request.url.raw_path,
-                    ),
-                    headers=request.headers.raw,
-                    content=request.stream,
-                    extensions=request.extensions,
+            async with asyncio.timeout(15):
+                response = await self.pool.handle_async_request(
+                    httpcore.Request(
+                        method=request.method,
+                        url=httpcore.URL(
+                            scheme=request.url.raw_scheme,
+                            host=request.url.raw_host,
+                            port=request.url.port,
+                            target=request.url.raw_path,
+                        ),
+                        headers=request.headers.raw,
+                        content=request.stream,
+                        extensions=request.extensions,
+                    )
                 )
-            )
-            return httpx.Response(
+            lease.response(response.status, httpx.Headers(response.headers))
+            result = httpx.Response(
                 response.status,
                 headers=response.headers,
-                stream=CoreStream(response.stream),
+                stream=CoreStream(response.stream, lease, deadline),
                 extensions=response.extensions,
             )
-        except (httpcore.NetworkError, httpcore.TimeoutException, httpcore.ProtocolError) as exc:
+            handed_off = True
+            return result
+        except (
+            httpcore.NetworkError,
+            httpcore.TimeoutException,
+            httpcore.ProtocolError,
+            TimeoutError,
+        ) as exc:
+            lease.failure()
             raise httpx.RequestError("Upstream transport unavailable.", request=request) from exc
+        finally:
+            if not handed_off:
+                lease.close()
 
     async def aclose(self):
         await self.pool.aclose()

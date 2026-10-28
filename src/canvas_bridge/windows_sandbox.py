@@ -7,11 +7,60 @@ and enters a one-process, memory/CPU-limited job before any Python executes.
 import ctypes as C
 import os
 import subprocess
+import time
 from ctypes import wintypes as W
 from pathlib import Path
-from uuid import uuid4
 
 from canvas_bridge.domain import DomainError
+
+
+def presentation_disk_usage(work):
+    """Bound traversal and reject links; the monitor never follows worker paths."""
+    pending, count, total = [(work, 0)], 0, 0
+    while pending:
+        directory, depth = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                count += 1
+                if (
+                    count > 2048
+                    or depth > 16
+                    or entry.is_symlink()
+                    or Path(entry.path).is_junction()
+                ):
+                    raise DomainError(
+                        "unsupported_feature",
+                        "Slide rendering exceeded its workspace limit.",
+                        reason_code="SLIDE_RENDER_RESOURCE_LIMIT",
+                        processing_stage="slide_rendering",
+                        details={
+                            "budget": "workspace_entries",
+                            "observed": count,
+                            "limit": 2048,
+                            "retryable": False,
+                        },
+                    )
+                if entry.is_dir(follow_symlinks=False):
+                    pending.append((entry.path, depth + 1))
+                else:
+                    try:
+                        total += entry.stat(follow_symlinks=False).st_size
+                    except FileNotFoundError:
+                        pass  # native renderer may remove its own temporary file
+                if total > 128 * 1024 * 1024:
+                    raise DomainError(
+                        "unsupported_feature",
+                        "Slide rendering exceeded its staging-byte limit.",
+                        reason_code="SLIDE_RENDER_RESOURCE_LIMIT",
+                        processing_stage="slide_rendering",
+                        details={
+                            "budget": "staging_bytes",
+                            "observed": total,
+                            "limit": 128 * 1024 * 1024,
+                            "retryable": False,
+                        },
+                    )
+    return total
 
 
 def acl(path: Path, *arguments: str):
@@ -37,6 +86,7 @@ def run(
     script: str = "worker.py",
     timeout: float = 15,
     memory_mb: int = 384,
+    presentation: bool = False,
 ):
     if os.name != "nt":
         raise RuntimeError("Windows AppContainer is unavailable.")
@@ -136,6 +186,12 @@ def run(
         (kernel, "DeleteProcThreadAttributeList", None, [pointer]),
         (kernel, "CreateJobObjectW", W.HANDLE, [pointer, W.LPCWSTR]),
         (kernel, "SetInformationJobObject", W.BOOL, [W.HANDLE, C.c_int, pointer, W.DWORD]),
+        (
+            kernel,
+            "QueryInformationJobObject",
+            W.BOOL,
+            [W.HANDLE, C.c_int, pointer, W.DWORD, pointer],
+        ),
         (kernel, "AssignProcessToJobObject", W.BOOL, [W.HANDLE, W.HANDLE]),
         (
             kernel,
@@ -181,7 +237,9 @@ def run(
             )
         return value
 
-    profile = "CanvasBridge.Parser." + uuid4().hex
+    from canvas_bridge.worker_storage import profile_name
+
+    profile = profile_name(work)
     sid, process, job, attributes = pointer(), Process(), None, None
     initialized, created_profile = False, False
     try:
@@ -217,6 +275,15 @@ def run(
         limits.basic.process_time = 10 * 10_000_000
         limits.basic.processes = 1
         limits.process_memory = memory_mb * 1024 * 1024
+        if presentation:
+            # Preflight and the fixed Kit child share this non-breakaway Job and
+            # AppContainer. Separate processes avoid retaining parser memory in Kit.
+            if script != "presentation_render_worker.py":
+                raise ValueError("Invalid presentation worker")
+            limits.basic.flags |= 0x4 | 0x200  # aggregate CPU and committed memory
+            limits.basic.job_time = 20 * 10_000_000
+            limits.basic.processes = 2
+            limits.job_memory = 512 * 1024 * 1024
         checked(kernel.SetInformationJobObject(job, 9, C.byref(limits), C.sizeof(limits)))
         ui_limits = W.DWORD(0xFF)
         checked(kernel.SetInformationJobObject(job, 4, C.byref(ui_limits), C.sizeof(ui_limits)))
@@ -265,13 +332,30 @@ def run(
         if kernel.ResumeThread(process.thread) == 0xFFFFFFFF:
             raise failure("Sandbox could not resume.", "DOCUMENT_WORKER_START_FAILED")
         stage = "worker_execution"
-        waited = kernel.WaitForSingleObject(process.process, int(timeout * 1000))
+        deadline = time.monotonic() + timeout
+        while True:
+            from canvas_bridge.worker_storage import require_running
+
+            require_running()
+            waited = kernel.WaitForSingleObject(process.process, 100)
+            if presentation:
+                presentation_disk_usage(work)
+            if waited != 0x102 or time.monotonic() >= deadline:
+                break
         if waited == 0x102:
             raise TimeoutError("Document extraction exceeded its time budget.")
         checked(waited != 0xFFFFFFFF)
         code = W.DWORD()
         checked(kernel.GetExitCodeProcess(process.process, C.byref(code)))
         if code.value:
+            if presentation and code.value == 124:
+                raise DomainError(
+                    "retry_later",
+                    "The isolated presentation converter exceeded its deadline.",
+                    reason_code="PPTX_CONVERSION_TIMEOUT",
+                    processing_stage="pptx_conversion",
+                    details={"retryable": True, "limit_seconds": 60},
+                )
             # Only numeric OS status is exposed, never stderr or document text.
             reason = {
                 0xC0000017: "DOCUMENT_WORKER_MEMORY_LIMIT",
@@ -286,6 +370,15 @@ def run(
                 processing_stage=stage,
                 worker_exit_code=code.value,
             )
+        observed = ExtendedLimit()
+        if kernel.QueryInformationJobObject(job, 9, C.byref(observed), C.sizeof(observed), None):
+            # Peak committed process memory, not RSS. Never collect document,
+            # command-line, environment, path or credential data for telemetry.
+            return {
+                "worker_peak_committed_bytes": int(observed.peak_process),
+                "worker_peak_job_committed_bytes": int(observed.peak_job),
+            }
+        return {}
     finally:
         # Kill even a suspended process if job assignment/any later step failed.
         if process.process:

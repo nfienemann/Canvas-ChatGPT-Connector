@@ -87,3 +87,30 @@ Roadmap-update checks: scoped `git -c core.safecrlf=false diff --check`, local
 Markdown link/anchor validation, and six unique ticket headings passed. Existing
 Markdown hard line breaks are preserved. No application tests were run for this
 documentation-only change.
+
+## In-chat capability investigation — October 22, 2026
+
+The owner subsequently confirmed the same unsupported message on ChatGPT web,
+desktop and mobile. This is user-reported cross-surface behavior, not a recorded
+capability matrix. A live `get_connection_status` read confirmed delivery enabled
+and native attachment unimplemented. Its `host_support: not_negotiated` field is
+hardcoded server status and cannot diagnose a widget's negotiated capabilities.
+No course/file fetch, token refresh, scope change, service restart or deployment
+was performed. The available browser inventory had no original ChatGPT tab/widget
+from which to capture a real `ui/initialize` response.
+
+| Actual check | Result / boundary |
+|---|---|
+| `node scripts/diagnose_download_handshake.mjs` | Shipped bundle equals an in-memory source build; no bundle was rewritten. Four real-SDK synthetic-host cases passed: absent capability, embedded resource, linked resource, rejection. UI protocol `2026-01-26`; SDK `2.0.3`. No real host, network fetch or saved-file claim. |
+| `.venv/Scripts/python.exe -m pytest tests/test_file_delivery_contract.py -q --tb=short` | 11 passed; synthetic MCP/HTTP and component contract only. |
+
+In the absent-capability case the primary click made zero payload/download calls;
+the explicit browser click then made one payload and one external-link call.
+With capability present, each primary click made one payload and one download
+call. Embedded bytes matched; the linked-resource test validated request dispatch,
+not an HTTP fetch. The harness uses the real shipped SDK and unchanged bundle,
+with a simulated DOM and transport, rather than mocking the `App` class.
+
+See [the finding, limitations and fix options](../../docs/original-file-delivery.md#in-chat-download-investigation--october-22-2026).
+The browser fallback and production source/assets remain unchanged. The full
+application suite was not run for this diagnostic/documentation-only work.

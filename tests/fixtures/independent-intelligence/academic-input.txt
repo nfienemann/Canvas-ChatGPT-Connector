@@ -1,0 +1,24 @@
+{
+  "schema_version": "independent-academic-1",
+  "timezone": "America/New_York",
+  "complete": true,
+  "work": [
+    {
+      "key": "fictional-paper",
+      "title": "Fictional diffusion paper",
+      "due": {"kind": "local_date", "local_date": "2026-11-10"},
+      "effort": {"minimum_minutes": 60, "maximum_minutes": 90, "origin": "student_estimate"},
+      "progress": "not_started"
+    }
+  ],
+  "grades": {
+    "method": "points",
+    "policy_origin": "manual",
+    "complete": true,
+    "groups": [{"id": "coursework", "name": "Fictional coursework"}],
+    "assessments": [
+      {"id": "quiz-1", "title": "Fictional quiz", "group_id": "coursework", "possible": "200", "score": "170", "score_state": "posted", "eligibility_verified": true},
+      {"id": "final", "title": "Fictional final", "group_id": "coursework", "possible": "100", "score_state": "ungraded", "eligibility_verified": true}
+    ]
+  }
+}

@@ -24,6 +24,7 @@ def personal_setup(bridge, institution_id: str, expected_canvas_user: str):
     ):
         raise DomainError("permission_denied", "This command requires a private personal profile.")
     institution = bridge.registry.require(institution_id, personal=True)
+    bridge.require_policy(institution_id, {"identity"}, activity="link")
     owner = principal_id(settings.issuer_url, settings.personal_subject)
     return owner, institution, source_id(expected_canvas_user)
 
@@ -54,6 +55,9 @@ async def link_personal_token(
         generation = principal.generation
         no_existing_connection(session, owner, institution_id)
     client = CanvasClient(institution, token, bridge.settings)
+    from canvas_bridge.linking import link_profile_authorizer
+
+    client.authorize = link_profile_authorizer(bridge, owner, institution_id, generation)
     try:
         async with asyncio.timeout(bridge.settings.refresh_budget_seconds):
             profile = await client.one(Endpoint.PROFILE)
@@ -68,6 +72,8 @@ async def link_personal_token(
     finally:
         await client.close()
     ref = opaque_id()
+    from canvas_bridge.oauth_security import binding
+
     with bridge.store.transaction() as session:
         principal = bridge.store.principal(session, owner)
         if principal.generation != generation:
@@ -82,7 +88,16 @@ async def link_personal_token(
                 owner=owner,
                 institution=institution_id,
                 canvas_user=expected_user,
-                credential=bridge.vault.seal({"access_token": token}, owner, ref),
+                authentication_state="verified",
+                credential=bridge.vault.seal(
+                    {
+                        "access_token": token,
+                        "identity_binding": binding(bridge, institution),
+                        "upstream_origin": institution.origin,
+                    },
+                    owner,
+                    ref,
+                ),
             )
         )
     return Result(

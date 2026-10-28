@@ -190,7 +190,18 @@ async def test_T03_T06_eleven_undated_assessments_are_not_upcoming(bridge, owner
         k: v
         for k, v in omitted.items()
         if k
-        not in {"due_date_status", "schedule_status", "schedule_basis", "section", "display_due"}
+        not in {
+            "due_date_status",
+            "schedule_status",
+            "schedule_basis",
+            "section",
+            "display_due",
+            "due_date_relationship",
+            "work_status",
+            "outstanding_action",
+            "outstanding_action_basis",
+            "window_relationship",
+        }
     }
     assert WorkItem.model_validate(old).schedule_status == "unknown"
 

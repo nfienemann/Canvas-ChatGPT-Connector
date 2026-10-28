@@ -17,11 +17,12 @@ from pypdf import PdfReader
 from sqlalchemy import select
 
 from canvas_bridge.canvas import Collection
-from canvas_bridge.domain import DomainError, Model, Result, Source, utcnow
+from canvas_bridge.domain import Coverage, DomainError, Model, Result, Source, utcnow
 from canvas_bridge.file_download import file_metadata, file_version, file_visible
 from canvas_bridge.normalize import canonical_id, plain_text
 from canvas_bridge.parser_worker import PARSER, SUPPORTED_FORMATS
 from canvas_bridge.policy import Endpoint, source_id
+from canvas_bridge.retention_policy import RAW_PAGE_LIFETIME
 from canvas_bridge.storage import Material, aware
 
 MAX_BYTES = 10_000_000
@@ -155,18 +156,41 @@ async def outline(
     collection, pages, files = (Collection(failure="request_budget") for _ in range(3))
     raw_modules = []
     denied_files = set()
+    observed_at = utcnow().isoformat()
+    module_failures, metadata_failures = {}, {}
+    metadata_verified = set()
+    metadata_attempted = set()
+    resolved_metadata = {}
+    budget_exhausted, metadata_limit_reached = False, False
     async with bridge.client(owner, ref) as client:
+        loop = asyncio.get_running_loop()
+        inventory_deadline = loop.time() + bridge.settings.refresh_budget_seconds
+
+        async def inventory_collection(endpoint, **ids):
+            # A slow branch must leave time for the other inventory sources.
+            result = await client.collection(
+                endpoint,
+                budget_seconds=min(
+                    bridge.settings.refresh_budget_seconds / 4,
+                    max(0, inventory_deadline - loop.time() - 0.01),
+                ),
+                **ids,
+            )
+            if result.reason_code == "UPSTREAM_REQUEST_TIMEOUT":
+                result.reason_code = "INVENTORY_BRANCH_TIMEOUT"
+            return result
+
         # One budget covers the entire outline, not a fresh budget per module.
         try:
             async with asyncio.timeout(bridge.settings.refresh_budget_seconds):
-                pages = await client.collection(Endpoint.PAGES, course=course.source_id)
+                pages = await inventory_collection(Endpoint.PAGES, course=course.source_id)
                 files = (
                     Collection(failure="module_filtered_inventory")
                     if module_filter
-                    else await client.collection(Endpoint.FILES, course=course.source_id)
+                    else await inventory_collection(Endpoint.FILES, course=course.source_id)
                 )
                 denied_files.update(str(f.get("id")) for f in files.items if not file_visible(f))
-                collection = await client.collection(Endpoint.MODULES, course=course.source_id)
+                collection = await inventory_collection(Endpoint.MODULES, course=course.source_id)
                 for module in collection.items[:30]:
                     if module.get("published") is False or module.get("state") == "locked":
                         continue
@@ -177,38 +201,89 @@ async def outline(
                         != module_filter
                     ):
                         continue
-                    items = await client.collection(
+                    items = await inventory_collection(
                         Endpoint.MODULE_ITEMS, course=course.source_id, module=module_id
                     )
                     raw_modules.append((module_id, module, items))
+                    if not items.complete or len(items.items) > 100:
+                        module_failures[
+                            canonical_id(owner, ref, "module", f"{course.source_id}:{module_id}")
+                        ] = {
+                            "failure": items.failure or "item_limit",
+                            "reason_code": items.reason_code or "INVENTORY_ITEM_LIMIT",
+                        }
                 # Some courses disable the Files tab/list endpoint while granting
                 # access to files through modules. Resolve those IDs with the
                 # course-qualified metadata endpoint; never trust a bare global ID.
                 known = {str(file.get("id")) for file in files.items[:100]}
+                pending_metadata = []
                 for _, _, items in raw_modules:
                     for item in items.items[:100]:
                         if (
                             item.get("type") != "File"
                             or item.get("published") is False
                             or item.get("locked_for_user") is True
-                            or len(known) >= 100
                         ):
                             continue
                         file_id = source_id(item.get("content_id", ""))
-                        if file_id in known:
+                        if file_id in known or file_id in metadata_attempted:
                             continue
-                        try:
+                        if len(known | metadata_attempted) >= 100:
+                            metadata_limit_reached = True
+                            continue
+                        metadata_attempted.add(file_id)
+                        file_ref = canonical_id(owner, ref, "file", f"{course.source_id}:{file_id}")
+                        metadata_failures[file_ref] = {
+                            "status": "retry_later",
+                            "reason_code": "INVENTORY_REQUEST_BUDGET",
+                        }
+                        pending_metadata.append((file_id, file_ref))
+
+                async def resolve_metadata(file_id, file_ref):
+                    try:
+                        async with asyncio.timeout(bridge.settings.refresh_budget_seconds / 4):
                             metadata = await file_metadata(client, course.source_id, file_id)
-                        except DomainError as exc:
-                            if exc.status == "reconnect_required":
-                                raise
-                            if exc.status == "permission_denied":
-                                denied_files.add(file_id)
-                            continue
-                        files.items.insert(0, metadata)
-                        known.add(file_id)
+                    except TimeoutError:
+                        metadata_failures[file_ref] = {
+                            "status": "retry_later",
+                            "reason_code": "INVENTORY_METADATA_TIMEOUT",
+                        }
+                        return
+                    except DomainError as exc:
+                        if exc.status in {"reconnect_required", "source_changed"}:
+                            raise
+                        if exc.status == "permission_denied":
+                            denied_files.add(file_id)
+                        metadata_failures[file_ref] = {
+                            "status": exc.status,
+                            "reason_code": exc.reason_code,
+                        }
+                        return
+                    # Record each successful result before a sibling can time out.
+                    resolved_metadata[file_id] = metadata
+                    metadata_failures.pop(file_ref, None)
+                    known.add(file_id)
+                    metadata_verified.add(file_id)
+
+                # Three metadata-only requests at a time, still within the one
+                # outline budget. No file content or additional routes are read.
+                for offset in range(0, len(pending_metadata), 3):
+                    outcomes = await asyncio.gather(
+                        *(
+                            resolve_metadata(*item)
+                            for item in pending_metadata[offset : offset + 3]
+                        ),
+                        return_exceptions=True,
+                    )
+                    for outcome in outcomes:
+                        if isinstance(outcome, BaseException):
+                            raise outcome
         except TimeoutError:
+            budget_exhausted = True
             warnings.append("The course outline reached its overall request time limit.")
+
+        # Network completion order must not change reference order or truncation.
+        files.items.extend(resolved_metadata[key] for key in sorted(resolved_metadata, key=int))
 
         references = {}
         with bridge.store.transaction() as session:
@@ -288,6 +363,17 @@ async def outline(
                                     "content_type": str(entry.get("content-type", ""))[:200],
                                     "size": entry.get("size"),
                                     "source_version": file_version(entry),
+                                    "access_state": "available_at_inventory_check",
+                                    "reference_origin": "module_file_metadata"
+                                    if upstream in metadata_verified
+                                    else "course_file_inventory",
+                                    "inventory_freshness": "fresh",
+                                    "inventory_checked_at": material.file_state[
+                                        "inventory_checked_at"
+                                    ],
+                                    "access_verification": "course_file_metadata"
+                                    if upstream in metadata_verified
+                                    else "file_list_visibility",
                                 }
                                 if kind == "file"
                                 else {}
@@ -334,6 +420,9 @@ async def outline(
                             "reading_status": "not_established",
                             "access_state": "not_rechecked",
                             "reference_origin": "previously_discovered_module_file",
+                            "inventory_freshness": "retained",
+                            "inventory_checked_at": cached.file_state.get("inventory_checked_at"),
+                            "access_verification": "not_rechecked",
                             **cached.file_state.get("inventory", {}),
                         }
                     )
@@ -381,7 +470,37 @@ async def outline(
             title=f"{course.name}: modules",
             url=f"{client.institution.origin}/courses/{course.source_id}/modules",
             retrieved_at=utcnow(),
+            course_id=course_ref,
+            source_type="canvas_inventory",
         )
+    visible_module_count = sum(
+        m.get("published") is not False
+        and m.get("state") != "locked"
+        and (
+            not module_filter
+            or canonical_id(owner, ref, "module", f"{course.source_id}:{source_id(m['id'])}")
+            == module_filter
+        )
+        for m in collection.items[:30]
+    )
+    modules_complete = (
+        collection.complete
+        and len(collection.items) <= 30
+        and len(raw_modules) == visible_module_count
+        and all(m["items_complete"] for m in modules)
+    )
+    retained_count = sum(r.get("access_state") == "not_rechecked" for r in resources)
+    fresh_count = sum(r["kind"] == "file" for r in resources) - retained_count
+    module_file_ids = {
+        source_id(item["content_id"])
+        for _, _, items in raw_modules
+        for item in items.items[:100]
+        if item.get("type") == "File"
+        and item.get("published") is not False
+        and item.get("locked_for_user") is not True
+    }
+    fresh_file_ids = {str(entry["id"]) for entry in files.items[:100] if file_visible(entry)}
+    unresolved_module_files = module_file_ids - fresh_file_ids
     complete = (
         collection.complete
         and pages.complete
@@ -390,6 +509,9 @@ async def outline(
         and len(pages.items) <= 100
         and len(files.items) <= 100
         and all(m["items_complete"] for m in modules)
+        and modules_complete
+        and not metadata_failures
+        and not metadata_limit_reached
         and not warnings
     )
     if not complete:
@@ -412,7 +534,9 @@ async def outline(
                 "parser": PARSER,
             },
             "inventory_coverage": {
-                name: "complete" if c.complete and len(c.items) <= limit else "partial"
+                name: "complete"
+                if c.complete and len(c.items) <= limit and (name != "modules" or modules_complete)
+                else "partial"
                 for name, c, limit in (
                     ("pages", pages, 100),
                     ("files", files, 100),
@@ -429,13 +553,49 @@ async def outline(
                 for name, c in (("pages", pages), ("files", files), ("modules", collection))
                 if c.reason_code
             },
+            "inventory_status": {
+                "completeness": "complete" if complete else "partial",
+                "observed_at": observed_at,
+                "freshness": "mixed"
+                if retained_count and fresh_count
+                else "retained"
+                if retained_count
+                else "fresh"
+                if fresh_count
+                else "no_file_observations",
+                "fresh_file_count": fresh_count,
+                "retained_file_count": retained_count,
+                "module_file_coverage": "complete"
+                if modules_complete and not unresolved_module_files
+                else "partial",
+                "module_file_reference_count": len(module_file_ids),
+                "unresolved_module_file_count": len(unresolved_module_files),
+                "module_item_failures": module_failures,
+                "file_metadata_failures": metadata_failures,
+                "request_budget_exhausted": budget_exhausted,
+                "file_metadata_limit_reached": metadata_limit_reached,
+                "content_reads_require_fresh_authorization": True,
+            },
             "limitations": [
                 "Use read_course_file or fetch_course_material to read file text when isolated extraction is enabled.",
                 "External/LTI readings are not fetched. Module inclusion alone does not establish assigned versus optional status.",
             ],
         },
         sources=[source],
-        meta=bridge.meta(warnings=warnings),
+        meta=bridge.meta(
+            coverage=[
+                Coverage(
+                    course_ref=course_ref,
+                    resource="materials_inventory",
+                    state="complete" if complete else "partial",
+                    pagination_complete=complete,
+                    warning=None
+                    if complete
+                    else "Some inventory branches, item lookups or request budgets are incomplete.",
+                )
+            ],
+            warnings=warnings,
+        ),
     )
 
 
@@ -535,14 +695,19 @@ async def search_materials(bridge, owner: str, ref: str, query: str, limit: int 
                 Material.owner == owner,
                 Material.connection_id == ref,
                 Material.kind == "page",
+                Material.retrieved_at > bridge.retention.clock() - RAW_PAGE_LIFETIME,
                 Material.course_id.in_([c.id for c in courses]),
-                (
-                    Material.text.icontains(query, autoescape=True)
-                    | Material.title.icontains(query, autoescape=True)
-                ),
             )
-            .limit(limit + 1)
+            .limit(1000)
         ).all()
+        candidate_limit_reached = len(rows) == 1000
+        # Search only the already-authorized, bounded plaintext working set.
+        # Sensitive source text is ciphertext in persistent storage.
+        rows = [
+            r
+            for r in rows
+            if query.casefold() in r.text.casefold() or query.casefold() in r.title.casefold()
+        ][: limit + 1]
     results, sources = [], []
     for row in rows[:limit]:
         try:
@@ -573,6 +738,7 @@ async def search_materials(bridge, owner: str, ref: str, query: str, limit: int 
         data={
             "results": results,
             "search_scope": "previously_fetched_pages",
+            "candidate_limit_reached": candidate_limit_reached,
             "file_text_searched": False,
             "unfetched_content_searched": False,
             "next_step": "Use list_course_files to discover PDFs, read_course_file to extract likely documents, then search_course_files for indexed file passages.",

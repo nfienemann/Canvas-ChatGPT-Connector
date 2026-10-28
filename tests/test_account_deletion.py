@@ -33,7 +33,24 @@ async def test_T18_T43_delete_all_institutions_before_remote_revocation_and_pres
         await bridge.refresh(owner if ref != foreign else "foreign-owner", ref)
         enqueue_refresh(bridge, owner if ref != foreign else "foreign-owner", ref)
     configure(bridge, monkeypatch)
-    begin_link(bridge, owner, "synthetic", "browser", 0)
+    # Simulate a previously pending transaction; fresh replacement links now
+    # require an explicit disconnect of the existing institution connection.
+    from datetime import timedelta
+
+    from canvas_bridge.domain import utcnow
+
+    with bridge.store.transaction() as session:
+        session.add(
+            OAuthState(
+                digest="pending-fixture",
+                owner=owner,
+                institution="synthetic",
+                redirect="https://fixture.invalid/callback",
+                browser_digest="fixture",
+                expires_at=utcnow() + timedelta(minutes=10),
+                generation=0,
+            )
+        )
     attempts = []
 
     async def revoked(*args):
@@ -155,7 +172,7 @@ async def test_T34_account_fence_blocks_old_backup_but_allows_new_explicit_conne
 async def test_T34_unavailable_deletion_journal_does_not_claim_or_partially_delete(
     bridge, owner, seeded, monkeypatch
 ):
-    def unavailable(*args):
+    def unavailable(*args, **kwargs):
         raise OSError("Fixture journal unavailable")
 
     monkeypatch.setattr("canvas_bridge.lifecycle.journal_delete", unavailable)

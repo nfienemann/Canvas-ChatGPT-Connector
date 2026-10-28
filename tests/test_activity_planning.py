@@ -30,8 +30,17 @@ from tests.test_obligations import read
 
 
 @pytest.fixture
-def planning_now(activities, monkeypatch):
+def planning_now(activities, monkeypatch, bridge):
     monkeypatch.setattr(activity_planning, "utcnow", lambda: activities)
+    import canvas_bridge.discussion_integration as integration
+    import canvas_bridge.discussions as discussions
+
+    monkeypatch.setattr(integration, "utcnow", lambda: activities)
+    monkeypatch.setattr(discussions, "utcnow", lambda: activities)
+    topic = bridge.synthetic.data["discussion_topics"]["11"][0]
+    topic.update(user_can_see_posts=True, require_initial_post=False)
+    bridge.synthetic.data["discussion_view"] = {("11", "20"): {"view": [], "new_entries": []}}
+    bridge.synthetic.data["discussion_date_details"] = {("11", "20"): {"id": 20}}
     return activities
 
 
@@ -94,7 +103,8 @@ async def test_T08_T09_T10_T46_selected_mixed_activities_share_capacity_and_pres
     assert all(a["end"] <= b["start"] for a, b in zip(blocks, blocks[1:], strict=False))
     assert result.data["feasibility"] == "provisional"
     assert not result.data["provider_writes_executed"]
-    assert len(result.evidence) == 4 and len(result.meta.coverage) == 5
+    # Four canonical activities plus the separately fetched participation evidence.
+    assert len(result.evidence) == 5 and len(result.meta.coverage) == 5
     for row in result.data["selected_activities"]:
         assert row["required_status"] == "not_established"
         if row["title"] == "Quiz 3":

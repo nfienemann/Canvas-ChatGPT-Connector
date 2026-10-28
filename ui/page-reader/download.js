@@ -57,6 +57,12 @@ async function payload() {
 async function download(external) {
   if (busy || !current) return;
   if (!external && !app.getHostCapabilities()?.downloadFile) {
+    const routes = current.result?.data?.transport_candidates;
+    if (Array.isArray(routes) && !routes.includes("external_expiring_download")) {
+      element("external").hidden = true;
+      display("This client cannot download this file in chat, and browser download is unavailable. Open the source in Canvas.");
+      return;
+    }
     element("external").hidden = false;
     display("This client does not offer an in-chat download. Download in browser opens a private, expiring external download; keep its link private. The server must stay online.");
     return;
@@ -65,6 +71,7 @@ async function download(external) {
   try {
     const data = await payload();
     if (external) {
+      if (!data.external_url) { display("Browser links are unavailable for this approved recipient environment. Use a supported in-chat attachment or open the source in Canvas."); return; }
       let response;
       try { response = await app.openLink({url:data.external_url}); }
       catch { display("The external download outcome is unknown. Check your browser downloads before trying again."); return; }

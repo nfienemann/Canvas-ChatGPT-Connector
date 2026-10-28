@@ -1,0 +1,493 @@
+{
+  "schema_version": "integrity-evidence-1",
+  "source_digest": "0a8fcb58ab55a0db43822251dce7a7a6a5f9e2561ee6bf2c1992b870e9c4311a",
+  "source_bound_test_receipt_current": false,
+  "integrity_test_selection_verified": false,
+  "recorded_test_outcomes": {
+    "tests/test_integrity_engine.py::test_acknowledgment_is_not_permission_and_cannot_override": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_authority_scope_conflict_and_illustration": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_conditional_permission_never_grants_itself_or_allows_acknowledgment": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 12
+    },
+    "tests/test_integrity_engine.py::test_euphemisms_cannot_lower_output_category": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_explicit_adoption_distinguishes_a_sample_from_course_policy": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_injection_does_not_erase_a_prohibition_or_grant_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_interpretation_budget_cannot_silently_omit_restrictions": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_integrity_engine.py::test_mandatory_policy_scenarios": {
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 24
+    },
+    "tests/test_integrity_engine.py::test_narrow_permissions_do_not_authorize_other_activities": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_reviewed_later_amendment_requires_exact_authority_and_version": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unknown_extraction_and_versions_never_become_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unresolved_exception_is_not_acknowledgeable_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unverified_permission_never_forges_instructor_authority": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_acknowledgment_expiration_egress_denial_and_source_deletion": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_administrative_label_never_releases_completion_package": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_automatic_reader_discovery_enforces_broad_learning_prohibition": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_eligible_acknowledgment_owner_scope_expiry_and_policy_change": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_future_unclassified_tool_fails_closed": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_integrity_inventory_declares_conditional_network_and_owned_history": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_integrity_receipt_storage_budget_and_expiry_sweep": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_limited_permission_is_activity_scoped_in_real_collector": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_offline_mcp_acknowledgment_and_denied_category_change": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_offline_restriction_and_known_copy_cannot_escape_by_switching_tools": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_provider_prohibition_blocks_package_but_not_administration": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_public_review_has_no_fetch_or_override_and_hash_binds_content": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_real_mcp_denial_acknowledgment_scope_and_offline_tools": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_revoked_source_and_minimal_encrypted_receipts": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_rowan_reference_profile_requires_permission_and_expires": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_workflows.py::test_unavailable_lookup_and_permission_evidence_do_not_invent_authority": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    }
+  },
+  "fixture_measurements": {
+    "activity_scope": {
+      "passed": 4,
+      "total": 4
+    },
+    "administrative_availability": {
+      "passed": 2,
+      "total": 2
+    },
+    "false_positive_cases": {
+      "passed": 4,
+      "total": 4
+    },
+    "mandatory_requirements": {
+      "passed": 3,
+      "total": 3
+    },
+    "prohibition_detection": {
+      "passed": 4,
+      "total": 4
+    },
+    "source_and_disclosure": {
+      "passed": 2,
+      "total": 2
+    }
+  },
+  "missed_restrictions": {
+    "erroneously_allowed": 0,
+    "applicable_fixture_cases": 10
+  },
+  "false_positive_prohibitions": {
+    "confirmed_prohibitions": 0,
+    "negative_fixture_cases": 4
+  },
+  "citation_completeness": {
+    "complete": 13,
+    "cases_with_policy_rules": 13
+  },
+  "workflow_measurements": {
+    "override_rejection": {
+      "tests": [
+        "tests/test_integrity_workflows.py::test_real_mcp_denial_acknowledgment_scope_and_offline_tools",
+        "tests/test_integrity_workflows.py::test_acknowledgment_expiration_egress_denial_and_source_deletion"
+      ],
+      "passed": 2,
+      "failed_or_error": 0,
+      "skipped": 0,
+      "missing_receipts": 0,
+      "verified": false
+    },
+    "cross_tool_bypass_rejection": {
+      "tests": [
+        "tests/test_integrity_workflows.py::test_offline_restriction_and_known_copy_cannot_escape_by_switching_tools",
+        "tests/test_integrity_workflows.py::test_automatic_reader_discovery_enforces_broad_learning_prohibition",
+        "tests/test_integrity_workflows.py::test_administrative_label_never_releases_completion_package",
+        "tests/test_integrity_workflows.py::test_future_unclassified_tool_fails_closed"
+      ],
+      "passed": 4,
+      "failed_or_error": 0,
+      "skipped": 0,
+      "missing_receipts": 0,
+      "verified": false
+    },
+    "policy_version_invalidation": {
+      "tests": [
+        "tests/test_integrity_workflows.py::test_eligible_acknowledgment_owner_scope_expiry_and_policy_change",
+        "tests/test_integrity_workflows.py::test_public_review_has_no_fetch_or_override_and_hash_binds_content",
+        "tests/test_integrity_workflows.py::test_rowan_reference_profile_requires_permission_and_expires"
+      ],
+      "passed": 3,
+      "failed_or_error": 0,
+      "skipped": 0,
+      "missing_receipts": 0,
+      "verified": false
+    },
+    "offline_compatibility": {
+      "tests": [
+        "tests/test_integrity_workflows.py::test_offline_mcp_acknowledgment_and_denied_category_change",
+        "tests/test_integrity_workflows.py::test_offline_restriction_and_known_copy_cannot_escape_by_switching_tools"
+      ],
+      "passed": 2,
+      "failed_or_error": 0,
+      "skipped": 0,
+      "missing_receipts": 0,
+      "verified": false
+    }
+  },
+  "fixture_results": [
+    {
+      "scenario": "explicit_course_prohibition",
+      "measure": "prohibition_detection",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "assessed_code_prohibition",
+      "measure": "prohibition_detection",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "exam_prohibition",
+      "measure": "prohibition_detection",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "permitted_brainstorming",
+      "measure": "activity_scope",
+      "expected": "PERMITTED_CONDITIONAL",
+      "observed": "PERMITTED_CONDITIONAL",
+      "allowed": true,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "forbidden_drafting",
+      "measure": "activity_scope",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "permitted_grammar",
+      "measure": "activity_scope",
+      "expected": "PERMITTED_CONDITIONAL",
+      "observed": "PERMITTED_CONDITIONAL",
+      "allowed": true,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "forbidden_rewrite",
+      "measure": "activity_scope",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "grade_administration",
+      "measure": "administrative_availability",
+      "expected": "PERMITTED_CONDITIONAL",
+      "observed": "PERMITTED_CONDITIONAL",
+      "allowed": true,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "requirement_review",
+      "measure": "administrative_availability",
+      "expected": "PERMITTED_CONDITIONAL",
+      "observed": "PERMITTED_CONDITIONAL",
+      "allowed": true,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "sample_not_adopted",
+      "measure": "false_positive_cases",
+      "expected": "NO_POLICY_FOUND",
+      "observed": "NO_POLICY_FOUND",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "negation",
+      "measure": "false_positive_cases",
+      "expected": "AMBIGUOUS",
+      "observed": "AMBIGUOUS",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "academic_discussion",
+      "measure": "false_positive_cases",
+      "expected": "NO_POLICY_FOUND",
+      "observed": "NO_POLICY_FOUND",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "no_rule",
+      "measure": "false_positive_cases",
+      "expected": "NO_POLICY_FOUND",
+      "observed": "NO_POLICY_FOUND",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "permission_required",
+      "measure": "mandatory_requirements",
+      "expected": "PERMISSION_REQUIRED",
+      "observed": "PERMISSION_REQUIRED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "approved_tool_required",
+      "measure": "mandatory_requirements",
+      "expected": "PERMISSION_REQUIRED",
+      "observed": "PERMISSION_REQUIRED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 2,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "conditional_permission_cannot_grant_itself",
+      "measure": "mandatory_requirements",
+      "expected": "PERMISSION_REQUIRED",
+      "observed": "PERMISSION_REQUIRED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "adopted_sample_is_binding",
+      "measure": "prohibition_detection",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 1,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "citation_condition",
+      "measure": "source_and_disclosure",
+      "expected": "PERMITTED_CONDITIONAL",
+      "observed": "PERMITTED_CONDITIONAL",
+      "allowed": true,
+      "passed": true,
+      "cited_rules": 2,
+      "all_rule_citations_complete": true
+    },
+    {
+      "scenario": "false_authorship",
+      "measure": "source_and_disclosure",
+      "expected": "PROHIBITED_CONFIRMED",
+      "observed": "PROHIBITED_CONFIRMED",
+      "allowed": false,
+      "passed": true,
+      "cited_rules": 0,
+      "all_rule_citations_complete": true
+    }
+  ],
+  "external_approval": "NOT_ESTABLISHED",
+  "general_semantic_accuracy": "NOT_MEASURED",
+  "scope": "Fictional deterministic policy cases and recorded local workflow/MCP tests; not an institutional or legal certification."
+}

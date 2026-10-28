@@ -43,21 +43,18 @@ def pg_bridge(bridge, monkeypatch):
         admin.dispose()
 
 
-async def test_T35_postgresql_migration_read_roundtrip_and_rollback(pg_bridge, owner):
+async def test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked(pg_bridge, owner):
     ref = await seed(pg_bridge, owner)
     result = await pg_bridge.refresh(owner, ref)
     assert result.complete and len(result.items) == 5
     with pg_bridge.store.transaction() as session:
         assert session.get(Connection, ref).last_success
-    command.downgrade(Config("alembic.ini"), "base")
-    assert "connections" not in inspect(pg_bridge.store.engine).get_table_names()
-    command.upgrade(Config("alembic.ini"), "head")
+    with pytest.raises(RuntimeError, match="plaintext"):
+        command.downgrade(Config("alembic.ini"), "base")
     assert "connections" in inspect(pg_bridge.store.engine).get_table_names()
 
 
-async def test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files(
-    pg_bridge, owner
-):
+async def test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade(pg_bridge, owner):
     from canvas_bridge.retrieval import outline
     from canvas_bridge.storage import Material
     from tests.test_course_files import file_record
@@ -68,12 +65,10 @@ async def test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_f
     await outline(pg_bridge, owner, ref, courses[0].id)
     with pg_bridge.store.transaction() as session:
         assert sorted(m.kind for m in session.scalars(select(Material))) == ["file", "page"]
-    command.downgrade(Config("alembic.ini"), "9b2a41e5021c")
-    with pg_bridge.store.engine.connect() as connection:
-        assert connection.execute(text("SELECT source_id FROM materials")).scalars().all() == ["41"]
-    command.upgrade(Config("alembic.ini"), "head")
+    with pytest.raises(RuntimeError, match="plaintext"):
+        command.downgrade(Config("alembic.ini"), "9b2a41e5021c")
     with pg_bridge.store.transaction() as session:
-        assert session.scalar(select(Material)).kind == "page"
+        assert sorted(m.kind for m in session.scalars(select(Material))) == ["file", "page"]
 
 
 async def test_T13_T21_pool_reuse_never_reuses_another_owner(pg_bridge, owner):
@@ -153,7 +148,9 @@ def test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant(pg_bridge, 
     from threading import Barrier
 
     from canvas_bridge.personal import link_personal_token
+    from tests.approval_fixtures import install_approvals
 
+    install_approvals(pg_bridge)
     pg_bridge.settings.profile = "personal"
     pg_bridge.settings.personal_subject = "student-one"
     pg_bridge.settings.live_access_enabled = True

@@ -10,13 +10,18 @@ arrangements. The registry accepts only operator-reviewed institutions. A URL
 entered by a student never grants arbitrary outbound access.
 
 Review [the scope matrix](capability-scope-matrix.md). The academic adapter has no
-submission, roster, grade-editing, quiz-attempt or administration route. Powerful
+coursework-submission write, roster, grade-editing, quiz-attempt or administration route. Powerful
 upstream credentials do not enable these features. Mixed staff/student course
 roles currently fail closed.
 
 Canvas callbacks use the deployment resource base followed by
-`/settings/canvas/callback`. Register the exact URI. Secrets are supplied through
-private environment references, not registry values.
+`/settings/canvas/callback/` and the SHA-256 digest of the institution ID, a NUL
+separator and canonical origin. Register that exact institution-specific URI.
+Secrets are supplied through private environment references, not registry values.
+Review [OAuth capabilities and least privilege](identity-oauth-hardening.md)
+before configuring PKCE, refresh rotation, scopes or enabled workflows. Missing
+protocol evidence disables OAuth linking. These settings do not replace the
+independently established and signed approvals enforced by the policy gateway.
 
 The connector verifies `/users/self/profile` server-side, then binds the token
 to that institutional user and connector principal. Other students must use

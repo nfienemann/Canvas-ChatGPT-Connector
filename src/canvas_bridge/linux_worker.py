@@ -149,11 +149,14 @@ def main():
     work = Path(sys.argv[2]).resolve()
     script, parent = sys.argv[3], int(sys.argv[4])
     try:
+        memory_mb = int(sys.argv[5]) if len(sys.argv) > 5 else 384
+        if not 128 <= memory_mb <= 384:
+            raise ValueError("Invalid memory ceiling")
         libc = C.CDLL(None, use_errno=True)
         check(libc.prctl(1, signal.SIGKILL, 0, 0, 0))  # PR_SET_PDEATHSIG
         if os.getppid() != parent:
             raise RuntimeError("Launcher exited before isolation.")
-        resource.setrlimit(resource.RLIMIT_AS, (384 * 1024 * 1024,) * 2)
+        resource.setrlimit(resource.RLIMIT_AS, (memory_mb * 1024 * 1024,) * 2)
         resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
         resource.setrlimit(resource.RLIMIT_FSIZE, (2_000_000,) * 2)
         resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
@@ -196,7 +199,8 @@ def main():
         return 77
     sys.argv[:] = [str(runtime / script), str(work)]
     code = compile((runtime / script).read_bytes(), str(runtime / script), "exec")
-    exec(code, {"__name__": "__main__", "__file__": str(runtime / script)})  # noqa: S102 - fixed trusted runtime script, after OS restrictions.
+    # Fixed trusted runtime script, after OS restrictions; never document-derived code.
+    exec(code, {"__name__": "__main__", "__file__": str(runtime / script)})  # noqa: S102 # nosec B102
     return 0
 
 

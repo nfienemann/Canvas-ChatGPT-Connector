@@ -35,6 +35,9 @@ def rejection(caplog, raw, reason):
         ({"scope": "offline_access"}, "MCP_REQUIRED_SCOPE_MISSING"),
         ({"scope": ["academic:read"]}, "MCP_SCOPE_CLAIM_INVALID"),
         ({"exp": None}, "MCP_REQUIRED_CLAIM_MISSING"),
+        ({"azp": 123}, "MCP_CLIENT_ID_INVALID"),
+        ({"azp": ""}, "MCP_CLIENT_ID_INVALID"),
+        ({"client_id": "conflicting-client"}, "MCP_CLIENT_ID_AMBIGUOUS"),
     ],
 )
 async def test_rejection_reason_is_redacted(settings, token_factory, caplog, overrides, reason):

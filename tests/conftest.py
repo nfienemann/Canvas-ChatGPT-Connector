@@ -47,6 +47,7 @@ def token_factory(settings, signing_key):
             "iss": settings.issuer_url,
             "aud": settings.resource_url,
             "sub": "student-one",
+            "azp": "fixture-chatgpt-client",
             "iat": utcnow(),
             "exp": utcnow() + timedelta(hours=1),
             "scope": "academic:read preferences:write settings:write",
@@ -85,6 +86,7 @@ async def seed(bridge, owner, ref="connection-one"):
                 owner=owner,
                 institution="synthetic",
                 canvas_user="101",
+                authentication_state="verified",
                 credential=bridge.vault.seal(
                     {"access_token": "fixture-provider-token"}, owner, ref
                 ),

@@ -1,0 +1,165 @@
+{
+  "schema_version": "test-run-1",
+  "source": {
+    "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+    "dirty": true,
+    "digest": "2a8860012b4332e2baf02ba2643d8840d2ca8dc31e71a1a4213aa29a03a03a06",
+    "files": 443,
+    "scope": "reviewed-source-v1"
+  },
+  "finished_on": "2026-10-28",
+  "source_unchanged": true,
+  "exit_code": 0,
+  "interrupted": false,
+  "complete_selection": true,
+  "cases": {
+    "tests/test_independent_intelligence.py::test_all_independent_workflows_without_connection": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 7
+    },
+    "tests/test_independent_intelligence.py::test_analysis_purpose_cannot_be_inferred_from_study_permission": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_independent_intelligence.py::test_calendar_requires_inspection_and_deduplicates": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_caller_labels_and_institutional_ids_cannot_switch_adapter": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_current_permissions_rechecked_after_reasoning": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_imported_source_text_cannot_grant_privileges": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_independent_ambiguity_cannot_invent_year_or_timezone": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_independent_grade_unknowns_are_not_zero": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 4
+    },
+    "tests/test_independent_intelligence.py::test_independent_input_rechecks_authoritative_restrictions": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_independent_intelligence.py::test_independent_local_preferences_validate_stored_schema": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_known_restricted_assessment_is_withheld_from_mixed_package": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_legacy_preference_write_is_owner_scoped_after_disconnect": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_local_state_storage_error_is_actionable_in_mcp": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_local_storage_failure_never_requests_lms": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_mixed_and_legacy_payloads_never_become_independent": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_mixed_document_selection_preserves_valid_partial_evidence": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_no_connection_and_unknown_legacy_state_are_safe": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_pure_planning_matches_existing_engine": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_saved_local_preferences_do_not_need_active_lms": {
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 3
+    },
+    "tests/test_independent_intelligence.py::test_syllabus_review_and_scenarios_reuse_exact_grade_engine": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_independent_intelligence.py::test_truncated_source_reports_coverage_and_continuation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    }
+  },
+  "runtime": "windows"
+}

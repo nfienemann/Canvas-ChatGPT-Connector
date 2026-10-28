@@ -33,7 +33,7 @@ text before dropping that state. Neither migration alters Canvas.
 ## Local development
 
 Use the README commands. `init-demo` creates a private `.env`, key files, a
-24-hour fixture access token, migrations and fictional selected courses. It
+one-hour fixture access token, migrations and fictional selected courses. It
 refuses to replace a live profile. `.local/` and `.env` are ignored by Git.
 `serve` binds to loopback in synthetic mode. API access logs are disabled to avoid
 logging callback codes or bearer credentials. Errors use sanitized categories.
@@ -42,6 +42,12 @@ logging callback codes or bearer credentials. Errors use sanitized categories.
 `verify-read` exercises the official MCP client with synthetic records.
 
 ## PostgreSQL and hosted configuration
+
+The [identity hardening](identity-oauth-hardening.md) requires migration
+`8d21f4c932ab`, institution-specific OAuth capability review and exact registered
+callbacks. Existing credentials migrate to unverified and require explicit
+reconnection/reverification. Operator configuration never replaces separately
+obtained provider, institutional and data-sharing approvals.
 
 Live profiles require PostgreSQL, explicit `BRIDGE_LIVE_ACCESS_ENABLED=true`,
 HTTPS resource/issuer/JWKS URLs and a separately mounted vault key. Hosted
@@ -166,12 +172,13 @@ runtime configuration and private screenshots remain outside the repository.
 ## Worker and retention
 
 `uv run canvas-bridge worker` processes explicitly queued refresh jobs and purges
-expired snapshot/OAuth records. No recurring refresh is scheduled by a read.
+expired records across the central retention classes. No recurring refresh is scheduled by a read.
 Jobs use leases, three attempts, ownership checks and connection epochs.
 Disconnect removes pending jobs and blocks in-flight writes.
 
-`uv run canvas-bridge purge` runs independently. Snapshot retention defaults to
-30 days. Scope removal denies access and purges course-derived active records,
+`uv run canvas-bridge purge` runs independently. Analysis and saved study records
+expire in 30 days, page text in one hour, file text within 24 hours, and connections
+in 90 days. The API also sweeps at startup and every 60 seconds. Scope removal denies access and purges course-derived active records,
 as described in the retention guide. Account-wide deletion additionally fences
 pending authorizations and browser sessions across every linked institution.
 Aggregate telemetry and deployment-specific backup expiry still need pilot review.
@@ -181,7 +188,9 @@ No background notifications are delivered.
 
 `uv run canvas-bridge backup .local/snapshot.backup` creates an encrypted logical
 snapshot in a new file. PostgreSQL uses repeatable read. Browser sessions and
-incomplete OAuth transactions are excluded. Retain the vault key separately.
+incomplete OAuth transactions, jobs, provider credentials and raw document text
+are excluded. The authenticated restore window is at most 30 days. Retain the
+vault key separately and expire physical backup copies under the host policy.
 
 Maintain `BRIDGE_DELETION_JOURNAL` independently of database rollback.
 Disconnect flushes an authenticated fence before local removal. Copy the journal
@@ -201,12 +210,26 @@ uv run canvas-bridge restore .local/snapshot.backup --journal .local/deletions.j
 ```
 
 The command refuses existing records or missing/tampered journals, applies newer
-deletion fences before import, and cancels restored jobs. Test a canary read and
-deletion fixture before serving restored data. Offsite backup and host-loss
+deletion fences before import, rejects expired/legacy backups, and restores every
+connection inactive, unverified and credential-free. No jobs resume. Test an
+explicit new linking flow and deletion fixture before serving restored data. Offsite backup and host-loss
 recovery have not been deployed.
+
+See [Data lifecycle controls](data-lifecycle-controls.md) for the complete storage
+inventory, retention classes, pending-cleanup receipts and host-controlled
+limitations. Migration `c7d9130b42ae` requires the existing vault key to encrypt
+populated databases; stop the service/workers before upgrading. Downgrade to
+plaintext is blocked. Old disk blocks/backups are not retroactively erased.
+New Windows demo keys use account-bound DPAPI; Linux/container keys and existing
+32-byte key files remain supported. DPAPI files are not portable container keys.
 
 ## Operational boundaries
 
 No production service, budget, region, incident owner, vendor contract, live SLO,
 managed key rotation or distribution approval is implied by these files.
 Review [release gates](../evidence/release-gates.md) before serving real records.
+
+For source-aware offline imports, canonical browser login and schema/key/journal
+preflight, follow [Compliance recovery](compliance-recovery.md). Startup now checks
+migration `d914cb092014`; established installations require an explicit backed-up
+upgrade. Do not recreate a lost key or journal to make startup pass.

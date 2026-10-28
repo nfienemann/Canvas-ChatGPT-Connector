@@ -1,0 +1,1308 @@
+{
+  "schema_version": "controls-1",
+  "controls": [
+    {
+      "id": "CB-INTEGRITY-01",
+      "objective": "Classify academic administration, learning, planning, assistance and submission output",
+      "requirements": [
+        "Academic Integrity bundle AI-01",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/models.py",
+        "src/canvas_bridge/integrity/surfaces.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/surfaces.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Requests and expected output cannot lower a substantive activity to an administrative label.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INTEGRITY-02",
+      "objective": "Discover policy evidence with authority, scope, provenance, coverage and institutional fallback",
+      "requirements": [
+        "Academic Integrity bundle AI-02",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/discovery.py",
+        "src/canvas_bridge/integrity/service.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/service.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Discovery is bounded; OCR, arbitrary file authorship and external institutional lookup may remain unavailable.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INTEGRITY-03",
+      "objective": "Enforce prohibitions, limited permission, affirmative requirements and reviewed supersession",
+      "requirements": [
+        "Academic Integrity bundle AI-03",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/parser.py",
+        "src/canvas_bridge/integrity/engine.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/engine.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "A bounded English interpreter is not a general semantic or institutional compliance certification.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INTEGRITY-04",
+      "objective": "Require explicit, owner-bound, scoped and expiring uncertainty acknowledgment",
+      "requirements": [
+        "Academic Integrity bundle AI-04",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/service.py",
+        "src/canvas_bridge/integrity/models.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/models.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Student evidence remains unverified; no attestation or acknowledgment overrides instructor permission.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INTEGRITY-05",
+      "objective": "Fence assessed evidence across MCP, independent imports and known source copies",
+      "requirements": [
+        "Academic Integrity bundle AI-05",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/surfaces.py",
+        "src/canvas_bridge/integrity/tools.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/tools.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Undisclosed assessments, unknown external transformations and host-only reasoning are outside Bridge control.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INTEGRITY-06",
+      "objective": "Minimize receipts, preserve disclosure and publish source-bound synthetic review evidence",
+      "requirements": [
+        "Academic Integrity bundle AI-06",
+        "Shared appendix global invariants"
+      ],
+      "owner": "Project maintainer; institution policy reviewer before external release",
+      "components": [
+        "src/canvas_bridge/integrity/service.py",
+        "src/canvas_bridge/integrity/reasons.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/integrity/reasons.py",
+        "src/canvas_bridge/egress_policy.py"
+      ],
+      "tests": [
+        "tests/test_integrity_engine.py",
+        "tests/test_integrity_workflows.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only named fictional scenarios and authenticated local MCP behaviors with passing source-bound execution receipts.",
+      "manual_verification": "Review actual policy authority, wording, effective scope, incomplete extraction and host boundary before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "No misconduct detection, reporting, legal certification or live institutional approval is established.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-AUTH-01",
+      "objective": "Independent provider and institution approval before network access",
+      "requirements": [
+        "Authorization specification sections 1-5"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/approval_policy.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/approval_policy.py"
+      ],
+      "tests": [
+        "tests/test_approval_policy.py",
+        "tests/test_approval_policy_contract.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Actual written authority and recipient scope must be verified outside this repository.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-IDENTITY-01",
+      "objective": "Independent application identity and upstream OAuth with secure state and PKCE",
+      "requirements": [
+        "Identity specification sections 2-4,7"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/auth.py",
+        "src/canvas_bridge/oauth_security.py",
+        "src/canvas_bridge/linking.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/auth.py",
+        "src/canvas_bridge/oauth_security.py",
+        "src/canvas_bridge/linking.py"
+      ],
+      "tests": [
+        "tests/test_identity_hardening.py",
+        "tests/test_oauth.py",
+        "tests/test_settings_oauth.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Provider OAuth capabilities and production issuer settings require deployment review.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-SCOPE-01",
+      "objective": "Bind every resource to user institution connection and selected course",
+      "requirements": [
+        "Identity specification sections 4-5"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/authorization.py",
+        "src/canvas_bridge/service.py",
+        "src/canvas_bridge/policy.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/authorization.py",
+        "src/canvas_bridge/service.py",
+        "src/canvas_bridge/policy.py"
+      ],
+      "tests": [
+        "tests/test_permission_consistency.py",
+        "tests/test_permission_consistency_contract.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Synthetic scope proofs are not a live institutional entitlement assessment.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-PRIVACY-01",
+      "objective": "Minimize upstream records and withhold third-party identifiers",
+      "requirements": [
+        "Third-party privacy specification; OpenAI privacy data collection"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/privacy/upstream.py",
+        "src/canvas_bridge/privacy/identity.py",
+        "src/canvas_bridge/privacy_text.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/privacy/upstream.py",
+        "src/canvas_bridge/privacy/identity.py",
+        "src/canvas_bridge/privacy_text.py"
+      ],
+      "tests": [
+        "tests/test_privacy.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Bounded filtering is not a proof of anonymity; ambiguous content must stay withheld.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-EGRESS-01",
+      "objective": "Reevaluate content purpose recipient and modality before release",
+      "requirements": [
+        "AI egress specification; Rowan AI policy V.3-4"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/egress_policy.py",
+        "src/canvas_bridge/egress_transport.py",
+        "src/canvas_bridge/privacy/transport.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/egress_policy.py",
+        "src/canvas_bridge/egress_transport.py",
+        "src/canvas_bridge/privacy/transport.py"
+      ],
+      "tests": [
+        "tests/test_egress_policy.py",
+        "tests/test_egress_contract.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Actual workspace configuration and recipient data arrangements require independent approval.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-REVOCATION-01",
+      "objective": "Fence sessions retrieval jobs caches and links after revocation",
+      "requirements": [
+        "Identity specification section 6; Lifecycle section 5"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/linking.py",
+        "src/canvas_bridge/lifecycle.py",
+        "src/canvas_bridge/worker_storage.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/linking.py",
+        "src/canvas_bridge/lifecycle.py",
+        "src/canvas_bridge/worker_storage.py"
+      ],
+      "tests": [
+        "tests/test_identity_hardening.py",
+        "tests/test_retention.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Local deletion does not establish successful upstream revocation or downstream erasure.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-RETENTION-01",
+      "objective": "Enforce distinct bounded retention classes and confirmed deletion",
+      "requirements": [
+        "Data lifecycle specification sections 1-8"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/retention.py",
+        "src/canvas_bridge/retention_policy.py",
+        "src/canvas_bridge/storage_crypto.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/retention.py",
+        "src/canvas_bridge/retention_policy.py",
+        "src/canvas_bridge/storage_crypto.py"
+      ],
+      "tests": [
+        "tests/test_retention.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Scheduling, immutable backups and OS secret protection need deployment-specific verification.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-NETWORK-01",
+      "objective": "Constrain destinations redirects TLS and endpoint methods",
+      "requirements": [
+        "Security specification section 2"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/network.py",
+        "src/canvas_bridge/canvas.py",
+        "src/canvas_bridge/file_download.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/network.py",
+        "src/canvas_bridge/canvas.py",
+        "src/canvas_bridge/file_download.py"
+      ],
+      "tests": [
+        "tests/test_service_security.py",
+        "tests/test_approval_policy_contract.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Edge TLS and external exposure are not established by local fixtures.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-LIMITS-01",
+      "objective": "Bound concurrency deadlines retries rate limits and circuit state",
+      "requirements": [
+        "Security specification section 3"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/request_limits.py",
+        "src/canvas_bridge/network.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/request_limits.py",
+        "src/canvas_bridge/network.py"
+      ],
+      "tests": [
+        "tests/test_request_limits.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Multiple service processes need coordinated quotas and capacity tests.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-DOCUMENT-01",
+      "objective": "Isolate untrusted document parsers and bound archive media and worker resources",
+      "requirements": [
+        "Security specification section 4"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/parser_sandbox.py",
+        "src/canvas_bridge/parser_worker.py",
+        "src/canvas_bridge/windows_sandbox.py",
+        "src/canvas_bridge/linux_sandbox.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/parser_sandbox.py",
+        "src/canvas_bridge/parser_worker.py",
+        "src/canvas_bridge/windows_sandbox.py",
+        "src/canvas_bridge/linux_sandbox.py"
+      ],
+      "tests": [
+        "tests/test_file_reading.py",
+        "tests/test_docx_reading.py",
+        "tests/test_linux_sandbox.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "OS-specific and optional native converter evidence cannot be inferred from another platform.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-INJECTION-01",
+      "objective": "Keep retrieved instructions outside identity policy and tool authority",
+      "requirements": [
+        "Security specification section 5"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/academic/gateway.py",
+        "src/canvas_bridge/privacy/transport.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/academic/gateway.py",
+        "src/canvas_bridge/privacy/transport.py"
+      ],
+      "tests": [
+        "tests/test_provider_architecture.py",
+        "tests/test_compliance_walkthroughs.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "No deterministic filter promises detection of every malicious instruction; authority is enforced in code.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-DEPENDENCY-01",
+      "objective": "Verify lock sources hashes licenses and vulnerable dependencies",
+      "requirements": [
+        "Security specification section 6"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "scripts/supply_chain.py"
+      ],
+      "enforcement": [
+        "scripts/supply_chain.py"
+      ],
+      "tests": [
+        "tests/test_supply_chain.py"
+      ],
+      "checks": [
+        "licenses",
+        "python_vulnerabilities",
+        "node_vulnerabilities"
+      ],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Dependency metadata screening does not decide project licensing or all native redistribution obligations.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-ACADEMIC-01",
+      "objective": "Preserve arithmetic provenance uncertainty and student-effective scope",
+      "requirements": [
+        "Provider-neutral specification sections 3,6-10"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/academic/services.py",
+        "src/canvas_bridge/academic/grade_engine.py",
+        "src/canvas_bridge/planning.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/academic/services.py",
+        "src/canvas_bridge/academic/grade_engine.py",
+        "src/canvas_bridge/planning.py"
+      ],
+      "tests": [
+        "tests/test_grade_audit.py",
+        "tests/test_academic_intelligence.py",
+        "tests/test_scope_planning_lifecycle.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Unsupported grading rules and incomplete acquisition remain indeterminate; other services migrate incrementally.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-OFFLINE-01",
+      "objective": "Run fictional and local academic tools without live provider startup",
+      "requirements": [
+        "Provider-neutral specification sections 5,8"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/academic/cli.py",
+        "src/canvas_bridge/providers/synthetic.py",
+        "src/canvas_bridge/providers/future_mcp.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/academic/cli.py",
+        "src/canvas_bridge/providers/synthetic.py",
+        "src/canvas_bridge/providers/future_mcp.py"
+      ],
+      "tests": [
+        "tests/test_provider_architecture.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "A distributed offline artifact and its launcher need separate review; the source wheel also contains live adapters.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-EVIDENCE-01",
+      "objective": "Bind sanitized verification to source and keep external approvals separate",
+      "requirements": [
+        "Compliance evidence specification sections 2-9"
+      ],
+      "owner": "Project maintainer; deployment owner for operational verification",
+      "components": [
+        "src/canvas_bridge/compliance/report.py",
+        "src/canvas_bridge/compliance/pytest_plugin.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/compliance/report.py",
+        "src/canvas_bridge/compliance/pytest_plugin.py"
+      ],
+      "tests": [
+        "tests/test_compliance.py",
+        "tests/test_compliance_walkthroughs.py"
+      ],
+      "checks": [],
+      "automated_scope": "Only the named synthetic regression behaviors, with all selected cases actually passing on the recorded source.",
+      "manual_verification": "Review the residual limitation, deployment configuration and applicable external evidence before release.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Local unsigned receipts need provenance confirmation against trusted CI logs or supervised reproduction.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-OPERATIONS-01",
+      "objective": "Establish incident contacts support ownership backup restore and containment readiness",
+      "requirements": [
+        "Compliance evidence specification sections 4,7"
+      ],
+      "owner": "Authorized project and institutional decision makers",
+      "components": [
+        "docs/runbooks/incidents.md",
+        "SECURITY.md"
+      ],
+      "enforcement": [
+        "docs/runbooks/incidents.md",
+        "SECURITY.md"
+      ],
+      "tests": [],
+      "checks": [],
+      "automated_scope": "No automated check can grant this external authority.",
+      "manual_verification": "Obtain and verify bounded written evidence with the appropriate authority.",
+      "status": "REQUIRES_EXTERNAL_APPROVAL",
+      "residual_limitation": "Maintained runbook exists; no appointed public security channel or completed production incident exercise is evidenced.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-APPROVAL-01",
+      "objective": "Obtain applicable provider institution content-owner and platform permissions",
+      "requirements": [
+        "Compliance evidence specification sections 4,7"
+      ],
+      "owner": "Authorized project and institutional decision makers",
+      "components": [
+        "docs/authorization-policy-gateway.md"
+      ],
+      "enforcement": [
+        "docs/authorization-policy-gateway.md"
+      ],
+      "tests": [],
+      "checks": [],
+      "automated_scope": "No automated check can grant this external authority.",
+      "manual_verification": "Obtain and verify bounded written evidence with the appropriate authority.",
+      "status": "REQUIRES_EXTERNAL_APPROVAL",
+      "residual_limitation": "No actual approvals are established by this development evidence package.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-LICENSE-01",
+      "objective": "Adopt a project license and review artifact redistribution obligations",
+      "requirements": [
+        "Compliance evidence specification sections 4,7"
+      ],
+      "owner": "Authorized project and institutional decision makers",
+      "components": [
+        "LICENSE-STATUS.md",
+        "docs/supply-chain-security.md"
+      ],
+      "enforcement": [
+        "LICENSE-STATUS.md",
+        "docs/supply-chain-security.md"
+      ],
+      "tests": [],
+      "checks": [],
+      "automated_scope": "No automated check can grant this external authority.",
+      "manual_verification": "Obtain and verify bounded written evidence with the appropriate authority.",
+      "status": "REQUIRES_EXTERNAL_APPROVAL",
+      "residual_limitation": "The project currently grants no open-source license; dependency screening does not resolve this.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-SECRETS-01",
+      "objective": "Encrypt sensitive storage and keep credentials out of logs MCP output and serialized caches",
+      "requirements": [
+        "Identity and data lifecycle specifications; compliance evidence sections 1,7"
+      ],
+      "owner": "Security maintainer and deployment operator",
+      "components": [
+        "src/canvas_bridge/vault.py",
+        "src/canvas_bridge/storage_crypto.py",
+        "src/canvas_bridge/auth.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/vault.py",
+        "src/canvas_bridge/storage_crypto.py",
+        "src/canvas_bridge/auth.py"
+      ],
+      "tests": [
+        "tests/test_identity_hardening.py",
+        "tests/test_retention.py"
+      ],
+      "checks": [],
+      "automated_scope": "Named synthetic storage, redaction and user-confirmation regressions only.",
+      "manual_verification": "Verify the actual host, storage, log sinks and downstream deletion limitations.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Key custody, host access, rotation and deployment log sinks require independent verification.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-BACKUP-01",
+      "objective": "Restore without reviving revoked access and preserve bounded backup lifetimes",
+      "requirements": [
+        "Identity and data lifecycle specifications; compliance evidence sections 1,7"
+      ],
+      "owner": "Security maintainer and deployment operator",
+      "components": [
+        "src/canvas_bridge/lifecycle.py",
+        "src/canvas_bridge/retention.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/lifecycle.py",
+        "src/canvas_bridge/retention.py"
+      ],
+      "tests": [
+        "tests/test_retention.py"
+      ],
+      "checks": [],
+      "automated_scope": "Named synthetic storage, redaction and user-confirmation regressions only.",
+      "manual_verification": "Verify the actual host, storage, log sinks and downstream deletion limitations.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Local logical deletion does not guarantee physical erasure of immutable or external backups.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-DELETION-01",
+      "objective": "Require authenticated user confirmation for sensitive deletion outside model tools",
+      "requirements": [
+        "Identity and data lifecycle specifications; compliance evidence sections 1,7"
+      ],
+      "owner": "Security maintainer and deployment operator",
+      "components": [
+        "src/canvas_bridge/settings_ui.py",
+        "src/canvas_bridge/retention.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/settings_ui.py",
+        "src/canvas_bridge/retention.py"
+      ],
+      "tests": [
+        "tests/test_account_deletion.py",
+        "tests/test_retention.py"
+      ],
+      "checks": [],
+      "automated_scope": "Named synthetic storage, redaction and user-confirmation regressions only.",
+      "manual_verification": "Verify the actual host, storage, log sinks and downstream deletion limitations.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "Downstream service copies are outside local deletion authority; each user-facing claim needs deployment review.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-SDK-01",
+      "objective": "Version provider capabilities and isolate declarative academic modules without expanding authorization.",
+      "requirements": [
+        "Academic Provider Portability and Extension SDK sections 1-10"
+      ],
+      "owner": "Academic core and security maintainers",
+      "components": [
+        "src/canvas_bridge/academic/contracts.py",
+        "src/canvas_bridge/providers/base.py",
+        "src/canvas_bridge/providers/local_grades.py",
+        "src/canvas_bridge/extensions/models.py",
+        "src/canvas_bridge/extensions/forecast.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/academic/gateway.py",
+        "src/canvas_bridge/extensions/runtime.py",
+        "src/canvas_bridge/extensions/interpreter.py"
+      ],
+      "tests": [
+        "tests/test_extension_sdk.py"
+      ],
+      "checks": [
+        "lint",
+        "bandit"
+      ],
+      "automated_scope": "Fictional cross-provider forecasts, compatibility, scope changes, minimized inputs, revocation and bounded declarative execution; no live provider or native-code extension proof.",
+      "manual_verification": "Review each provider authorization path, new numeric projection and module algorithm before host registration or distribution.",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "V1 supports bounded numeric graphs and the grade-points projection only; arbitrary native code and additional live LMS integrations are unsupported.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-REC-01",
+      "objective": "Independent academic use remains available while institutional data and deployment recovery fail closed",
+      "requirements": [
+        "Recovery specification CB-09 through CB-14"
+      ],
+      "owner": "Project maintainer; deployment owner for operational approval",
+      "components": [
+        "src/canvas_bridge/independent.py",
+        "src/canvas_bridge/deployment.py",
+        "src/canvas_bridge/source_authorization.py",
+        "src/canvas_bridge/settings_ui.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/policy_surfaces.py",
+        "src/canvas_bridge/egress_policy.py",
+        "src/canvas_bridge/storage.py",
+        "src/canvas_bridge/deployment.py"
+      ],
+      "tests": [
+        "tests/test_recovery_independence.py",
+        "tests/test_deployment_recovery.py",
+        "tests/test_recovery_identity.py"
+      ],
+      "checks": [],
+      "automated_scope": "Fictional source isolation, registered MCP contracts, controlled migration and OAuth failure fixtures",
+      "manual_verification": "Confirm deployed database target and key/journal continuity, recipient configuration, approved integration and installed client behavior",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "No production deployment diagnosis or external approval is inferred. Import rights and full visual-page privacy require user attestation. PostgreSQL and operating system worker evidence remain platform-specific.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    },
+    {
+      "id": "CB-IND-01",
+      "objective": "Independent academic processing follows source provenance and permitted use without requiring LMS connectivity",
+      "requirements": [
+        "Authorization decoupling repair AC-01 through AC-12"
+      ],
+      "owner": "Project maintainer; operator for exact recipient review",
+      "components": [
+        "src/canvas_bridge/academic/independent_models.py",
+        "src/canvas_bridge/academic/independent_engine.py",
+        "src/canvas_bridge/independent_intelligence.py",
+        "src/canvas_bridge/independent.py"
+      ],
+      "enforcement": [
+        "src/canvas_bridge/service.py:local_state",
+        "src/canvas_bridge/storage.py:save_local",
+        "src/canvas_bridge/egress_sources.py",
+        "src/canvas_bridge/integrity/surfaces.py"
+      ],
+      "tests": [
+        "tests/test_independent_intelligence.py",
+        "tests/test_recovery_independence.py",
+        "tests/test_approval_policy_contract.py",
+        "tests/test_egress_contract.py"
+      ],
+      "checks": [],
+      "automated_scope": "Synthetic HTTP MCP without any configured institution or LMS connection, exact source rechecks, purpose and recipient restrictions, mixed evidence withholding, shared reasoning and retained institutional denial",
+      "manual_verification": "Verify permitted import origin and use, exact deployed recipient policy, independent client behavior, and source-specific scientific/policy interpretations",
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_limitation": "No deployment or institutional approval. Unknown/mixed individual records remain withheld. Ownership attestations do not conclusively determine undisclosed origin. Structured manual records use the existing import path; qualitative and visual interpretation remain review-dependent.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "id": "POL-ROWAN-INTEGRITY",
+      "title": "Rowan Academic Integrity Policy AA:2015:02",
+      "url": "https://confluence.rowan.edu/spaces/POLICY/pages/61426359/Academic%2BIntegrity%2BPolicy",
+      "effective_date": null,
+      "effective_date_note": "Interim status; separate effective date is not stated on the reviewed page.",
+      "revision": "2026-10-19",
+      "sections": [
+        "III applicability",
+        "IV definitions",
+        "Attachment 7"
+      ],
+      "reviewed_on": "2026-10-28",
+      "review_due": "2026-11-27",
+      "interpretation": "Instructor permission is required for coursework AI use; permitted use requires citation. Mechanical edits do not by themselves establish plagiarism but remain subject to instructor restrictions. Faculty sample policies are illustrative until adopted.",
+      "controls": [
+        "CB-INTEGRITY-02",
+        "CB-INTEGRITY-03",
+        "CB-INTEGRITY-04",
+        "CB-INTEGRITY-06"
+      ],
+      "applicability": "Reference for non-medical Rowan students, faculty and staff. Test profile uses a bounded public excerpt with fictional coursework; no deployed adapter or integration approval is established. Review changes before expanding permission."
+    },
+    {
+      "id": "POL-INSTRUCTURE",
+      "title": "Instructure Canvas API Policy",
+      "url": "https://www.instructure.com/policies/canvas-api-policy",
+      "effective_date": "2025-08-12",
+      "effective_date_note": "Explicit effective date displayed by publisher.",
+      "revision": "Effective 12 August 2025; page reviewed 2026-10-25",
+      "sections": [
+        "2.B-C,E",
+        "3(i),(k)",
+        "4"
+      ],
+      "interpretation": "Technical mapping: require independent integration-method approval, preserve customer information restrictions and bound request load.",
+      "controls": [
+        "CB-AUTH-01",
+        "CB-EGRESS-01",
+        "CB-LIMITS-01"
+      ],
+      "applicability": "Candidate Canvas integration; actual contractual applicability and approval require authorized review.",
+      "reviewed_on": "2026-10-25",
+      "review_due": "2027-01-23"
+    },
+    {
+      "id": "POL-ROWAN-AI",
+      "title": "Rowan Artificial Intelligence Policy ISO:2024:01",
+      "url": "https://confluence.rowan.edu/plugins/viewsource/viewpagesrc.action?pageId=275448111",
+      "effective_date": null,
+      "effective_date_note": "Adopted 2024-10-03; last revision 2024-11-04. A separate effective date is not stated.",
+      "revision": "2024-11-04",
+      "sections": [
+        "V.1-4",
+        "V.8",
+        "VI"
+      ],
+      "interpretation": "Technical mapping: classify educational content and require an explicitly reviewed AI destination; personal consent does not establish platform approval.",
+      "controls": [
+        "CB-PRIVACY-01",
+        "CB-EGRESS-01",
+        "CB-APPROVAL-01"
+      ],
+      "applicability": "Rowan candidate pilot only; not a universal institution policy or a decision that any AI plan is approved.",
+      "reviewed_on": "2026-10-25",
+      "review_due": "2027-01-23"
+    },
+    {
+      "id": "POL-ROWAN-LMS",
+      "title": "Rowan LMS Third-Party Integration Policy IRT:2021:01",
+      "url": "https://confluence.rowan.edu/spaces/POLICY/pages/142510123/LMS+Third-Party+Integration+Policy",
+      "effective_date": null,
+      "effective_date_note": "Adopted 2021-02-15; last revision/review 2026-04-16. Separate effective date not stated.",
+      "revision": "2026-04-16",
+      "sections": [
+        "IV.2.3 API",
+        "V.1",
+        "V.5"
+      ],
+      "interpretation": "Technical mapping: retain institution approval as an independent gate and prepare security/data-processing evidence for its review process.",
+      "controls": [
+        "CB-AUTH-01",
+        "CB-OPERATIONS-01"
+      ],
+      "applicability": "Candidate Rowan deployment; the institution must determine the applicable integration process.",
+      "reviewed_on": "2026-10-25",
+      "review_due": "2027-01-23"
+    },
+    {
+      "id": "POL-OPENAI",
+      "title": "OpenAI Plugin guidelines",
+      "url": "https://developers.openai.com/plugins/plugin-guidelines",
+      "effective_date": null,
+      "effective_date_note": "No explicit effective date was displayed; review date is not a policy effective date.",
+      "revision": "Undated living guidance observed 2026-10-25",
+      "sections": [
+        "Plugin fundamentals / Third-party content and integrations",
+        "Privacy / Data collection and Privacy policy",
+        "Developer verification",
+        "MCP requirements / Testing"
+      ],
+      "interpretation": "Technical mapping: track authorized upstream use, minimize personal data, supply honest tool descriptions and a fictional review environment; directory eligibility remains unresolved.",
+      "controls": [
+        "CB-AUTH-01",
+        "CB-PRIVACY-01",
+        "CB-EVIDENCE-01",
+        "CB-APPROVAL-01"
+      ],
+      "applicability": "Public connected plugin target; technical mapping does not establish listing eligibility or approval.",
+      "reviewed_on": "2026-10-25",
+      "review_due": "2027-01-23"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "APR-PROVIDER",
+      "party": "Instructure or other selected upstream provider",
+      "requirement": "Written approval covering the actual integration method, including MCP and downstream reuse.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    },
+    {
+      "id": "APR-INSTITUTION",
+      "party": "Each participating institution",
+      "requirement": "Deployment, data categories, academic use and recipient arrangements; no cross-institution inheritance.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    },
+    {
+      "id": "APR-CONTENT",
+      "party": "Applicable data and content owners",
+      "requirement": "Permission for the actual content, purpose, modality and downstream recipients where required.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    },
+    {
+      "id": "APR-AI-ADMIN",
+      "party": "AI workspace or platform administrators",
+      "requirement": "Approved environment, retention, processing and sharing configuration.",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    },
+    {
+      "id": "APR-DIRECTORY",
+      "party": "OpenAI publication reviewers",
+      "requirement": "Eligibility and actual public plugin approval. Working MCP calls do not satisfy this.",
+      "targets": [
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    },
+    {
+      "id": "APR-OTHER",
+      "party": "Other applicable rights holders and contractual authorities",
+      "requirement": "Resolve applicable jurisdiction, subprocessor, licensing and contractual approvals before distribution.",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING",
+      "verified": false
+    }
+  ],
+  "manual_reviews": [
+    {
+      "id": "REV-LICENSE",
+      "requirement": "Adopt and verify an appropriate project license and distribution notices.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-CONTENT",
+      "requirement": "Review repository, history and fixtures for real data, secrets and third-party materials.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-SECURITY",
+      "requirement": "Independent security assessment of the exact artifact and deployment.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "offline_core",
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-OFFLINE",
+      "requirement": "Verify the offline launcher/artifact cannot activate live integrations.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "offline_core"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-DEPLOYMENT",
+      "requirement": "Approve exact institution, mechanisms, data categories, recipient workspace, regions and deployment manifest.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-OPERATIONS",
+      "requirement": "Appoint contacts, support and incident ownership; verify backup restore, monitoring and operational exercises.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "institutional_pilot",
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    },
+    {
+      "id": "REV-PLATFORM",
+      "requirement": "Verify actual platform flows, review account, public notices and approved listing scope.",
+      "owner": "Designated release owner; independent reviewer where specified",
+      "targets": [
+        "public_connected_plugin"
+      ],
+      "status": "MISSING"
+    }
+  ],
+  "required_checks": [
+    "lint",
+    "format",
+    "bandit",
+    "python_vulnerabilities",
+    "node_vulnerabilities",
+    "licenses",
+    "secret_history",
+    "secret_source",
+    "container_config",
+    "container_image",
+    "container_runtime"
+  ],
+  "templates": {
+    "system-architecture": "docs/review-templates/system-architecture.md",
+    "data-flow-diagram": "docs/review-templates/data-flow-diagram.md",
+    "data-processing-inventory": "docs/review-templates/data-processing-inventory.md",
+    "threat-model": "docs/review-templates/threat-model.md",
+    "security-controls": "docs/review-templates/security-controls.md",
+    "privacy-practices": "docs/review-templates/privacy-practices.md",
+    "retention-schedule": "docs/review-templates/retention-schedule.md",
+    "subprocessor-inventory": "docs/review-templates/subprocessor-inventory.md",
+    "incident-response": "docs/review-templates/incident-response.md",
+    "access-control-matrix": "docs/review-templates/access-control-matrix.md",
+    "authorized-integrations": "docs/review-templates/authorized-integrations.md",
+    "known-risk-register": "docs/review-templates/known-risk-register.md",
+    "testing-validation": "docs/review-templates/testing-validation.md",
+    "vulnerability-disclosure": "docs/review-templates/vulnerability-disclosure.md",
+    "change-management": "docs/review-templates/change-management.md"
+  },
+  "data_flow": [
+    "Approved provider -> existing identity/authorization gateway -> scoped retrieval -> minimization and encrypted bounded cache.",
+    "Normalized authorized records -> deterministic academic services -> privacy/content/recipient recheck -> permitted MCP response.",
+    "Permitted document bytes -> isolated bounded worker -> restricted text or pixels -> purpose and modality checks before release.",
+    "Local console explicit material -> local-only document adapter; fictional demo -> offline grade calculation. Neither needs LMS credentials.",
+    "Retention and revocation fence credentials, cached records, jobs and temporary links; downstream copies remain controlled by their own services.",
+    "Governance command reads public repository metadata and sanitized outcome receipts only; it does not inspect live configuration or private evidence.",
+    "Approved normalized input -> operation-bound receipt -> host-minimized numeric projection -> bounded declarative module -> renewed policy check and original provenance/restrictions."
+  ],
+  "limitations": [
+    "All external permissions remain independently established; the register is not runtime authorization.",
+    "Automated privacy and fixture screens cannot prove absence of all personal data; repository-content review remains mandatory.",
+    "Unsigned developer receipts require verification against trusted CI provenance or supervised reproduction.",
+    "The project has not adopted an open-source license. Repository visibility grants no license.",
+    "OS-specific workers, optional native converters, operational readiness and deployed platform behavior require their own evidence.",
+    "Policy sources are a reviewed subset; institution-specific contracts and legal applicability require authorized review.",
+    "A stale, missing, failed or skipped required check cannot be converted to success by a report flag.",
+    "SDK v1 supports a points-based aggregate scenario and bounded declarative modules only. New providers, projections and native-code execution are not enabled by capability discovery."
+  ],
+  "operational_regressions": [
+    {
+      "id": "CB-REC-01",
+      "reproduction_fixture": "tests/test_deployment_recovery.py::test_missing_authentication_column_upgrade_preserves_unknown_history",
+      "root_cause": "Fixture reproduces an older schema lacking connections.authentication_state; historical deployment selection is unverified.",
+      "security_boundary": "Startup schema and encrypted storage",
+      "remediation": "Read-only preflight and target-bound encrypted backup before upgrade",
+      "tests": [
+        "tests/test_deployment_recovery.py::test_missing_authentication_column_upgrade_preserves_unknown_history"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "Production database and backup recovery were not exercised."
+    },
+    {
+      "id": "CB-REC-02",
+      "reproduction_fixture": "tests/test_deployment_recovery.py::test_established_security_material_never_silently_recreated",
+      "root_cause": "A missing established journal cannot establish absence of historical deletions.",
+      "security_boundary": "Revocation and restoration",
+      "remediation": "Separate fresh bootstrap from explicit lost-history recovery; restored-history use remains blocked",
+      "tests": [
+        "tests/test_deployment_recovery.py::test_established_security_material_never_silently_recreated"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "Previously recreated journals cannot prove their missing history."
+    },
+    {
+      "id": "CB-REC-03",
+      "reproduction_fixture": "tests/test_recovery_identity.py::test_noncanonical_login_redirects_before_state_or_cookie",
+      "root_cause": "Starting login on a different origin can leave the callback without its browser-bound cookie.",
+      "security_boundary": "Browser OAuth state and origin",
+      "remediation": "Canonical-origin redirect before creating state; callback mismatch reason codes",
+      "tests": [
+        "tests/test_recovery_identity.py::test_noncanonical_login_redirects_before_state_or_cookie"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "Historical browser cookie behavior was not independently reconstructed."
+    },
+    {
+      "id": "CB-REC-04",
+      "reproduction_fixture": "tests/test_recovery_identity.py::test_personal_subject_failure_never_uses_email_equality",
+      "root_cause": "Incorrect stable owner subject is reproducibly rejected; historical identity warning cause remains unverified.",
+      "security_boundary": "Application identity isolation",
+      "remediation": "Retain verified issuer/audience/subject checks and report fixed reason codes",
+      "tests": [
+        "tests/test_recovery_identity.py::test_personal_subject_failure_never_uses_email_equality"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "No production identity mapping was changed."
+    },
+    {
+      "id": "CB-REC-05",
+      "reproduction_fixture": "tests/test_recovery_independence.py::test_offline_mcp_independence",
+      "root_cause": "Legacy saved-state reads mixed preferences with institution-derived plans.",
+      "security_boundary": "Independent sources versus restricted institutional cache",
+      "remediation": "Separate schema-restricted preference reads and browser-imported document tools with source-specific egress",
+      "tests": [
+        "tests/test_recovery_independence.py::test_offline_mcp_independence"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "Unknown or modified institutional copies cannot be identified perfectly by content hashes; explicit rights attestation remains required."
+    },
+    {
+      "id": "CB-REC-06",
+      "reproduction_fixture": "tests/test_recovery_independence.py::test_actual_registered_contract_inventory",
+      "root_cause": "Installed widget warning root cause is unverified; registry references are testable locally.",
+      "security_boundary": "MCP tool schemas and pixel-delivery claims",
+      "remediation": "Generate contracts from real registrations; validate widget resource references; report model visibility unknown",
+      "tests": [
+        "tests/test_recovery_independence.py::test_actual_registered_contract_inventory"
+      ],
+      "status": "IMPLEMENTED_UNVERIFIED",
+      "residual_uncertainty": "Installed ChatGPT widget rendering still needs client acceptance; local MCP image delivery is separate evidence."
+    }
+  ]
+}

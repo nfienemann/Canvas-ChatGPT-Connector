@@ -88,7 +88,7 @@ async def test_T11_T12_T25_pdf_read_pages_chunks_and_cache(bridge, owner, seeded
     assert before.data["state"] == "available" and not before.data["indexed"]
     first = await read_file(bridge, owner, seeded, ref, length=40)
     assert first.status == "ok" and first.data["page_count"] == 3
-    assert first.data["metadata"]["title"] == "Synthetic differentiation study"
+    assert first.data["metadata"] == {}  # Unnecessary personal document properties are omitted.
     text, result = first.data["text"], first
     while result.data["continuation"]:
         c = result.data["continuation"]

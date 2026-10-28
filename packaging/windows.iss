@@ -4,6 +4,9 @@
 #ifndef SourceRoot
   #define SourceRoot ".."
 #endif
+#ifndef BundleRoot
+  #define BundleRoot SourceRoot + "\dist"
+#endif
 
 [Setup]
 AppId={{CC5239F2-80A3-4616-84EC-67C2A8AA384A}
@@ -22,25 +25,29 @@ DisableProgramGroupPage=yes
 DisableWelcomePage=no
 UninstallDisplayIcon={app}\CanvasBridgeDemo.exe
 SetupIconFile={#SourceRoot}\build\icons\canvas-bridge.ico
-OutputDir={#SourceRoot}\dist\installers
+OutputDir={#BundleRoot}\installers
 OutputBaseFilename=CanvasBridgeDemo-Windows-x64-Setup
 Compression=lzma2
 SolidCompression=yes
 CloseApplications=yes
 RestartApplications=no
+#ifdef SignedRelease
+SignTool=bridge-sign
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Messages]
-WelcomeLabel1=Try Canvas Bridge on your computer
-WelcomeLabel2=This installs the local demo with fictional courses. Python and terminal commands are not needed.%n%nThis preview does not connect to a real university or ChatGPT. Your demo data stays in your user account and is kept when you upgrade or uninstall.
+WelcomeLabel1=Set up Canvas Bridge on your computer
+WelcomeLabel2=Choose offline academic tools or a synthetic demonstration after installation. Python and terminal commands are not needed.%n%nInstitution access requires an independently approved hosted service. This installer cannot enable it. Upgrades preserve your separate data; uninstall offers an explicit removal option.
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
-Source: "{#SourceRoot}\dist\CanvasBridgeDemo\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BundleRoot}\CanvasBridgeDemo\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Canvas Bridge Demo"; Filename: "{app}\CanvasBridgeDemo.exe"
@@ -49,4 +56,13 @@ Name: "{autodesktop}\Canvas Bridge Demo"; Filename: "{app}\CanvasBridgeDemo.exe"
 [Run]
 Filename: "{app}\CanvasBridgeDemo.exe"; Description: "Open Canvas Bridge Demo"; Flags: nowait postinstall skipifsilent
 
-; Never remove the user's separate data directory during upgrades or uninstall.
+[UninstallRun]
+Filename: "{app}\CanvasBridgeDemo.exe"; Parameters: "--uninstall-data"; RunOnceId: "ReviewLocalData"; Check: OfferLocalDataRemoval
+
+; Silent uninstall and updates preserve data. The native dialog defaults to keeping it.
+
+[Code]
+function OfferLocalDataRemoval: Boolean;
+begin
+  Result := not UninstallSilent;
+end;

@@ -1,0 +1,84 @@
+{
+  "schema_version": "process-evaluation-1",
+  "component_version": "academic-processes-1",
+  "source_digest": "f50cf7f6d2c73ebfa8e4f65356acb0cbb9df150ace53d202ca731fb1c8660f40",
+  "source_unchanged": true,
+  "passed": true,
+  "blocking_reasons": [],
+  "test_cases": 47,
+  "passing_cases": 47,
+  "specifications": {
+    "CB-01": {
+      "cases": 4,
+      "passed": 4
+    },
+    "CB-02": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-03": {
+      "cases": 3,
+      "passed": 3
+    },
+    "CB-04": {
+      "cases": 4,
+      "passed": 4
+    },
+    "CB-05": {
+      "cases": 2,
+      "passed": 2
+    },
+    "CB-06": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-07": {
+      "cases": 2,
+      "passed": 2
+    },
+    "CB-08": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-09": {
+      "cases": 2,
+      "passed": 2
+    },
+    "CB-10": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-11": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-12": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-13": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-14": {
+      "cases": 3,
+      "passed": 3
+    },
+    "CB-15": {
+      "cases": 2,
+      "passed": 2
+    },
+    "CB-16": {
+      "cases": 1,
+      "passed": 1
+    },
+    "CB-17": {
+      "cases": 1,
+      "passed": 1
+    }
+  },
+  "critical_regressions_allowed": 0,
+  "extraction_precision_recall": "not_measured_here; use the existing academic benchmark lab",
+  "model_interpretation_accuracy": "not_measured",
+  "deployment_acceptance": "not_established"
+}

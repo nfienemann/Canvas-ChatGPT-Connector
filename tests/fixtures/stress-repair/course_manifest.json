@@ -1,0 +1,134 @@
+[
+  {
+    "course_id": "CB_TEST_C01",
+    "title": "Quantitative Bioengineering",
+    "focus": "Points-based grades; ungraded work is unknown, not zero.",
+    "directory": "fixtures/sources/C01_Quantitative_Bioengineering",
+    "files": [
+      "fixtures/sources/C01_Quantitative_Bioengineering/syllabus.md",
+      "fixtures/sources/C01_Quantitative_Bioengineering/materials.md",
+      "fixtures/sources/C01_Quantitative_Bioengineering/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C02",
+    "title": "Measurement Systems",
+    "focus": "Weighted categories; unknown and empty category handling.",
+    "directory": "fixtures/sources/C02_Measurement_Systems",
+    "files": [
+      "fixtures/sources/C02_Measurement_Systems/syllabus.md",
+      "fixtures/sources/C02_Measurement_Systems/materials.md",
+      "fixtures/sources/C02_Measurement_Systems/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C03",
+    "title": "Experimental Design",
+    "focus": "Dropped work, bonus points, and unsupported rules.",
+    "directory": "fixtures/sources/C03_Experimental_Design",
+    "files": [
+      "fixtures/sources/C03_Experimental_Design/syllabus.md",
+      "fixtures/sources/C03_Experimental_Design/materials.md",
+      "fixtures/sources/C03_Experimental_Design/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C04",
+    "title": "Research Communication",
+    "focus": "Conflicting dates, supersession, and individualized scope.",
+    "directory": "fixtures/sources/C04_Research_Communication",
+    "files": [
+      "fixtures/sources/C04_Research_Communication/syllabus.md",
+      "fixtures/sources/C04_Research_Communication/materials.md",
+      "fixtures/sources/C04_Research_Communication/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C05",
+    "title": "Ethics of Engineering",
+    "focus": "Explicit assessed-work prohibition, not an administrative blackout.",
+    "directory": "fixtures/sources/C05_Ethics_of_Engineering",
+    "files": [
+      "fixtures/sources/C05_Ethics_of_Engineering/syllabus.md",
+      "fixtures/sources/C05_Ethics_of_Engineering/materials.md",
+      "fixtures/sources/C05_Ethics_of_Engineering/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C06",
+    "title": "Design Ideation",
+    "focus": "Limited brainstorming permission, no drafting permission.",
+    "directory": "fixtures/sources/C06_Design_Ideation",
+    "files": [
+      "fixtures/sources/C06_Design_Ideation/syllabus.md",
+      "fixtures/sources/C06_Design_Ideation/materials.md",
+      "fixtures/sources/C06_Design_Ideation/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C07",
+    "title": "Biological Transport",
+    "focus": "Exam-only restrictions and grammar-only report permission.",
+    "directory": "fixtures/sources/C07_Biological_Transport",
+    "files": [
+      "fixtures/sources/C07_Biological_Transport/syllabus.md",
+      "fixtures/sources/C07_Biological_Transport/materials.md",
+      "fixtures/sources/C07_Biological_Transport/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C08",
+    "title": "Policy Interpretation",
+    "focus": "Quotation, negation, affirmative permission, and authority.",
+    "directory": "fixtures/sources/C08_Policy_Interpretation",
+    "files": [
+      "fixtures/sources/C08_Policy_Interpretation/syllabus.md",
+      "fixtures/sources/C08_Policy_Interpretation/materials.md",
+      "fixtures/sources/C08_Policy_Interpretation/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C09",
+    "title": "Scientific Reading",
+    "focus": "Incomplete evidence, figure claims, and untrusted instructions.",
+    "directory": "fixtures/sources/C09_Scientific_Reading",
+    "files": [
+      "fixtures/sources/C09_Scientific_Reading/syllabus.md",
+      "fixtures/sources/C09_Scientific_Reading/materials.md",
+      "fixtures/sources/C09_Scientific_Reading/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C10",
+    "title": "Systems Planning",
+    "focus": "Capacity bounds, uncertain effort, deadlines, and rest.",
+    "directory": "fixtures/sources/C10_Systems_Planning",
+    "files": [
+      "fixtures/sources/C10_Systems_Planning/syllabus.md",
+      "fixtures/sources/C10_Systems_Planning/materials.md",
+      "fixtures/sources/C10_Systems_Planning/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C11",
+    "title": "Learning and Degree Pathways",
+    "focus": "Exposure is not mastery; cross-course homonyms; unofficial degree advice.",
+    "directory": "fixtures/sources/C11_Learning_and_Degree_Pathways",
+    "files": [
+      "fixtures/sources/C11_Learning_and_Degree_Pathways/syllabus.md",
+      "fixtures/sources/C11_Learning_and_Degree_Pathways/materials.md",
+      "fixtures/sources/C11_Learning_and_Degree_Pathways/assignment.md"
+    ]
+  },
+  {
+    "course_id": "CB_TEST_C12",
+    "title": "Collaborative Research Portfolio",
+    "focus": "Publication clearance, discussion completion, and lifecycle boundaries.",
+    "directory": "fixtures/sources/C12_Collaborative_Research_Portfolio",
+    "files": [
+      "fixtures/sources/C12_Collaborative_Research_Portfolio/syllabus.md",
+      "fixtures/sources/C12_Collaborative_Research_Portfolio/materials.md",
+      "fixtures/sources/C12_Collaborative_Research_Portfolio/assignment.md"
+    ]
+  }
+]

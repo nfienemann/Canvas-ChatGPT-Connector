@@ -1,0 +1,71 @@
+name: Academic benchmark laboratory
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  push:
+    tags: ['v*', '*-rc*']
+  workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Require a reviewed stable baseline and fail every objective regression
+        type: boolean
+        default: false
+      scientific_interpretation_release:
+        description: Require all scientific interpretations and rubrics to have independent expert review
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  full-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9
+        with:
+          version: '0.13.4'
+      - run: uv sync --locked
+      - name: Verify corpus, independent gold and adversarial evaluator checks
+        run: uv run --locked pytest tests/test_benchmark_lab.py tests/test_evidence_graph.py tests/test_scientific_comprehension.py tests/test_semester_intelligence.py -q
+      - name: Run scientific retrieval and enforce interpretation review when advertised
+        env:
+          SCIENTIFIC_INTERPRETATION_RELEASE: ${{ inputs.scientific_interpretation_release }}
+        shell: bash
+        run: |
+          args=(--output .local/academic-benchmark-full/scientific-v3.json)
+          if [[ -f benchmarks/scientific/reviews/responses.json ]]; then
+            args+=(--responses benchmarks/scientific/reviews/responses.json)
+          fi
+          if [[ -f benchmarks/scientific/reviews/reviews.json ]]; then
+            args+=(--reviews benchmarks/scientific/reviews/reviews.json)
+          fi
+          if [[ "$SCIENTIFIC_INTERPRETATION_RELEASE" == "true" ]]; then
+            args+=(--require-reviewed)
+          fi
+          uv run --locked python -m canvas_bridge.scientific_benchmark "${args[@]}"
+      - name: Run full corpus and report every regression
+        env:
+          RELEASE_CANDIDATE: ${{ startsWith(github.ref, 'refs/tags/') || inputs.release_candidate }}
+        shell: bash
+        run: |
+          args=(--tier full --output .local/academic-benchmark-full)
+          if [[ -f benchmarks/academic/baselines/stable.json ]]; then
+            args+=(--baseline benchmarks/academic/baselines/stable.json)
+          fi
+          if [[ "$RELEASE_CANDIDATE" == "true" ]]; then
+            args+=(--require-baseline)
+          fi
+          uv run --locked python -m canvas_bridge.benchmark_lab run "${args[@]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: academic-benchmark-full
+          path: .local/academic-benchmark-full
+          if-no-files-found: error
+          retention-days: 90

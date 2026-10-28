@@ -7,8 +7,8 @@
       "requirement": "Identity/tenant isolation: principal and school resolved server-side; guessed IDs never expose another record.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/auth.py",
         "src/canvas_bridge/storage.py",
@@ -71,18 +71,18 @@
         "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
-        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -94,8 +94,8 @@
       "requirement": "Canvas linking: approved OAuth path; cancellation, revocation, reconnect, and two-school credential separation behave correctly.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/linking.py",
         "src/canvas_bridge/settings_ui.py",
@@ -140,16 +140,14 @@
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -161,8 +159,8 @@
       "requirement": "Complete scoped inventory: all pages or explicit partial coverage; deduplication, archived/inaccessible and undated work handled.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/canvas.py",
         "src/canvas_bridge/service.py",
@@ -203,16 +201,14 @@
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -224,8 +220,8 @@
       "requirement": "Student-specific dates: effective individual/section/group/overlap cases match student context; opens/due/closes separate.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/normalize.py",
         "src/canvas_bridge/domain.py",
@@ -272,16 +268,14 @@
         "tests/test_planning_dates.py::test_T04_skipped_date_or_nonexistent_midnight_stays_unresolved",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -293,8 +287,8 @@
       "requirement": "Completion states: submitted/ungraded/late/missing/excused/revision/offline/personal progress distinct.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/normalize.py",
         "src/canvas_bridge/planning_dates.py",
@@ -321,16 +315,14 @@
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -342,8 +334,8 @@
       "requirement": "What-first recommendation: useful feasible next action, ranked alternatives, evidence and uncertainty.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/planning.py",
         "src/canvas_bridge/change_tracking.py"
@@ -379,16 +371,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
         "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -400,14 +390,20 @@
       "requirement": "Honest grading: reported values preserved; known rule coverage; no false exact impact when policy is incomplete.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/grades.py",
         "src/canvas_bridge/service.py",
         "src/canvas_bridge/grade_audit.py",
         "src/canvas_bridge/grading_engine.py",
-        "src/canvas_bridge/grading_policy.py"
+        "src/canvas_bridge/grading_policy.py",
+        "src/canvas_bridge/academic/grade_engine.py",
+        "src/canvas_bridge/academic/models.py",
+        "src/canvas_bridge/academic/gateway.py",
+        "src/canvas_bridge/academic/services.py",
+        "src/canvas_bridge/providers/canvas.py",
+        "src/canvas_bridge/providers/canvas_grades.py"
       ],
       "test_refs": [
         "T08",
@@ -445,16 +441,14 @@
         "tests/test_grade_audit.py::test_T08_unpublished_final_cannot_be_assumed_or_simulated",
         "tests/test_grade_audit.py::test_T28_projection_and_required_score_are_reproducible_and_conditional"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -466,8 +460,8 @@
       "requirement": "Effort uncertainty: remaining-work ranges, editable origin, unknowns; no authoritative points-to-hours conversion.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/planning.py",
         "src/canvas_bridge/planning_dates.py",
@@ -504,16 +498,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
         "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -525,8 +517,8 @@
       "requirement": "Evidence/explainability: each academic fact has provenance/time; ranking states why and what could change it.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/domain.py",
         "src/canvas_bridge/planning.py",
@@ -570,16 +562,14 @@
         "tests/test_visual_files.py::test_T11_render_failures_are_explicit",
         "tests/test_visual_files.py::test_T11_whitespace_cache_not_indexed"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -591,8 +581,8 @@
       "requirement": "Least privilege: feature/route/scope inventory; student-only academic reads even with powerful token.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/policy.py",
         "src/canvas_bridge/canvas.py"
@@ -627,16 +617,14 @@
         "tests/test_service_security.py::test_T39_staff_power_does_not_expand_student_access",
         "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -648,8 +636,8 @@
       "requirement": "Credential safety: no leaks; encrypted storage; rotation, refresh locks, revocation/disconnect tested.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/vault.py",
         "src/canvas_bridge/linking.py"
@@ -717,16 +705,14 @@
         "tests/test_service_security.py::test_T23_dns_rebinding_to_private_is_rejected",
         "tests/test_service_security.py::test_T23_private_addresses_blocked"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -738,8 +724,8 @@
       "requirement": "MCP/ChatGPT contract: Inspector plus actual supported conversation; auth, schemas, cancellations, bounded output, version record.",
       "gate": "M0→M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/app.py",
         "src/canvas_bridge/auth.py"
@@ -771,24 +757,22 @@
         "tests/test_personal.py::test_T21_personal_identity_allowlist_still_checks_signature_and_claims",
         "tests/test_personal.py::test_T21_personal_settings_require_an_owner_and_live_prerequisites",
         "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
         "tests/test_service_security.py::test_T13_T21_foreign_connection_and_cursor_denied",
         "tests/test_service_security.py::test_T21_expired_key_cache_fails_closed",
         "tests/test_service_security.py::test_T21_invalid_token_rejected",
         "tests/test_service_security.py::test_T21_valid_identity_uses_subject_not_email",
         "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -800,10 +784,11 @@
       "requirement": "Untrusted content/network: injection cannot authorize actions; SSRF, redirects, unsafe parsers bounded.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/network.py",
+        "src/canvas_bridge/request_limits.py",
         "src/canvas_bridge/file_download.py",
         "src/canvas_bridge/retrieval.py",
         "src/canvas_bridge/course_files.py",
@@ -866,18 +851,18 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
-        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T12_reader_resource_is_static_and_has_no_external_origins"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -889,8 +874,8 @@
       "requirement": "Reliable reads/freshness: outages and incomplete pages become partial/stale states, never “nothing due.”",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/canvas.py",
         "src/canvas_bridge/service.py"
@@ -922,16 +907,14 @@
         "tests/test_service_security.py::test_T01_middle_page_failure_preserves_partial_coverage",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -943,8 +926,8 @@
       "requirement": "Privacy/suitability: reviewed flow, consent, retention, disconnect, export, deletion before live records.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/lifecycle.py",
         "src/canvas_bridge/linking.py"
@@ -992,16 +975,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1013,8 +994,8 @@
       "requirement": "Accessibility/usability: owned UI targets WCAG 2.2 AA, keyboard/screen-reader path, zone clarity, text fallback.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/settings_ui.py"
       ],
@@ -1038,16 +1019,14 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1059,8 +1038,8 @@
       "requirement": "Foundational quality: critical identity/date/permission fixtures pass; evaluation set never invents deadline/action success.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/app.py"
       ],
@@ -1117,18 +1096,18 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_settings_oauth.py::test_T12_oauth_discovery_preserves_exact_resource_and_issuer",
         "tests/test_visual_files.py::test_T11_T12_isolated_pdf_images",
-        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content"
+        "tests/test_visual_files.py::test_T12_T21_native_mcp_image_content",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T12_reader_resource_is_static_and_has_no_external_origins"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1140,8 +1119,8 @@
       "requirement": "Production baseline: health, redaction, budgets, secrets, restore, rollback, incident owner.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/jobs.py",
         "src/canvas_bridge/lifecycle.py"
@@ -1176,8 +1155,8 @@
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
         "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_retrieval_lifecycle.py::test_T34_encrypted_restore_applies_newer_deletion_fences",
         "tests/test_retrieval_lifecycle.py::test_T34_missing_or_tampered_journal_prevents_restore",
@@ -1186,16 +1165,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1207,8 +1184,8 @@
       "requirement": "Study/replanning: respect time, commitments, dependencies, breaks, capacity; retain student choices.",
       "gate": "M2",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/planning.py",
         "src/canvas_bridge/calendar_sync.py"
@@ -1246,16 +1223,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T20_dependency_cycles_and_unknown_references_do_not_claim_feasibility",
         "tests/test_scope_planning_lifecycle.py::test_T20_pinned_conflict_requires_correction_not_silent_move"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1267,8 +1242,8 @@
       "requirement": "Syllabus/files: declared format coverage; page/section citations; honest scan/table/equation/image limits.",
       "gate": "M2",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/retrieval.py",
         "src/canvas_bridge/file_download.py",
@@ -1276,9 +1251,15 @@
         "src/canvas_bridge/document_search.py",
         "src/canvas_bridge/parser_sandbox.py",
         "src/canvas_bridge/parser_worker.py",
+        "src/canvas_bridge/privacy_text.py",
+        "src/canvas_bridge/privacy/upstream.py",
+        "src/canvas_bridge/privacy/output.py",
+        "src/canvas_bridge/privacy/transport.py",
+        "src/canvas_bridge/privacy/identity.py",
         "src/canvas_bridge/visual_files.py",
         "src/canvas_bridge/visual_worker.py",
         "src/canvas_bridge/visual_schedule.py",
+        "src/canvas_bridge/visual_ui.py",
         "src/canvas_bridge/ocr_runtime.py",
         "src/canvas_bridge/ocr_worker.py",
         "src/canvas_bridge/windows_sandbox.py",
@@ -1338,16 +1319,14 @@
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
         "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1359,8 +1338,8 @@
       "requirement": "Course breadth: modules/pages/announcements/discussions/rubrics/quiz metadata to verified student-access level; external limits visible.",
       "gate": "M2",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/retrieval.py",
         "src/canvas_bridge/course_files.py",
@@ -1396,16 +1375,14 @@
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items",
         "tests/test_service_security.py::test_T07_personal_effort_is_applied_without_canvas_completion"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1417,8 +1394,8 @@
       "requirement": "Calendar preview: destination, zone, exact operations/conflicts; deadlines separate from study blocks; no invented dates.",
       "gate": "M3",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T05",
@@ -1440,16 +1417,14 @@
         "tests/test_obligations.py::test_T46_missing_posting_time_has_specific_coverage_reason",
         "tests/test_service_security.py::test_T03_T06_T46_workload_has_undated_and_submitted_items"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1461,8 +1436,8 @@
       "requirement": "Calendar commit/recovery: actual receipts, idempotent retries, recoverable partial/uncertain states, owned-event boundaries.",
       "gate": "M3",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "NOT_IMPLEMENTED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T16",
@@ -1474,11 +1449,11 @@
       "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1490,8 +1465,8 @@
       "requirement": "Ongoing sync: source/access changes and completion reconciled durably; independent of open chat/laptop.",
       "gate": "M3",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T09",
@@ -1541,16 +1516,14 @@
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs",
         "tests/test_service_security.py::test_T27_first_observed_is_not_invented_history"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1562,8 +1535,8 @@
       "requirement": "Notifications: opt-in, verified channel, quiet hours, deduplication, caps, pause/stop.",
       "gate": "M3",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T18",
@@ -1597,16 +1570,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1618,8 +1589,8 @@
       "requirement": "Public onboarding/support: supported-school beginner succeeds; unsupported school gets truthful admin/support path.",
       "gate": "M4",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/settings_ui.py"
       ],
@@ -1646,16 +1617,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1667,8 +1636,8 @@
       "requirement": "International/multi-school: zones, DST, Unicode, simultaneous school accounts; published support boundaries.",
       "gate": "M4",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/domain.py",
         "src/canvas_bridge/policy.py"
@@ -1741,18 +1710,18 @@
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
         "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
-        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
+        "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1764,8 +1733,8 @@
       "requirement": "Capacity/deployment: measured latency, availability, lag/cost; quotas, worker recovery, migrations, rollback.",
       "gate": "M4",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/jobs.py"
       ],
@@ -1792,21 +1761,19 @@
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
         "tests/test_obligations.py::test_T15_partial_denied_and_timeout_are_not_empty_success",
         "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
         "tests/test_retrieval_lifecycle.py::test_T15_job_is_durable_and_deduplicated",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1818,8 +1785,8 @@
       "requirement": "Documentation: student/admin/operator/contributor guides, scopes, privacy, recovery, limitations; clean-guide test.",
       "gate": "M4",
       "delivery_state": "implemented",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T35",
@@ -1831,19 +1798,17 @@
         "tests/test_desktop.py::test_T35_desktop_port_collision_lock_and_restart_preserve_data",
         "tests/test_document_search.py::test_T11_T35_document_budget_and_inventory_continuation",
         "tests/test_obligations.py::test_T01_T35_large_inventory_bounded_and_duplicate_changes_visible",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback"
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1855,8 +1820,8 @@
       "requirement": "Open-source release: approved license, notices, fixtures, contribution/security policies, releases, reproducible builds; no private data.",
       "gate": "M4",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T35",
@@ -1873,22 +1838,20 @@
         "tests/test_personal.py::test_T13_T38_personal_import_rejects_mismatch_and_unapproved_origin",
         "tests/test_personal.py::test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling",
         "tests/test_personal.py::test_T38_personal_import_disabled_in_other_profiles",
-        "tests/test_postgres.py::test_T35_file_kind_migration_preserves_pages_and_rollback_drops_only_files",
-        "tests/test_postgres.py::test_T35_postgresql_migration_read_roundtrip_and_rollback",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency",
         "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1900,8 +1863,8 @@
       "requirement": "ChatGPT distribution: eligibility resolved, actual plan/workspace path tested, review/listing approved where required.",
       "gate": "M0 feasibility→M4 approval",
       "delivery_state": "blocked",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T30",
@@ -1917,16 +1880,14 @@
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1938,19 +1899,19 @@
       "requirement": "Advanced study: source-backed practice/spaced repetition/calibration with user controls and usefulness evidence.",
       "gate": "M5",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "NOT_IMPLEMENTED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [],
       "automated_test_functions": [],
       "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -1962,8 +1923,8 @@
       "requirement": "Additional roles/providers: distinct authorization models and tested compatibility, not inferred from API existence.",
       "gate": "M5",
       "delivery_state": "deferred",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T13",
@@ -2019,18 +1980,18 @@
         "tests/test_visual_files.py::test_T13_denied_download_does_not_retry_forever",
         "tests/test_visual_files.py::test_T13_expired_download_link_is_refreshed_once",
         "tests/test_visual_files.py::test_T13_reject_invalid_ocr_worker_evidence",
-        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt"
+        "tests/test_visual_files.py::test_T13_render_authorization_hash_and_receipt",
+        "tests/test_visual_ui.py::test_T12_T13_page_reader_image_context_requires_fresh_access",
+        "tests/test_visual_ui.py::test_T13_outbound_library_logs_do_not_expose_signed_urls"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2042,8 +2003,8 @@
       "requirement": "ChatGPT-native identity: all core academic journeys completed in normal conversations; no custom chatbot replacement.",
       "gate": "M1 onward",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/app.py"
       ],
@@ -2058,16 +2019,14 @@
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool",
         "tests/test_planning_dates.py::test_T04_T20_T36_http_mcp_date_only_plan_keeps_source_and_unknowns"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2079,8 +2038,8 @@
       "requirement": "No duplicate AI or student AI billing: baseline works without model API keys, inference subscriptions, or model-hosting layer.",
       "gate": "M1 onward",
       "delivery_state": "implemented",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/app.py"
       ],
@@ -2092,16 +2051,14 @@
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2113,8 +2070,8 @@
       "requirement": "No external academic dashboard: external UI limited to allowed administrative/authorization needs; text path works.",
       "gate": "M1 onward",
       "delivery_state": "implemented",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/settings_ui.py"
       ],
@@ -2134,16 +2091,14 @@
         "tests/test_settings_oauth.py::test_T12_T19_default_callback_requires_issuer_and_rejects_legacy_state",
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2155,8 +2110,8 @@
       "requirement": "Native interoperability: actual Canvas-plus-Calendar composition tested; no credential reuse; absent Calendar handled honestly.",
       "gate": "M1 supported path",
       "delivery_state": "blocked",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T30"
@@ -2165,16 +2120,14 @@
         "tests/test_activity_planning.py::test_T20_T30_T36_readonly_mcp_activity_plan",
         "tests/test_obligations.py::test_T30_read_only_mcp_obligation_tool"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2186,8 +2139,8 @@
       "requirement": "Low-friction supported pilot onboarding: no token paste for other students; no mandatory paid account; minimum identity ceremony.",
       "gate": "M1",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/linking.py",
         "src/canvas_bridge/settings_ui.py"
@@ -2213,16 +2166,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T14_T18_denial_during_refresh_removes_cached_course",
         "tests/test_service_security.py::test_T14_T15_partial_refresh_never_advances_success"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2234,8 +2185,8 @@
       "requirement": "Early access/distribution risk gate: G0–G5 recorded; no universal support/listing claim while eligibility or institution access is unknown.",
       "gate": "M0 onward",
       "delivery_state": "implemented",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T38"
@@ -2247,16 +2198,14 @@
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T38_unsupported_institutions_cannot_be_contacted"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2268,19 +2217,19 @@
       "requirement": "Evidence ledger: implemented/verified/planned/blocked distinguished with references, version, environment, and limitations.",
       "gate": "M0 onward",
       "delivery_state": "implemented",
-      "verification_state": "REPORTED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "NOT_IMPLEMENTED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [],
       "automated_test_functions": [],
       "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2292,8 +2241,8 @@
       "requirement": "Funding/product boundary: no freemium academic tiers, data monetization, sponsored rankings, or student upsell dependency.",
       "gate": "All releases",
       "delivery_state": "implemented",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [],
       "test_refs": [
         "T37"
@@ -2303,16 +2252,14 @@
         "tests/test_release_boundaries.py::test_T37_T38_synthetic_cannot_bind_public_or_become_live_silently",
         "tests/test_release_boundaries.py::test_T37_no_model_api_or_student_billing_dependency"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2324,8 +2271,8 @@
       "requirement": "Search/fetch/citations: exact supported compatibility interface and rendered citations verified when advertised.",
       "gate": "M2 targeted surfaces",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/retrieval.py"
       ],
@@ -2359,16 +2306,14 @@
         "tests/test_visual_files.py::test_T19_T25_visual_schedule_calendar_dedup_updates_and_uncertainty",
         "tests/test_visual_files.py::test_T25_parser_upgrade_invalidates_empty_cache"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],
@@ -2380,8 +2325,8 @@
       "requirement": "Lifecycle honesty: local disconnect, remote revoke, pending operations, deletion and independent copies handled distinctly.",
       "gate": "M1; extend M3",
       "delivery_state": "partial",
-      "verification_state": "VERIFIED",
-      "verification_scope": "Only named synthetic fixture behavior and documented local inspection; NOT full requirement acceptance, real institutions or ChatGPT.",
+      "verification_state": "IMPLEMENTED_UNVERIFIED",
+      "verification_scope": "Source inventory only. Named test functions are not execution evidence; use current compliance-report receipts. No real institution or ChatGPT acceptance is inferred.",
       "implementation_refs": [
         "src/canvas_bridge/lifecycle.py"
       ],
@@ -2426,16 +2371,14 @@
         "tests/test_scope_planning_lifecycle.py::test_T18_T34_course_deselection_purges_derived_data_and_fences_old_backup",
         "tests/test_service_security.py::test_T18_T43_disconnect_fences_cache_and_queued_jobs"
       ],
-      "test_results": [
-        "evidence/sanitized-results/verification.md"
-      ],
+      "test_results": [],
       "commit_sha": null,
       "source_manifest": "evidence/sanitized-results/source-manifest.json",
-      "environment": "Windows Python 3.14.5; SQLite fixtures; PostgreSQL 17.11; official HTTP MCP client",
+      "environment": "Not established by this source-only index; use compliance-report execution receipts.",
       "institution": "synthetic only",
       "student_role": "synthetic student",
       "chatgpt_surface_and_plan": null,
-      "observed_at": "2026-10-20",
+      "observed_at": null,
       "limitations": [
         "See evidence/release-gates.md and docs/tool-contracts.md."
       ],

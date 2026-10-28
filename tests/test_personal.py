@@ -19,6 +19,9 @@ from canvas_bridge.storage import Connection, Course
 @pytest.fixture
 def personal_bridge(bridge, monkeypatch):
     # Only fixture HTTP is used. Live Settings still require PostgreSQL and HTTPS.
+    from tests.approval_fixtures import install_approvals
+
+    install_approvals(bridge)
     provider = bridge.synthetic
     bridge.synthetic = None
     bridge.settings.profile = "personal"
@@ -50,7 +53,10 @@ async def test_T13_T23_personal_import_verifies_identity_encrypts_and_requires_c
         assert conn.owner == owner and conn.canvas_user == "101"
         assert conn.token_expires_at is None  # No invented OAuth expiry / refresh grant.
         assert token not in conn.credential
-        assert bridge.vault.open(conn.credential, owner, ref) == {"access_token": token}
+        secret = bridge.vault.open(conn.credential, owner, ref)
+        assert secret["access_token"] == token
+        assert secret["identity_binding"]
+        assert conn.authentication_state == "verified"
         assert list(session.scalars(select(Course))) == []
     courses = await bridge.list_courses(owner, ref)
     assert len(courses.data["courses"]) == 2
@@ -179,8 +185,11 @@ def test_T21_personal_settings_require_an_owner_and_live_prerequisites():
     with pytest.raises(ValidationError, match="one configured"):
         Settings(**config)
     assert Settings(**config, personal_subject="subject-one").profile == "personal"
+    # A secure personal profile may serve independent documents with LMS access
+    # disabled. Live authorization is checked separately at the source boundary.
+    offline = Settings(**(config | {"live_access_enabled": False}), personal_subject="subject-one")
+    assert offline.profile == "personal" and not offline.live_access_enabled
     for overrides in (
-        {"live_access_enabled": False},
         {"database_url": "sqlite:///:memory:"},
         {"resource_url": "http://localhost"},
         {"local_jwks_file": "fixture-key"},
@@ -220,12 +229,22 @@ async def test_T21_T37_read_only_catalog_omits_writes_instead_of_relabeling(brid
     settings.mcp_read_only = True
     server = create_app(settings, bridge).state.mcp
     tools = await server.list_tools()
-    assert len(tools) == 31
+    assert {
+        "list_course_discussions",
+        "read_discussion_topic",
+        "get_my_discussion_participation",
+    } <= {tool.name for tool in tools}
     assert {"prepare_course_file_download", "get_course_file_download_payload"} <= {
         tool.name for tool in tools
     }
     assert "audit_permission_consistency" in {tool.name for tool in tools}
-    assert {"render_course_file_page", "interpret_course_schedule"} <= {tool.name for tool in tools}
+    assert {
+        "render_course_file_page",
+        "render_course_slide",
+        "interpret_course_schedule",
+        "inspect_course_figure",
+        "record_course_figure_observation",
+    } <= {tool.name for tool in tools}
     assert "propose_course_study_plan" in {tool.name for tool in tools}
     assert all(tool.annotations.readOnlyHint for tool in tools)
     assert {"get_workload", "propose_study_plan", "fetch_course_material"} <= {

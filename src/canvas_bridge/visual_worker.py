@@ -2,46 +2,38 @@
 
 import base64
 import hashlib
+import io
 import json
 import math
-import struct
 import sys
-import zlib
 from contextlib import closing
 from pathlib import Path
 
-RENDERER = "canvas-bridge-pdf-image-v1"
+RENDERER = "canvas-bridge-pdf-image-v2-lossless-filters"
 MAX_PNG = 1_300_000
 
 
 def png_rgb(bitmap):
-    """Encode bounded RGB scanlines; PDF parsing/rendering belongs to PDFium."""
+    """Lossless RGB row filtering; no resizing, quantization or color changes."""
+    from PIL import Image
 
-    def chunk(kind, data):
-        return (
-            struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
-        )
-
-    raw = bytes(bitmap.buffer)
-    rows = b"".join(
-        b"\0" + raw[y * bitmap.stride : y * bitmap.stride + bitmap.width * 3]
-        for y in range(bitmap.height)
-    )
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", bitmap.width, bitmap.height, 8, 2, 0, 0, 0))
-        + chunk(b"IDAT", zlib.compress(rows, 6))
-        + chunk(b"IEND", b"")
-    )
+    output = io.BytesIO()
+    with Image.frombytes(
+        "RGB", (bitmap.width, bitmap.height), bytes(bitmap.buffer), "raw", "RGB", bitmap.stride
+    ) as picture:
+        picture.save(output, format="PNG", compress_level=6)
+    return output.getvalue()
 
 
-def render(data, page=1, rotation=0, ocr=False):
+def render(data, page=1, rotation=0, ocr=False, max_edge=2400):
     import pypdfium2 as pdfium
 
     if len(data) > 10_000_000 or not data.startswith(b"%PDF-"):
         raise ValueError("file_size_or_signature")
     if type(page) is not int or not 1 <= page <= 200 or rotation not in {0, 90, 180, 270}:
         raise ValueError("invalid_page_or_rotation")
+    if max_edge not in {1600, 2400}:
+        raise ValueError("page_dimensions")
     # No forms, JavaScript, document actions, attachments or external content APIs.
     with pdfium.PdfDocument(data) as document:
         count = len(document)
@@ -56,7 +48,7 @@ def render(data, page=1, rotation=0, ocr=False):
             # Keep the full color table geometry. No destructive thresholding/OCR.
             with closing(
                 pdf_page.render(
-                    scale=min(2400 / max(width, height), 4),
+                    scale=min(max_edge / max(width, height), 4),
                     rotation=rotation,
                     may_draw_forms=False,
                     draw_annots=False,
@@ -100,7 +92,11 @@ def main():
         result = {
             "ok": True,
             "rendering": render(
-                data, request["page"], request["rotation"], request.get("ocr", False)
+                data,
+                request["page"],
+                request["rotation"],
+                request.get("ocr", False),
+                request.get("max_edge", 2400),
             ),
         }
     except Exception as exc:

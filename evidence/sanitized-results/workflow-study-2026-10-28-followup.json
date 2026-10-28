@@ -1,0 +1,459 @@
+{
+  "schema_version": "test-run-1",
+  "source": {
+    "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+    "dirty": true,
+    "digest": "0a8fcb58ab55a0db43822251dce7a7a6a5f9e2561ee6bf2c1992b870e9c4311a",
+    "files": 435,
+    "scope": "reviewed-source-v1"
+  },
+  "finished_on": "2026-10-28",
+  "source_unchanged": true,
+  "exit_code": 0,
+  "interrupted": false,
+  "complete_selection": true,
+  "cases": {
+    "tests/test_approval_policy_contract.py::test_all_mcp_surfaces_classified_and_no_approval_mutation": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_approval_revoked_after_tool_runs_suppresses_response": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_cached_live_tools_and_alternate_readers_deny_without_network": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_http_download_recipient_and_revocation_are_enforced": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_approval_policy_contract.py::test_signed_token_does_not_identify_an_approved_recipient": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_egress_contract.py::test_cached_original_http_cannot_bypass_later_content_denial": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_egress_is_reevaluated_before_each_download_chunk": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_live_document_needs_review_and_rechecks_content_after_local_read": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_live_mock_minimized_records_require_exact_verified_environment": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_live_original_inline_allowed_but_bearer_links_disabled": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_malformed_protocol_error_cannot_echo_private_input": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_egress_contract.py::test_restricted_source_cannot_escape_alternate_mcp_paths": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 4
+    },
+    "tests/test_egress_contract.py::test_sdk_validation_errors_and_catalog_cross_gateway": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_acknowledgment_is_not_permission_and_cannot_override": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_authority_scope_conflict_and_illustration": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_conditional_permission_never_grants_itself_or_allows_acknowledgment": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 12
+    },
+    "tests/test_integrity_engine.py::test_euphemisms_cannot_lower_output_category": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_explicit_adoption_distinguishes_a_sample_from_course_policy": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_injection_does_not_erase_a_prohibition_or_grant_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_interpretation_budget_cannot_silently_omit_restrictions": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_integrity_engine.py::test_mandatory_policy_scenarios": {
+      "passed": 24,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 24
+    },
+    "tests/test_integrity_engine.py::test_narrow_permissions_do_not_authorize_other_activities": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_reviewed_later_amendment_requires_exact_authority_and_version": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unknown_extraction_and_versions_never_become_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unresolved_exception_is_not_acknowledgeable_permission": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_integrity_engine.py::test_unverified_permission_never_forges_instructor_authority": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_all_study_modes_are_evidence_bounded": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 6
+    },
+    "tests/test_study_engine.py::test_concepts_keep_disciplinary_context_and_exact_passages": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_document_instructions_cannot_select_tools_or_change_permissions": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_figure_practice_has_source_receipt_and_requires_review": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_graded_states_and_open_ended_ambiguity": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_known_integrity_denial_blocks_feedback_before_recording": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_mcp_feedback_and_opted_in_recording": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_new_review_session_allows_new_reported_unassisted_attempt": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_no_semantic_edge_from_similar_words_or_unsupported_question": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_practice_inherits_current_source_and_identity_permissions": {
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 5
+    },
+    "tests/test_study_engine.py::test_restricted_source_cannot_be_reused_and_prompt_cannot_change_privileges": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_review_opt_in_availability_and_elapsed_time": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_review_respects_elapsed_minutes_across_daylight_saving": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_study_mcp_fields_and_write_scope": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_undiscovered_course_prohibition_cannot_be_bypassed_by_study_or_workflow": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_unrecorded_responses_do_not_persist": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_study_engine.py::test_voluntary_responses_history_replay_and_deletion_boundary": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_calendar_proposals_repeat_without_creating_events": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_concurrent_requests_keep_isolated_budgets": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_corrupt_document_retains_independent_course_scope": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_every_workflow_has_real_bounded_execution": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 7
+    },
+    "tests/test_workflows.py::test_exam_outline_respects_calendar_busy_times": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_expired_authorization_and_mid_workflow_revocation_withhold": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_failed_retrieval_blocks_dependents_without_invention": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 2
+    },
+    "tests/test_workflows.py::test_grade_evidence_is_shared_with_scenario": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_lecture_reading_never_claims_unseen_pixels": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_lecture_resumes_with_attributed_visual_report": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_limits_and_untrusted_graph_inputs": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_one_workload_read_and_missing_calendar_preserves_priorities": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_optional_capability_denial_does_not_call_it": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_output_budget_marks_whole_omitted_sections": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_partial_workload_has_partial_priorities": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_timeout_preserves_independent_calendar": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_transport_budget_is_actually_enforced": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_unavailable_course_and_absent_baseline_are_explicit": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_workflow_real_mcp_contract": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    },
+    "tests/test_workflows.py::test_wrong_source_reference_is_detected": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "error": 0,
+      "collected": 1
+    }
+  },
+  "runtime": "windows"
+}

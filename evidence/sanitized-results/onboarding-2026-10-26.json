@@ -1,0 +1,289 @@
+{
+  "schema": "onboarding-acceptance-1",
+  "generated_at": "2026-10-26T11:49:32.225789+00:00",
+  "edition_version": "0.2.0",
+  "status": "local_development_preview_external_release_gates_open",
+  "data": "fictional_only_no_live_institution_requests",
+  "source": {
+    "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+    "dirty": true,
+    "digest": "9281527910f5a26ffa5ae04a01aa9002dabf7cb6176ba535949d4bf262c9d713",
+    "files": 361,
+    "scope": "reviewed-source-v1"
+  },
+  "source_files_sha256": {
+    "src/canvas_bridge/onboarding.py": "93242d96b880114a2a13b6aef95f06110470363ea0e47391a9135a08d2c8fb77",
+    "src/canvas_bridge/desktop.py": "ffafdaea24cf70b87723ca6b23dc8e932af8016ea760284640134770c0dda34a",
+    "src/canvas_bridge/desktop_profiles.py": "77bffb7eeaf76f32bbb7ae400069a5805a69856904b2be0493e815f89320b7d7",
+    "src/canvas_bridge/desktop_updates.py": "2201ffec9220a92cf7d387786999a15e91ab26003fd90fe1e5320f71db8356b4",
+    "src/canvas_bridge/desktop_wizard.py": "3e8322e24fd78bd9098083675ceba278fb4b947d85258483f01411dbb6ad3b18",
+    "src/canvas_bridge/cli.py": "7f3620101e3cc9494c34cfd33fda5a5840ee6527518d5c55b5691db896b14d14",
+    "src/canvas_bridge/assets/onboarding-trust.json": "c5ce7cca7d36ac47791fe722f668ffd425707f92f3401e2d501b7b4ff067515f",
+    "packaging/windows.iss": "a042479aa29061c6c3846eca55900d969b6dc6d5597c1db2eaad050b35e07a6f",
+    "scripts/build_desktop.py": "bcd0f38693d45650e3a79e29e3eecec3512d7401d6d4c2512e1692af0f899e14",
+    "scripts/package_desktop_update.py": "203a11be3c5ce6dac7e8c3be82e7e16847b45dbc5cf2956f3ca5051390592e8f",
+    "scripts/smoke_desktop.py": "5dba3ab652cfa26a348a09c8bb7df072904f2d26ef395f6fe41feb8071f55e11",
+    "scripts/publish_desktop.py": "a8d4b54ba7fbb66494f8d5598f5e0096155a76f9765808f4fb60619ad03d4d15",
+    "tests/test_onboarding.py": "4fdbc1d2525ccc491cb39ce50a351eb21d54f783feb12b11796f662248a4a265",
+    "tests/test_desktop.py": "ce4078b88852171abe723b824e7e90e6b49e98f59e9925f13381158c4634a8ce",
+    "uv.lock": "001039245f7a11e456b17d548cdbdcffb112e81d6012e968bcc1b0cbcf081601"
+  },
+  "artifact": {
+    "name": "CanvasBridgeDemo-Windows-x64-Setup.exe",
+    "bytes": 43002320,
+    "sha256": "4179c1fd1a588d05104f15b69ad7d0f2c5edea836c8ac3e9ce733dc02e9c3fb4",
+    "authenticode_status": "NotSigned",
+    "signature_check": "Windows Get-AuthenticodeSignature",
+    "publisher_verified": false,
+    "publicly_published": false
+  },
+  "installed_package_receipt": {
+    "platform": "win32",
+    "signing": "unsigned_development_preview",
+    "installer_sha256": "4179c1fd1a588d05104f15b69ad7d0f2c5edea836c8ac3e9ce733dc02e9c3fb4",
+    "installer": "passed",
+    "bundle_manifest_sha256": "7681fb0a60db5942c60b9299e9a198879f258c952645c92f675b7d72973d16cb",
+    "mcp": {
+      "environment": "local_synthetic",
+      "protocol": "2025-11-25",
+      "tool_count": 50,
+      "observed_obligations": 5,
+      "workload_status": "ok",
+      "planning": "verified",
+      "actual_chatgpt": "not_tested",
+      "live_canvas": "not_tested",
+      "bundled": true,
+      "platform": "win32"
+    },
+    "in_place_upgrade": "passed",
+    "wizard": {
+      "native_wizard": "passed",
+      "platform": "win32",
+      "edition": "synthetic",
+      "widget_bounds": [
+        "welcome",
+        "institutional_unconnected",
+        "setup",
+        "ready"
+      ],
+      "checks": {
+        "bundle": {
+          "state": "integrity_verified",
+          "publisher": "separate_signature_required",
+          "files_verified": 2056
+        },
+        "check": {
+          "environment": "local_synthetic",
+          "protocol": "2025-11-25",
+          "tool_count": 50,
+          "observed_obligations": 5,
+          "workload_status": "ok",
+          "planning": "verified",
+          "actual_chatgpt": "not_tested",
+          "live_canvas": "not_tested"
+        },
+        "diagnostics": {
+          "server": "running",
+          "authentication": "verified_by_authenticated_protocol_check",
+          "institution_authorization": "not_enabled",
+          "upstream_connectivity": "fictional_provider_only",
+          "client": "MCP_test_client_verified",
+          "tool_negotiation": "2025-11-25",
+          "chatgpt": "not_tested_no_connection_claimed",
+          "clock": "not_independently_synchronized; enable automatic system date/time if sign-in or update validity fails",
+          "token_expiration": "one_hour_local_session; restart explicitly after expiry",
+          "converter": {
+            "state": "not_installed",
+            "ready": false,
+            "action": "Optional slide conversion is unavailable. Continue with local grade/text tools; obtain optional components only through an approved release."
+          },
+          "file_limits": {
+            "general_bytes": 10000000,
+            "pptx_bytes": 25000000
+          }
+        }
+      }
+    },
+    "offline_wizard": {
+      "native_wizard": "passed",
+      "platform": "win32",
+      "edition": "offline",
+      "widget_bounds": [
+        "welcome",
+        "institutional_unconnected",
+        "setup",
+        "ready"
+      ],
+      "checks": {
+        "bundle": {
+          "state": "integrity_verified",
+          "publisher": "separate_signature_required",
+          "files_verified": 2056
+        },
+        "check": {
+          "environment": "offline_academic",
+          "calculated_percentage": "85",
+          "expected_calculation": "(80 + 90) / (100 + 100) * 100 = 85%",
+          "analysis": "verified",
+          "actual_chatgpt": "not_tested",
+          "network_requests": 0,
+          "stages": {
+            "source_retrieved": "verified_fictional_fixture",
+            "document_converted": "not_requested",
+            "content_extracted": "not_requested",
+            "pixels_rendered": "not_requested",
+            "visual_content_delivered": "not_requested",
+            "analysis_completed": "verified_deterministic_calculation"
+          }
+        },
+        "diagnostics": {
+          "server": "not_required",
+          "authentication": "not_required",
+          "institution_authorization": "not_enabled",
+          "upstream_connectivity": "not_used",
+          "client": "local_engine_verified",
+          "tool_negotiation": "not_required",
+          "chatgpt": "not_tested_no_connection_claimed",
+          "clock": "not_independently_synchronized; enable automatic system date/time if sign-in or update validity fails",
+          "token_expiration": "not_applicable",
+          "converter": {
+            "state": "not_installed",
+            "ready": false,
+            "action": "Optional slide conversion is unavailable. Continue with local grade/text tools; obtain optional components only through an approved release."
+          },
+          "file_limits": {
+            "general_bytes": 10000000,
+            "pptx_bytes": 25000000
+          }
+        }
+      }
+    },
+    "restart_preserves_keys": "passed",
+    "uninstall_preserves_data": "passed"
+  },
+  "tests": {
+    "full_suite": {
+      "passed": 1653,
+      "skipped": 28,
+      "failures": 0,
+      "errors": 0,
+      "duration_seconds": 560.113,
+      "note": "Completed before final narrow onboarding refinements; final focused run covers those changes."
+    },
+    "final_focused": {
+      "passed": 29,
+      "failures": 0,
+      "command": "python -m pytest tests/test_onboarding.py tests/test_desktop.py -q --tb=short"
+    },
+    "registry": {
+      "valid": true,
+      "controls": 23,
+      "authorization_granted": false
+    },
+    "diff_check": "passed"
+  },
+  "checks": {
+    "lint": {
+      "schema_version": "check-run-1",
+      "source": {
+        "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+        "dirty": true,
+        "digest": "9281527910f5a26ffa5ae04a01aa9002dabf7cb6176ba535949d4bf262c9d713",
+        "files": 361,
+        "scope": "reviewed-source-v1"
+      },
+      "finished_on": "2026-10-26",
+      "source_unchanged": true,
+      "check": "lint",
+      "status": "PASSED",
+      "findings": null,
+      "advisories": [],
+      "coverage_notes": []
+    },
+    "format": {
+      "schema_version": "check-run-1",
+      "source": {
+        "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+        "dirty": true,
+        "digest": "9281527910f5a26ffa5ae04a01aa9002dabf7cb6176ba535949d4bf262c9d713",
+        "files": 361,
+        "scope": "reviewed-source-v1"
+      },
+      "finished_on": "2026-10-26",
+      "source_unchanged": true,
+      "check": "format",
+      "status": "PASSED",
+      "findings": null,
+      "advisories": [],
+      "coverage_notes": []
+    },
+    "bandit": {
+      "schema_version": "check-run-1",
+      "source": {
+        "commit": "eaa1d9fbed79dbfaae7492753218005bebd529e5",
+        "dirty": true,
+        "digest": "9281527910f5a26ffa5ae04a01aa9002dabf7cb6176ba535949d4bf262c9d713",
+        "files": 361,
+        "scope": "reviewed-source-v1"
+      },
+      "finished_on": "2026-10-26",
+      "source_unchanged": true,
+      "check": "bandit",
+      "status": "PASSED",
+      "findings": null,
+      "advisories": [],
+      "coverage_notes": []
+    }
+  },
+  "academic_regression": {
+    "report": "onboarding-2026-10-26-academic.json",
+    "run_id": "d65f3d25443bd00919ccbc5f95cc346c544c629702e6b54e04ca423d5139b8d3",
+    "objective_passed": 81,
+    "interpretive_review_required": 2,
+    "gate": {
+      "critical_pass": true,
+      "no_regressions": true,
+      "objective_pass": true,
+      "review_complete": false
+    },
+    "comparison": {
+      "baseline_run_id": "e532f99eb8889603d4dfac1956a0d0aed4dcc3ec97a84a23a811bce3878cb2f9",
+      "confidence_intervals": null,
+      "improvements": [],
+      "latency_comparable": false,
+      "latency_comparison_boundary": "Matching scope alone is insufficient; a shared controlled-environment study reference is also required.",
+      "paired_tasks": 83,
+      "reason": "Descriptive paired regression census; no justified population inference.",
+      "regressions": [],
+      "release_pass": true,
+      "status": "paired"
+    }
+  },
+  "usability": {
+    "human_participants": 0,
+    "completion_rate": null,
+    "human_time_to_first_task_seconds": null,
+    "assistance_steps": null,
+    "incorrect_permission_decisions": null,
+    "privacy_comprehension": null,
+    "protocol": "docs/review-templates/onboarding-usability.md"
+  },
+  "external_gates": {
+    "signing_identity": "not_configured",
+    "signed_installer_update_rollback_rehearsal": "not_performed",
+    "approved_institution_service": "not_configured",
+    "ChatGPT_integration": "not_tested_for_this_installer",
+    "other_AI_clients": "not_tested",
+    "visual_review": "blocked_by_locked_Windows_desktop",
+    "standard_user_clean_machine_trial": "not_performed",
+    "macOS_Linux": "experimental_not_supported_release_targets",
+    "optional_converters": "not_enabled"
+  },
+  "boundaries": [
+    "Automated widget and protocol checks do not establish nontechnical usability or accessibility.",
+    "Checksums and bundle integrity do not authenticate an unsigned publisher.",
+    "The local MCP test client is independent of real ChatGPT acceptance.",
+    "Binary rollback below 0.2.0 is refused; no database restoration is performed.",
+    "No installation, update or restart can supply institution approval."
+  ]
+}

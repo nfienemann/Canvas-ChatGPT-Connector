@@ -34,6 +34,7 @@ from canvas_bridge.authorization import (
 )
 from canvas_bridge.course_files import authorized, checked_row
 from canvas_bridge.domain import DomainError, Result, utcnow
+from canvas_bridge.ephemeral_blob import Writer, chunks, storage_size
 from canvas_bridge.file_download import file_version, stream_original
 
 HEADERS = {
@@ -127,6 +128,8 @@ class Delivery:
     wall_start: float
     mono_start: float
     ttl: int
+    key: bytes | None = field(default=None, repr=False)
+    binding: bytes = field(default=b"", repr=False)
     active: int = 0
     revoked: bool = False
     capability_digest: str | None = field(default=None, repr=False)
@@ -143,6 +146,8 @@ class OriginalFiles:
         self.active = {}
         self.reserved = 0
         self.pending = set()
+        self.preparing = {}
+        self.orphans = {}
         self.last_wall, self.last_mono = time.time(), time.monotonic()
 
     def start(self):
@@ -208,11 +213,13 @@ class OriginalFiles:
                 if OBJECT.fullmatch(path.name) and path not in retained:
                     try:
                         path.unlink(missing_ok=True)
+                        self.orphans.pop(path, None)
                     except OSError:
                         pass  # Retry at next sweep; quota accounts for leftovers.
 
     def revoke(self, item):
         item.revoked = True
+        item.key = None
         if item.capability_digest:
             self.capabilities.pop(item.capability_digest, None)
         if not item.active:
@@ -223,12 +230,45 @@ class OriginalFiles:
             self.records.pop(item.id, None)
 
     def close(self):
+        try:
+            current = asyncio.current_task()
+        except RuntimeError:
+            current = None
+        for _, _, task in self.preparing.values():
+            if task and task is not current:
+                task.cancel()
         for item in list(self.records.values()):
             self.revoke(item)
         if self.lockfile:
             self.lockfile.close()
             self.lockfile = None
         self.root = None
+
+    def invalidate(self, owner, connection=None):
+        for item in list(self.records.values()):
+            if item.owner == owner and (connection is None or item.connection == connection):
+                self.revoke(item)
+        try:
+            current = asyncio.current_task()
+        except RuntimeError:
+            current = None
+        for principal, ref, task in self.preparing.values():
+            if (
+                principal == owner
+                and (connection is None or ref == connection)
+                and task is not current
+            ):
+                task.cancel()
+
+    def pending_cleanup(self, owner, connection=None):
+        def matches(principal, ref):
+            return principal == owner and (connection is None or connection == ref)
+
+        return (
+            sum(matches(d.owner, d.connection) for d in self.records.values())
+            + sum(matches(p, r) for p, r, _ in self.preparing.values())
+            + sum(matches(p, r) for p, r in self.orphans.values())
+        )
 
     @asynccontextmanager
     async def slot(self, owner):
@@ -287,6 +327,10 @@ class OriginalFiles:
                             details={
                                 "limit_bytes": self.settings.file_delivery_max_bytes,
                                 "observed_size": size if type(size) is int else None,
+                                "budget_code": "ORIGINAL_DELIVERY_LIMIT",
+                                "limit": self.settings.file_delivery_max_bytes,
+                                "observed": size if type(size) is int else None,
+                                "retryable": False,
                             },
                         )
                     used = sum(
@@ -296,19 +340,24 @@ class OriginalFiles:
                     )
                     if (
                         len(self.records) >= 256
-                        or used + self.reserved + size > self.settings.file_delivery_staging_bytes
-                        or shutil.disk_usage(self.root).free < size + 1024 * 1024
+                        or used + self.reserved + storage_size(size)
+                        > self.settings.file_delivery_staging_bytes
+                        or shutil.disk_usage(self.root).free < storage_size(size) + 1024 * 1024
                     ):
                         raise failure(
                             "STAGING_UNAVAILABLE",
                             "Download staging is full. Retry after existing downloads expire.",
                         )
-                    reserved = size
+                    reserved = storage_size(size)
                     self.reserved += reserved
                     path = self.root / ("obj_" + uuid4().hex + ".part")
                     self.pending.add(path)
+                    self.preparing[path] = (owner, connection, asyncio.current_task())
+                    key = os.urandom(32)
+                    binding = f"{owner}:{connection}:{file}:{epoch}".encode()
                     async with self.bridge.client(owner, connection) as client:
-                        with path.open("xb") as sink:
+                        with path.open("xb") as encrypted_sink:
+                            sink = Writer(encrypted_sink, key, binding)
                             async with (
                                 self.bridge.synthetic.client()
                                 if self.bridge.synthetic
@@ -324,6 +373,7 @@ class OriginalFiles:
                                     budget=self.settings.file_delivery_budget_seconds,
                                     http=http,
                                 )
+                                sink.finish()
                             sink.flush()
                     if expected_bytes_sha256 and fetched.bytes_sha256 != expected_bytes_sha256:
                         raise failure(
@@ -385,9 +435,16 @@ class OriginalFiles:
                     }
                     if name != metadata.get("filename"):
                         data["source_filename"] = str(metadata.get("filename", ""))[:1000]
+                    if self.settings.profile != "synthetic":
+                        data["transport_candidates"] = ["authenticated_http"] + (
+                            ["host_embedded_resource"]
+                            if size <= self.settings.file_delivery_inline_bytes
+                            else []
+                        )
                     promoted = path.with_suffix(".blob")
                     path.replace(promoted)
                     self.pending.discard(path)
+                    self.preparing.pop(path, None)
                     path = promoted
                     item = Delivery(
                         ident,
@@ -403,6 +460,8 @@ class OriginalFiles:
                         time.time(),
                         time.monotonic(),
                         self.settings.file_delivery_ttl_seconds,
+                        key=key,
+                        binding=binding,
                     )
                     self.records[ident] = item
                     path = None
@@ -422,10 +481,11 @@ class OriginalFiles:
                 self.reserved -= reserved
                 if path is not None:
                     self.pending.discard(path)
+                    self.preparing.pop(path, None)
                     try:
                         path.unlink(missing_ok=True)
                     except OSError:
-                        pass  # Normal cleanup retries; preserve the original error.
+                        self.orphans[path] = (owner, connection)
 
     def lookup(self, ident, owner=None, connection=None):
         self.cleanup()
@@ -472,17 +532,23 @@ class OriginalFiles:
                         "DELIVERY_REVOKED", "The connection changed.", "permission_denied"
                     )
             # A private object can still be damaged locally. Hash before sending any bytes.
-            with item.path.open("rb") as stream:
-                if (
-                    os.fstat(stream.fileno()).st_size != item.data["byte_size"]
-                    or hashlib.file_digest(stream, "sha256").hexdigest()
-                    != item.data["bytes_sha256"]
-                ):
-                    raise failure(
-                        "INTEGRITY_MISMATCH",
-                        "The staged original failed its integrity check.",
-                        "source_changed",
-                    )
+            digest, size = hashlib.sha256(), 0
+            try:
+                for chunk in chunks(item.path, item.key, item.binding):
+                    digest.update(chunk)
+                    size += len(chunk)
+                valid = (
+                    size == item.data["byte_size"]
+                    and digest.hexdigest() == item.data["bytes_sha256"]
+                )
+            except OSError:
+                valid = False
+            if not valid:
+                raise failure(
+                    "INTEGRITY_MISMATCH",
+                    "The staged original failed its integrity check.",
+                    "source_changed",
+                )
             return row
         except (DomainError, OSError):
             self.revoke(item)
@@ -494,12 +560,22 @@ class OriginalFiles:
             item.active += 1
             try:
                 await self.validate(item)
+                live = self.settings.profile != "synthetic"
+                if live and item.data["byte_size"] > self.settings.file_delivery_inline_bytes:
+                    raise failure(
+                        "EGRESS_BEARER_RECIPIENT_UNVERIFIED",
+                        "This host requires an authenticated download with a verified recipient environment.",
+                        "permission_denied",
+                    )
                 capability = secrets.token_urlsafe(32)
                 if item.capability_digest:
                     self.capabilities.pop(item.capability_digest, None)
-                item.capability_digest = hashlib.sha256(capability.encode()).hexdigest()
-                self.capabilities[item.capability_digest] = item.id
-                url = item.origin + "/course-file-download/" + capability
+                item.capability_digest = (
+                    None if live else hashlib.sha256(capability.encode()).hexdigest()
+                )
+                if not live:
+                    self.capabilities[item.capability_digest] = item.id
+                url = None if live else item.origin + "/course-file-download/" + capability
                 resource = {
                     "type": "resource_link",
                     "uri": url,
@@ -516,7 +592,9 @@ class OriginalFiles:
                             + "/"
                             + quote(item.data["filename"], safe=""),
                             "mimeType": item.data["mime_type"],
-                            "blob": base64.b64encode(item.path.read_bytes()).decode("ascii"),
+                            "blob": base64.b64encode(
+                                b"".join(chunks(item.path, item.key, item.binding))
+                            ).decode("ascii"),
                         },
                     }
                 return Result(
@@ -530,7 +608,18 @@ class OriginalFiles:
 
 class DownloadLogFilter(logging.Filter):
     def filter(self, record):
-        return "/course-file-download/" not in record.getMessage()
+        return not any(
+            path in record.getMessage()
+            for path in (
+                "/course-file-download/",
+                "/settings/callback",
+                "/settings/canvas/callback",
+                "access_token=",
+                "refresh_token=",
+                "client_secret=",
+                "code_verifier=",
+            )
+        )
 
 
 class OriginalResponse(StreamingResponse):
@@ -560,7 +649,7 @@ def register_download_routes(mcp, bridge, verifier):
         access.addFilter(DownloadLogFilter())
 
     async def serve(request, *, bearer):
-        context = RequestAuthorization("download_original")
+        context = RequestAuthorization("download_original", recipient="user_download")
         context_token = request_authorization.set(context)
         stack = None
         item = None
@@ -588,8 +677,15 @@ def register_download_routes(mcp, bridge, verifier):
                     or not token.subject
                     or not token.claims
                 ):
+                    safe = bridge.egress.safe_error(
+                        Result(
+                            status="permission_denied",
+                            summary="",
+                            data={"reason_code": "CONNECTION_NOT_AUTHORIZED"},
+                        )
+                    )
                     return JSONResponse(
-                        {"reason_code": "CONNECTION_NOT_AUTHORIZED"},
+                        safe.data,
                         status_code=401,
                         headers={**HEADERS, "WWW-Authenticate": "Bearer"},
                     )
@@ -606,6 +702,17 @@ def register_download_routes(mcp, bridge, verifier):
             item.active += 1
             await manager.validate(item)
             validate_request_authorization(bridge)
+            if not bearer:
+                from canvas_bridge.egress_models import RecipientIdentity
+
+                context.egress_identity = RecipientIdentity(
+                    "user_download",
+                    token.claims["iss"],
+                    token.claims.get("client_id") or "",
+                    token.claims.get("bridge_recipient_environment") or "",
+                    token.claims.get("bridge_recipient_workspace") or "",
+                )
+            bridge.egress.download(item, bearer=bearer)
             headers = {
                 **HEADERS,
                 "Content-Type": item.data["mime_type"],
@@ -620,10 +727,29 @@ def register_download_routes(mcp, bridge, verifier):
                 return Response(headers=headers)
 
             async def body(item=item):
-                with item.path.open("rb") as stream:
-                    while chunk := stream.read(64 * 1024):
-                        yield chunk
-                        await asyncio.sleep(0)
+                for chunk in chunks(item.path, item.key, item.binding):
+                    if not bearer:
+                        verifier.require_current(token)
+                    manager.lookup(item.id, item.owner, item.connection)
+                    with bridge.store.transaction() as session:
+                        checked_row(
+                            bridge, session, item.owner, item.connection, item.file, item.epoch
+                        )
+                    bridge.connection_policy(
+                        item.owner,
+                        item.connection,
+                        {"files"},
+                        activity="share",
+                        recipient="user_download",
+                        resource=item.course,
+                    )
+                    transfer_token = request_authorization.set(context)
+                    try:
+                        bridge.egress.download(item, bearer=bearer)
+                    finally:
+                        request_authorization.reset(transfer_token)
+                    yield chunk
+                    await asyncio.sleep(0)
 
             response = OriginalResponse(body(), headers, manager, item, stack)
             streaming = True
@@ -636,15 +762,21 @@ def register_download_routes(mcp, bridge, verifier):
                 if exc.status in {"permission_denied", "reconnect_required"}
                 else 503
             )
+            safe = bridge.egress.safe_error(
+                Result(status=exc.status, summary=exc.message, data=exc.data)
+            )
             return JSONResponse(
-                {"status": exc.status, "summary": exc.message, **exc.data},
+                {"status": safe.status, "summary": safe.summary, **safe.data},
                 status_code=status,
                 headers=HEADERS,
             )
         except OSError:
-            return JSONResponse(
-                {"reason_code": "STAGING_UNAVAILABLE"}, status_code=503, headers=HEADERS
+            safe = bridge.egress.safe_error(
+                Result(
+                    status="retry_later", summary="", data={"reason_code": "STAGING_UNAVAILABLE"}
+                )
             )
+            return JSONResponse(safe.data, status_code=503, headers=HEADERS)
         finally:
             if entered and not streaming:
                 item.active -= 1

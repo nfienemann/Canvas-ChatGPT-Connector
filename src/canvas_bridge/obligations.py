@@ -29,7 +29,7 @@ RESOURCES = (
 LIMITATIONS = [
     "This inventory covers assignments, classic quiz metadata, discussion topics and a bounded Canvas calendar window. It is not proof that all course obligations were found.",
     "New Quizzes and external tools retain their assignment representation only; their instructions are not retrieved. Quiz questions, attempts and discussion replies are not accessed.",
-    "Planner items, undated calendar events, group discussion child topics and separate initial-post/reply deadlines are not covered.",
+    "Planner items, undated calendar events and group discussion child topics are not covered. Use include_discussion_participation for fresh bounded checkpoint and participation evidence.",
     "Ungraded activities and calendar events are candidates, not evidence of required attendance or unfinished work. Undated assessments may be historical.",
     "Assignment-effective dates take precedence only within this inventory's displayed assignment field; differing source dates remain unresolved evidence, not automatic policy changes.",
 ]
@@ -53,6 +53,8 @@ def visibility_issue(raw, kind, course, now):
         if raw.get("published") is not True or raw.get("locked_for_user") is not False:
             return "visibility_not_verified"
     if kind == "discussion_topics":
+        if raw.get("root_topic_id"):
+            return "group_child_excluded"
         posted = fact_date(raw, "posted_at").timestamp
         if not posted:
             return "discussion_posting_time_unavailable"
@@ -253,6 +255,7 @@ def build_inventory(
                     else "unknown"
                 )
             if kind == "discussion_topics":
+                alias["topic_id"] = key
                 alias["participation_state"] = (
                     "closed"
                     if raw.get("locked") is True
@@ -470,6 +473,7 @@ async def course_obligations(
     limit=10,
     expected_version=None,
     obligation_id=None,
+    include_discussion_participation=False,
 ):
     if not 0 <= offset <= 500 or not 1 <= limit <= 20:
         raise DomainError("needs_input", "Choose a valid inventory page.")
@@ -489,6 +493,11 @@ async def course_obligations(
             "permission_denied", "This obligation is not in the current selected course inventory."
         )
     page = matching[offset : offset + limit]
+    discussion_sources = []
+    if include_discussion_participation:
+        from canvas_bridge.discussion_integration import enrich_obligations
+
+        discussion_sources = await enrich_obligations(bridge, owner, ref, course_id, page)
     # A pathological many-to-one link cannot expand a tool response without bound.
     selected_sources, text_budget = {}, 24000
     for item in page:
@@ -525,7 +534,7 @@ async def course_obligations(
             "planning_tool": "propose_course_study_plan",
             "omission_reasons": {kind: dict(counts) for kind, counts in omitted.items() if counts},
         },
-        sources=list(selected_sources.values()),
+        sources=list(selected_sources.values()) + discussion_sources,
         meta=bridge.meta(coverage=coverage, warnings=LIMITATIONS, display_timezone=timezone),
     )
     result = attach(result)

@@ -1,0 +1,145 @@
+{
+  "schema": "scientific-benchmark-3",
+  "generated_at": "2026-10-26T10:14:54.767212+00:00",
+  "corpus_sha256": "8476a9ef8127d1f777b74a3971b88cfe23b0167fb0e8eb6525831ded8b66b2ff",
+  "source_sha256": "d82fdf601fbc88a131b8d0fe53722c840564d65ca7c9007000d83aff06bbabc9",
+  "source_stable": true,
+  "environment": {
+    "python": "3.14.5",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "libraries": {
+      "pydantic": "2.14.1",
+      "pypdf": "6.21.2",
+      "pillow": "13.0.0",
+      "mcp": "1.30.0",
+      "defusedxml": "0.7.1"
+    },
+    "dependency_lock_sha256": "001039245f7a11e456b17d548cdbdcffb112e81d6012e968bcc1b0cbcf081601",
+    "environment_sha256": "8abe7c35f4bb4bbd903f4a116f2559d7da130f498f8924f3537ae18569ce1c64"
+  },
+  "interpretation_system": null,
+  "responses_sha256": null,
+  "reviews_sha256": null,
+  "retrieval_accuracy": 1.0,
+  "interpretation_accuracy": null,
+  "interpretation_reviewed_count": 0,
+  "interpretation_case_count": 10,
+  "results": [
+    {
+      "case_id": "western-blot",
+      "retrieval_pass": true,
+      "expected_page": 1,
+      "selected_page": 1,
+      "query_selected_page": 1,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "flow-cytometry",
+      "retrieval_pass": true,
+      "expected_page": 2,
+      "selected_page": 2,
+      "query_selected_page": 2,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "qpcr",
+      "retrieval_pass": true,
+      "expected_page": 3,
+      "selected_page": 3,
+      "query_selected_page": 3,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "mass-spectrometry",
+      "retrieval_pass": true,
+      "expected_page": 4,
+      "selected_page": 4,
+      "query_selected_page": 4,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "microscopy",
+      "retrieval_pass": true,
+      "expected_page": 5,
+      "selected_page": 5,
+      "query_selected_page": 5,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "cell-signaling",
+      "retrieval_pass": true,
+      "expected_page": 6,
+      "selected_page": 6,
+      "query_selected_page": 6,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "dose-response",
+      "retrieval_pass": true,
+      "expected_page": 7,
+      "selected_page": 7,
+      "query_selected_page": 7,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "confocal",
+      "retrieval_pass": true,
+      "expected_page": 8,
+      "selected_page": 8,
+      "query_selected_page": 8,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "multi-panel",
+      "retrieval_pass": true,
+      "expected_page": 9,
+      "selected_page": 9,
+      "query_selected_page": 9,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    },
+    {
+      "case_id": "complex-table",
+      "retrieval_pass": true,
+      "expected_page": 10,
+      "selected_page": 10,
+      "query_selected_page": 10,
+      "pages_scanned": 10,
+      "interpretation_state": "not_run",
+      "interpretation_correct": null
+    }
+  ],
+  "synthetic": true,
+  "limitations": [
+    "Retrieval is a deterministic candidate-locator test, not proof of comprehension.",
+    "Human review is a recorded external attestation; reviewer identity is not verified by this local evaluator.",
+    "No population confidence interval is justified for this curated ten-case census.",
+    "No live host visual-delivery or automatic interpretation performance is inferred."
+  ],
+  "network_calls": 0,
+  "network_policy": "DNS_and_socket_connections_blocked",
+  "gate": {
+    "passed": false,
+    "require_reviewed": true,
+    "review_complete": false,
+    "retrieval_pass": true,
+    "interpretation_failure": false
+  }
+}
