@@ -100,6 +100,25 @@ async def test_limited_permission_is_activity_scoped_in_real_collector(bridge, o
         )
 
 
+async def test_conditional_analysis_permission_blocks_package_and_acknowledgment(
+    bridge, owner, seeded
+):
+    scope = await configured(
+        bridge, owner, seeded, "AI may be used for data analysis only if the work is unassessed."
+    )
+    request = AssistanceRequest(scope=scope, activity=A.ANALYSIS)
+    checked = await bridge.integrity.check(owner, request)
+    decision = checked.data["decision"]
+    assert decision["state"] == "REVIEW_REQUIRED"
+    assert not decision["allowed"] and not decision["permission_established"]
+    assert not decision["acknowledgment_eligible"]
+    with pytest.raises(DomainError, match="Academic permission"):
+        await bridge.integrity.prepare(owner, request)
+    with pytest.raises(DomainError) as error:
+        await bridge.integrity.acknowledge(owner, decision["id"], True)
+    assert error.value.reason_code == "INTEGRITY_ACKNOWLEDGMENT_INELIGIBLE"
+
+
 async def test_offline_restriction_and_known_copy_cannot_escape_by_switching_tools(bridge, owner):
     doc = await imported(
         bridge, owner, "AI is prohibited on this assignment.\n\nFictional assessed essay prompt."
