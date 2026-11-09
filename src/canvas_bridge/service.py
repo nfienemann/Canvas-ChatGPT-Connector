@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 from weakref import WeakValueDictionary
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -21,6 +21,8 @@ from canvas_bridge.authorization import (
 from canvas_bridge.canvas import CanvasClient
 from canvas_bridge.config import Settings
 from canvas_bridge.domain import Coverage, DomainError, Meta, Result, Source, WorkItem, utcnow
+from canvas_bridge.error_guidance import public_coverage_warning
+from canvas_bridge.membership import membership_fields, membership_state, utc_timestamp
 from canvas_bridge.normalize import (
     assignment_requirements,
     canonical_id,
@@ -47,6 +49,25 @@ class Bridge:
         self.store.protect(vault)
         self.synthetic = synthetic
         self.approval_gateway = ApprovalGateway(settings)
+        from canvas_bridge.usage.ledger import UpstreamUsageGovernor
+        from canvas_bridge.usage.policy import personal_development_policy, synthetic_policy
+
+        self.usage = UpstreamUsageGovernor(
+            store.engine,
+            fixture_policy=synthetic_policy() if settings.profile == "synthetic" else None,
+            development_policy=personal_development_policy(
+                settings.personal_development_monthly_requests,
+                settings.personal_development_owner_request_limit,
+                max_concurrency=settings.personal_development_max_concurrency,
+            )
+            if settings.personal_development_usage
+            else None,
+        )
+        from canvas_bridge.canvas import InventoryCapabilities
+        from canvas_bridge.usage.cache import AuthorizedCache
+
+        self.upstream_cache = AuthorizedCache()
+        self.inventory_capabilities = InventoryCapabilities()
         from canvas_bridge.egress_policy import DataEgressPolicyEngine
 
         self.egress = DataEgressPolicyEngine(self)
@@ -67,9 +88,15 @@ class Bridge:
         from canvas_bridge.independent import IndependentSources
 
         self.independent = IndependentSources(self)
+        from canvas_bridge.library.service import Library
+
+        self.library = Library(self)
         from canvas_bridge.processes.service import ProcessService
 
         self.processes = ProcessService(self)
+        from canvas_bridge.usefulness.service import Usefulness
+
+        self.usefulness = Usefulness(self)
         from canvas_bridge.integrity.service import IntegrityService
 
         self.integrity = IntegrityService(self)
@@ -146,6 +173,8 @@ class Bridge:
                 require_connection_identity(self, conn)
 
     def invalidate_access(self, owner, ref):
+        self.upstream_cache.clear()
+        self.inventory_capabilities.entries.clear()
         self.presentation_derivatives.invalidate(owner, ref)
         self.original_files.invalidate(owner, ref)
         from canvas_bridge.worker_storage import invalidate
@@ -159,6 +188,7 @@ class Bridge:
     def withdraw_courses(self, session, conn: Connection, course_ids: set[str]):
         if not course_ids:
             return
+        self.upstream_cache.clear()
         from canvas_bridge.lifecycle import journal_delete
 
         # Conservatively fence the whole connection on restore. Restoring its old
@@ -200,7 +230,11 @@ class Bridge:
                 personal=self.settings.profile == "personal",
             )
             if not conn.credential:
-                raise DomainError("reconnect_required", "Reconnect this Canvas account.")
+                raise DomainError(
+                    "reconnect_required",
+                    "Reconnect this Canvas account.",
+                    reason_code="UPSTREAM_AUTH_UNVERIFIED",
+                )
             credential = conn.credential
             expires = conn.token_expires_at
         # Before opening credentials or refreshing them. Actual endpoint scopes are
@@ -224,6 +258,9 @@ class Bridge:
             ) from exc
         http = self.synthetic.client() if self.synthetic else None
         client = CanvasClient(institution, secret["access_token"], self.settings, http)
+        client.bind_usage(self, owner, scope=str(conn.epoch))
+        client.inventory_capabilities = self.inventory_capabilities
+        client.inventory_connection = ref
         from canvas_bridge.privacy.identity import PrivacyIdentity
 
         client.privacy_identity = PrivacyIdentity(
@@ -284,6 +321,7 @@ class Bridge:
                     current.entitlement_at = None
                     current.authentication_state = "unverified"
                     current.epoch += 1
+                    client.rejected_epoch = current.epoch
                 self.invalidate_access(owner, ref)
             target = (
                 canonical_id(owner, ref, "course", source_id(ids["course"]))
@@ -371,10 +409,17 @@ class Bridge:
                         Course.selected.is_(True),
                     )
                 ).all()
+                evaluated_at = utcnow()
                 selected_status = []
                 for course in courses:
                     decision = self.authorize(
-                        owner, row.id, course.id, operation="scope", session=session, track=False
+                        owner,
+                        row.id,
+                        course.id,
+                        operation="scope",
+                        session=session,
+                        track=False,
+                        evaluated_at=evaluated_at,
                     )
                     selected_status.append(
                         {
@@ -409,9 +454,12 @@ class Bridge:
                         if row.credential
                         else "unavailable",
                         "upstream_permissions": "not_checked",
-                        "last_successful_refresh": aware(row.last_success).isoformat()
-                        if row.last_success
-                        else None,
+                        "last_complete_assignment_refresh_at": utc_timestamp(row.last_success),
+                        "last_successful_refresh": utc_timestamp(row.last_success),
+                        "scope_evaluated_at": utc_timestamp(evaluated_at),
+                        **membership_fields(
+                            row, evaluated_at, self.settings.authorization_lease_seconds
+                        ),
                     }
                 )
         return Result(
@@ -475,12 +523,63 @@ class Bridge:
         )
 
     async def list_courses(self, owner: str, ref: str) -> Result:
+        from canvas_bridge.connection_guard import connection_read_guard
+
+        async with connection_read_guard(self, owner, ref):
+            return await self._list_courses_locked(owner, ref)
+
+    async def _list_courses_locked(self, owner: str, ref: str) -> Result:
+        with self.store.transaction() as session:
+            initial = self.store.connection(session, owner, ref)
+            epoch = initial.epoch
+            previous_attempt = initial.last_course_list_attempt_at
         async with self.client(owner, ref) as client:
-            collection = await client.collection(Endpoint.COURSES)
+            try:
+                collection = await client.collection(Endpoint.COURSES)
+                if collection.upstream_http_status == 401 and not collection.complete:
+                    # The observer already invalidated the rejected credential.
+                    epoch = client.rejected_epoch or epoch
+                    collection.items = []
+                return self._apply_course_listing(owner, ref, collection, epoch, previous_attempt)
+            except Exception:
+                # Include malformed pages that rolled back during application. Never
+                # overwrite a newer observation or resurrect a disconnected account.
+                with self.store.transaction() as session:
+                    current = session.scalar(
+                        select(Connection)
+                        .where(Connection.owner == owner, Connection.id == ref)
+                        .with_for_update()
+                    )
+                    if (
+                        current
+                        and current.state == "active"
+                        and current.epoch == epoch
+                        and current.last_course_list_attempt_at == previous_attempt
+                    ):
+                        current.last_course_list_attempt_at = utcnow()
+                        current.last_course_list_outcome = "failed"
+                        current.entitlement_at = None
+                raise
+
+    def _apply_course_listing(self, owner, ref, collection, epoch, previous_attempt):
         now = utcnow()
         with self.store.transaction() as session:
             self.store.principal(session, owner)
             conn = self.store.connection(session, owner, ref, lock=True)
+            if conn.epoch != epoch or conn.last_course_list_attempt_at != previous_attempt:
+                raise DomainError(
+                    "source_changed", "Connection changed during membership retrieval."
+                )
+            conn.last_course_list_attempt_at = now
+            conn.last_course_list_outcome = (
+                "complete"
+                if collection.complete
+                else "partial"
+                if collection.items or collection.pages
+                else "failed"
+            )
+            if collection.complete:
+                conn.last_complete_course_list_at = now
             rows = session.scalars(
                 select(Course).where(
                     Course.owner == owner,
@@ -571,6 +670,13 @@ class Bridge:
             data={
                 "courses": result,
                 "archived_courses": "not_in_current_scope",
+                "membership_evidence_renewed": collection.complete,
+                **membership_fields(conn, now, self.settings.authorization_lease_seconds),
+                **(
+                    {"retry_after_seconds": collection.retry_after_seconds}
+                    if collection.retry_after_seconds is not None
+                    else {}
+                ),
                 **(
                     {
                         "reason_code": collection.reason_code,
@@ -596,12 +702,29 @@ class Bridge:
 
     async def refresh_course_access(self, owner, ref):
         result = await self.list_courses(owner, ref)
-        if result.status in {"permission_denied", "reconnect_required"}:
+        if result.status != "ok":
+            import logging
+
+            context = request_authorization.get()
+            from canvas_bridge.egress_errors import SAFE_CODES
+
+            reason = result.data.get("reason_code")
+            logging.getLogger("canvas_bridge.authorization").warning(
+                "MEMBERSHIP_REFRESH_INCOMPLETE:%s:%s",
+                reason if isinstance(reason, str) and reason in SAFE_CODES else "UNSPECIFIED",
+                context.tool_name if context else "internal",
+            )
+        if result.status != "ok":
             raise DomainError(
-                result.status,
-                result.summary,
+                result.status
+                if result.status in {"permission_denied", "reconnect_required"}
+                else "retry_later",
+                "Course access refresh did not complete. Retry the supported course listing; no stale authorization may be used.",
                 reason_code=result.data.get("reason_code") or "UNKNOWN_AUTHORIZATION_FAILURE",
                 upstream_http_status=result.data.get("upstream_http_status"),
+                details={"retry_after_seconds": result.data["retry_after_seconds"]}
+                if "retry_after_seconds" in result.data
+                else None,
             )
         return result
 
@@ -617,9 +740,10 @@ class Bridge:
         with self.store.transaction() as session:
             conn = self.store.connection(session, owner, ref)
             if course_refs is None and (
-                not conn.entitlement_at
-                or (utcnow() - aware(conn.entitlement_at)).total_seconds()
-                > self.settings.authorization_lease_seconds
+                membership_state(
+                    conn.entitlement_at, utcnow(), self.settings.authorization_lease_seconds
+                )
+                != "within_lease"
             ):
                 raise DomainError(
                     "retry_later",
@@ -700,7 +824,9 @@ class Bridge:
             },
         )
 
-    async def refresh(self, owner: str, ref: str, course_refs: list[str] | None = None) -> Snapshot:
+    async def refresh(
+        self, owner: str, ref: str, course_refs: list[str] | None = None, *, workload_audit=False
+    ) -> Snapshot:
         async with self.lock(ref):
             course_result = await self.refresh_course_access(owner, ref)
             conn, courses = self.selected(owner, ref, course_refs)
@@ -709,12 +835,18 @@ class Bridge:
                     "needs_input", "Select at least one course in connection settings."
                 )
             items, coverage, complete_courses = [], [], set()
-            started = asyncio.get_running_loop().time()
+            observed = []
+            loop = asyncio.get_running_loop()
+            budget = (
+                self.settings.workload_refresh_budget_seconds
+                if workload_audit
+                else self.settings.refresh_budget_seconds
+            )
+            deadline = loop.time() + budget
             async with self.client(owner, ref) as client:
-                for course in courses:
-                    remaining = self.settings.refresh_budget_seconds - (
-                        asyncio.get_running_loop().time() - started
-                    )
+                for index, course in enumerate(courses):
+                    now = loop.time()
+                    remaining = deadline - now
                     if remaining <= 0:
                         coverage.append(
                             Coverage(
@@ -726,10 +858,19 @@ class Bridge:
                         )
                         continue
                     try:
-                        async with asyncio.timeout(remaining):
+                        if workload_audit:
+                            # One in flight. Early completions donate unused time to later courses.
+                            # Enforce the slice inside pagination to retain finished pages.
                             collection = await client.collection(
-                                Endpoint.ASSIGNMENTS, course=course.source_id
+                                Endpoint.ASSIGNMENTS,
+                                course=course.source_id,
+                                workload_deadline=now + remaining / (len(courses) - index),
                             )
+                        else:
+                            async with asyncio.timeout_at(deadline):
+                                collection = await client.collection(
+                                    Endpoint.ASSIGNMENTS, course=course.source_id
+                                )
                     except TimeoutError:
                         coverage.append(
                             Coverage(
@@ -740,24 +881,44 @@ class Bridge:
                             )
                         )
                         continue
+                    fully_read = (
+                        collection.complete and collection.pages > 0 and not collection.failure
+                    )
+                    state = "complete" if fully_read else "partial"
+                    if collection.failure == "permission_denied":
+                        state = "permission_denied"
+                    elif collection.failure == "refresh_budget_exhausted" and not collection.pages:
+                        state = "unavailable"
                     coverage.append(
                         Coverage(
                             course_ref=course.id,
                             resource="assignments",
-                            state="complete"
-                            if collection.complete
-                            else (
-                                "permission_denied"
-                                if collection.failure == "permission_denied"
-                                else "partial"
-                            ),
-                            pagination_complete=collection.complete,
+                            state=state,
+                            pagination_complete=fully_read,
                             pages_consumed=collection.pages,
-                            warning=collection.failure,
+                            warning=public_coverage_warning(collection.reason_code)
+                            if collection.reason_code == "PAGINATION_LINK_INVALID"
+                            else collection.failure
+                            or (None if fully_read else "missing_page_evidence"),
+                            **collection.failure_fields(),
                         )
                     )
-                    if collection.complete:
+                    if fully_read:
                         complete_courses.add(course.id)
+                    if collection.failure == "source_changed":
+                        raise DomainError(
+                            "source_changed",
+                            "Source access changed during refresh.",
+                            reason_code=collection.reason_code,
+                        )
+                    if collection.reason_code == "PAGINATION_SCOPE_CHANGED":
+                        # Reject this request without treating a provider link as a
+                        # revocation of the previously verified course membership.
+                        raise DomainError(
+                            "permission_denied",
+                            "Pagination exceeded the approved scope.",
+                            reason_code=collection.reason_code,
+                        )
                     if collection.failure in {"permission_denied", "reconnect_required"}:
                         with self.store.transaction() as session:
                             self.store.principal(session, owner)
@@ -765,11 +926,27 @@ class Bridge:
                             row = self.store.owned(session, Course, owner, ref, course.id)
                             self.withdraw_courses(session, current, {course.id})
                             row.accessible = False
+                        details = {}
+                        if workload_audit and collection.upstream_http_status == 403:
+                            # Only an ordinal crosses the public error boundary after revocation.
+                            order = course_refs or sorted(c.id for c in courses)
+                            details = {
+                                "course_position": order.index(course.id) + 1,
+                                "course_order": "request_order"
+                                if course_refs
+                                else "sorted_selected_ids",
+                            }
                         raise DomainError(
                             collection.failure,
                             "Source access changed during refresh; cached course records were removed.",
+                            reason_code=collection.reason_code,
+                            upstream_http_status=collection.upstream_http_status,
+                            details=details,
                         )
-                    for raw in collection.items:
+                    observed.append((course, collection.items, coverage[-1]))
+                # Normalize only after every eligible course has had its retrieval turn.
+                for course, records, course_coverage in observed:
+                    for raw in records:
                         if raw.get("published") is False:
                             continue
                         try:
@@ -785,8 +962,10 @@ class Bridge:
                             )
                             items.append(item)
                         except (ValueError, KeyError, DomainError):
-                            coverage[-1].state = "partial"
-                            coverage[-1].warning = "invalid_source_item"
+                            course_coverage.state = "partial"
+                            course_coverage.warning = (
+                                course_coverage.warning or "invalid_source_item"
+                            )
                             complete_courses.discard(course.id)
             # Canonical IDs deduplicate repeated pages/representations, not similar titles.
             unique = {item.id: item for item in items}
@@ -894,7 +1073,7 @@ class Bridge:
                 "needs_input", "Use an explicit timezone-aware window of at most 31 days."
             )
         if not 1 <= limit <= 100:
-            raise DomainError("needs_input", "Page size must be 1–100.")
+            raise DomainError("needs_input", "Page size must be 1â€“100.")
         fingerprint = hashlib.sha256(
             json.dumps(
                 [
@@ -923,7 +1102,7 @@ class Bridge:
                     "permission_denied", "This continuation is invalid or expired."
                 ) from exc
         else:
-            snapshot = await self.refresh(owner, ref, course_refs)
+            snapshot = await self.refresh(owner, ref, course_refs, workload_audit=True)
         from canvas_bridge.workload_status import workload_section, workload_status
 
         items = []
@@ -999,6 +1178,9 @@ class Bridge:
                 owner,
                 ref,
             )
+        freshness = "cached" if cursor else "synthetic" if self.synthetic else "live"
+        if snapshot.coverage and all(row.get("pages_consumed") == 0 for row in snapshot.coverage):
+            freshness = "not_refreshed"
         return Result(
             status="ok" if snapshot.complete else "partial_data",
             summary=(
@@ -1023,6 +1205,8 @@ class Bridge:
             ],
             meta=self.meta(
                 snapshot_id=snapshot.id,
+                freshness=freshness,
+                workload_snapshot_created_at=aware(snapshot.created_at).astimezone(UTC),
                 display_timezone=timezone,
                 coverage=[Coverage.model_validate(c) for c in snapshot.coverage],
                 next_cursor=next_cursor,
@@ -1334,7 +1518,12 @@ class Bridge:
         )
 
     def local_state(
-        self, owner: str, ref: str | None = None, *, include_institutional=True
+        self,
+        owner: str,
+        ref: str | None = None,
+        *,
+        include_institutional=True,
+        cursor: str | None = None,
     ) -> Result:
         from canvas_bridge.approval_policy import CATEGORIES
 
@@ -1344,10 +1533,14 @@ class Bridge:
                     "needs_input", "Select a connection to request institutional state."
                 )
             self.connection_policy(owner, ref, CATEGORIES)
+        elif cursor is not None:
+            raise DomainError("needs_input", "Only institutional study-state pages use a cursor.")
         if not ref:
             preferences = self.independent.preferences(owner)
             return Result(
-                summary="Your independent local preferences. No institutional source was requested.",
+                summary="Your independent local preferences."
+                if preferences.data["version"]
+                else "No saved independent preferences.",
                 data={
                     "records": [
                         {
@@ -1361,9 +1554,10 @@ class Bridge:
                     else []
                 },
             )
+        next_cursor = None
         with self.store.transaction() as session:
             if include_institutional:
-                self.store.connection(session, owner, ref)
+                conn = self.store.connection(session, owner, ref)
             else:
                 # Legacy preferences belong to the authenticated owner, not to
                 # the connection's active authorization lease. Never read a
@@ -1375,9 +1569,35 @@ class Bridge:
                 LocalRecord.owner == owner,
                 LocalRecord.connection_id == ref,
             )
-            if not include_institutional:
-                query = query.where(LocalRecord.kind == "preferences", LocalRecord.key == "default")
-            rows = session.scalars(query).all()
+            preference = (LocalRecord.kind == "preferences") & (LocalRecord.key == "default")
+            if include_institutional:
+                query = query.where(preference | LocalRecord.kind.in_(("progress", "plan")))
+                binding = ref + ":saved-study-state"
+                if cursor is not None:
+                    try:
+                        page = self.vault.open(cursor, owner, binding)
+                        if page["epoch"] != conn.epoch or page["expires"] <= utcnow().timestamp():
+                            raise ValueError
+                        query = query.where(LocalRecord.id > page["after"])
+                    except (ValueError, KeyError, TypeError, InvalidTag) as exc:
+                        raise DomainError(
+                            "needs_input", "Study-state cursor is invalid or expired."
+                        ) from exc
+                page_size = 25
+                rows = session.scalars(query.order_by(LocalRecord.id).limit(page_size + 1)).all()
+                if len(rows) > page_size:
+                    rows = rows[:page_size]
+                    next_cursor = self.vault.seal(
+                        {
+                            "after": rows[-1].id,
+                            "epoch": conn.epoch,
+                            "expires": (utcnow() + timedelta(hours=1)).timestamp(),
+                        },
+                        owner,
+                        binding,
+                    )
+            else:
+                rows = session.scalars(query.where(preference)).all()
         if not include_institutional:
             from canvas_bridge.evidence import fingerprint
             from canvas_bridge.source_authorization import LocalPreferences
@@ -1403,15 +1623,26 @@ class Bridge:
                     except (ValueError, DomainError):
                         continue  # Unknown/mixed legacy payloads never become local-only.
             rows = safe
+        scope = "preferences, progress or plans" if include_institutional else "preferences"
         return Result(
-            summary="Your saved local preferences, progress and plans."
-            if include_institutional
-            else "Local-only preferences. Institutional progress and plans require separately authorized access.",
+            summary=f"Saved study state for this connection ({scope})."
+            if rows
+            else f"No saved {scope} for this connection.",
             data={
                 "records": [
-                    {"kind": r.kind, "key": r.key, "version": r.version, "value": r.payload}
+                    {
+                        "kind": r.kind,
+                        "key": r.key,
+                        "version": r.version,
+                        "value": {k: v for k, v in r.payload.items() if k != "_provenance"}
+                        if r.kind == "preferences"
+                        else r.payload,
+                    }
                     for r in rows
-                    if r.kind != "practice"
                 ],
             },
+            meta=Meta(
+                next_cursor=next_cursor,
+                warnings=["More saved study records are available."] if next_cursor else [],
+            ),
         )

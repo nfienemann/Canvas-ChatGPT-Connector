@@ -6,7 +6,9 @@ from typing import Any, Literal
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from canvas_bridge.auth_diagnostics import AuthDiagnostic
 
 
 def utcnow() -> datetime:
@@ -54,6 +56,9 @@ class FactDate(Model):
 class Effort(Model):
     minimum_minutes: int = Field(ge=1, le=100_000)
     maximum_minutes: int = Field(ge=1, le=100_000)
+    point_estimate_minutes: int | None = Field(
+        default=None, ge=0, le=100_000, strict=True, exclude_if=lambda v: v is None
+    )
     origin: Literal[
         "student_estimate", "instructor_estimate", "rule_of_thumb", "assistant_estimate"
     ]
@@ -111,6 +116,7 @@ class WorkItem(Model):
     submission_state: Literal[
         "not_submitted", "submitted", "resubmitted", "not_applicable", "unknown"
     ] = "unknown"
+    submitted_at: AwareDatetime | None = Field(default=None, exclude_if=lambda value: value is None)
     submission_evidence: Literal[
         "returned", "not_returned", "invalid", "identity_mismatch", "conflicting", "not_applicable"
     ] = "not_returned"
@@ -126,6 +132,7 @@ class WorkItem(Model):
     personal_progress: Literal["not_started", "in_progress", "student_marked_done", "unknown"] = (
         "unknown"
     )
+    independent_personal_work: bool = Field(default=False, exclude=True)
     submission_requirement: str = "unknown"
     instruction_hash: str | None = None
     instruction_state: str = "not_recorded"
@@ -167,27 +174,167 @@ class WorkItem(Model):
 
 
 class Coverage(Model):
+    reason_code: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    upstream_http_status: int | None = Field(
+        default=None, ge=100, le=599, exclude_if=lambda value: value is None
+    )
+    retry_after_seconds: int | None = Field(
+        default=None, ge=0, le=86400, exclude_if=lambda value: value is None
+    )
     course_ref: str
     resource: str
     state: Literal[
         "complete", "partial", "unavailable", "permission_denied", "unsupported", "not_refreshed"
     ]
+
+    @field_validator("reason_code", mode="before")
+    @classmethod
+    def reviewed_reason(cls, value):
+        if value is None:
+            return None
+        from canvas_bridge.egress_errors import SAFE_CODES
+
+        return value if isinstance(value, str) and value in SAFE_CODES else "UNCLASSIFIED_FAILURE"
+
     pagination_complete: bool = False
     pages_consumed: int = 0
     warning: str | None = None
 
 
 class Meta(Model):
+    workload_snapshot_created_at: AwareDatetime | None = None
+    response_generated_at: AwareDatetime = Field(default_factory=utcnow)
+    upstream_cache: list[dict[str, Any]] = Field(default_factory=list)
     request_id: str = Field(default_factory=opaque_id)
     snapshot_id: str | None = None
     retrieved_at: AwareDatetime = Field(default_factory=utcnow)
     display_timezone: str = "UTC"
-    freshness: Literal["live", "cached", "stale", "synthetic", "not_refreshed"] = "not_refreshed"
+    freshness: Literal["live", "cached", "stale", "synthetic", "not_refreshed", "unknown"] = (
+        "not_refreshed"
+    )
     coverage: list[Coverage] = Field(default_factory=list)
     next_cursor: str | None = None
     warnings: list[str] = Field(default_factory=list)
     egress: dict[str, Any] | None = None
     privacy: dict[str, Any] | None = None
+
+
+InventoryMethod = Literal[
+    "files",
+    "modules",
+    "module_items",
+    "folders",
+    "folder_metadata",
+    "folder_files",
+    "assignments",
+    "file",
+    "pages",
+]
+
+
+RetrievalConstraint = Literal[
+    "configured_endpoint_scope",
+    "file_unpublished",
+    "file_hidden",
+    "file_locked",
+    "file_visibility_unknown",
+]
+
+
+RetrievalMethod = InventoryMethod | Literal["authorization", "file_download", "text_extraction"]
+
+
+class FailureDiagnostic(Model):
+    authentication_diagnostic: AuthDiagnostic | None = None
+    retrieval_method: RetrievalMethod | None = None
+    retrieval_constraint: RetrievalConstraint | None = None
+    attempted_methods: list[RetrievalMethod] | None = Field(default=None, max_length=16)
+    capability_observation: Literal["recent_denial"] | None = None
+    source_bytes_obtained: bool | None = None
+    inventory_coverage: Literal["unknown"] | None = None
+    schema_version: Literal["1"] = "1"
+    category: Literal[
+        "authorization",
+        "policy",
+        "privacy",
+        "validation",
+        "upstream",
+        "internal",
+        "transport",
+        "unknown",
+    ]
+    stage: Literal[
+        "authorization",
+        "content_policy",
+        "tool_execution",
+        "input_validation",
+        "sdk_result",
+        "final_response_verification",
+        "http_transport",
+        "upstream_request",
+        "document_download",
+        "runtime_setup",
+        "text_extraction",
+        "result_validation",
+        "ocr",
+        "pptx_conversion",
+        "page_rendering",
+        "inventory_resume",
+    ]
+    code: str = Field(pattern=r"^[A-Z0-9_]{1,96}$")
+    origin: (
+        Literal[
+            "canvas_api",
+            "canvas_metadata",
+            "file_delivery_provider",
+            "bridge_scope",
+            "bridge_admission",
+            "egress_policy",
+        ]
+        | None
+    ) = None
+    resource_kind: (
+        Literal["file", "folder", "module", "assignment", "page", "course", "collection"] | None
+    ) = None
+    reservation_state: Literal["expiration_pending"] | None = None
+    blocking_scope: (
+        Literal[
+            "connection",
+            "local_worker",
+            "provider_capacity",
+            "cooldown",
+            "usage_window",
+            "circuit_recovery",
+        ]
+        | None
+    ) = None
+    render_failure: (
+        Literal["memory_limit", "image_output_limit", "render_timeout", "pptx_expansion_limit"]
+        | None
+    ) = None
+    operation_state: Literal["not_started", "unknown", "stopped"] | None = None
+    elapsed_ms: int | None = Field(default=None, ge=0, le=86_400_000)
+    deadline_seconds: float | None = Field(default=None, gt=0, le=86400)
+    certainty: Literal["confirmed", "unknown"]
+    requested_operation: str | None  # null before registered dispatch
+    retry: Literal[
+        "automatic_once",
+        "after_delay",
+        "after_refresh",
+        "after_review",
+        "after_operator_fix",
+        "unknown",
+    ]
+    next_action: str = Field(pattern=r"^[a-z0-9_]{1,80}$")
+    content_delivery: Literal["none", "partial", "complete", "unknown"]
+    request_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    requested_operation_outcome: Literal["succeeded", "failed", "partial", "unknown"]
+    requested_content_policy: Literal[
+        "allow", "deny", "requires_review", "not_evaluated", "unknown"
+    ]
+    sanitized_error_release: Literal["allow", "deny", "not_evaluated", "unknown"]
+    retry_after_seconds: int | None = Field(default=None, ge=0, le=86400)
+    upstream_http_status: int | None = Field(default=None, ge=100, le=599)
 
 
 class Result(Model):
@@ -203,12 +350,20 @@ class Result(Model):
         "needs_input",
         "retry_later",
         "operation_uncertain",
+        "operation_failed",
     ] = "ok"
     summary: str
     data: dict[str, Any] = Field(default_factory=dict)
     sources: list[Source] = Field(default_factory=list)
     evidence: list[dict[str, Any]] = Field(default_factory=list)
     meta: Meta = Field(default_factory=Meta)
+
+
+class WorkerDeadline(TimeoutError):
+    def __init__(self, seconds):
+        super().__init__("Document worker exceeded its time budget.")
+        self.seconds = seconds
+        self.stopped = False
 
 
 class DomainError(Exception):

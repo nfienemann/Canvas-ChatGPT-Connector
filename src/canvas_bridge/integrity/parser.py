@@ -27,6 +27,25 @@ ADOPTION = re.compile(
 )
 
 
+def unresolved_permission_condition(line):
+    """Recognize conditions, not evidence that their prerequisites are satisfied."""
+    # Activity labels and missing assessment IDs do not prove work is unassessed.
+    if re.search(r"\b(?:unassessed|ungraded|non[ -]assessed|not (?:assessed|graded))\b", line):
+        return True
+    condition = re.search(
+        r"\b(?:not (?:if|when)|unless|except|if|when|provided|providing|approved|permission|with|without|before|after|once|until|subject to|conditional|on condition|as long as)\b",
+        line,
+    )
+    if not condition:
+        return False
+    # Preserve the existing disclosure obligation only when it is the entire
+    # remaining condition. A citation keyword cannot excuse another prerequisite.
+    return not re.fullmatch(
+        r"(?:(?:if|when|provided(?: that)?) (?:properly )?(?:cited|disclosed|attributed)|with (?:proper )?(?:citation|disclosure|attribution))[.!]?",
+        line[condition.start() :],
+    )
+
+
 def enumerated_denial(line):
     """Narrow only a completely recognized prohibition, never an unknown remainder."""
     match = re.fullmatch(r"(?:generative )?ai (?:must not|may not) (.+?)[.!]?", line)
@@ -123,6 +142,7 @@ def parse(source: PolicySource) -> list[Rule]:
                     )
                 )
                 part_locator = part.get("locator", "Text")
+                unresolved_condition = unresolved_permission_condition(lower)
 
                 def add(
                     effect,
@@ -133,7 +153,17 @@ def parse(source: PolicySource) -> list[Rule]:
                     locator=part_locator,
                     passage=line,
                     assessed=assessment_only,
+                    unresolved=unresolved_condition,
                 ):
+                    # Every allowance, including early activity-specific branches,
+                    # must retain unresolved conditions as non-acknowledgeable review.
+                    if effect == "allow" and unresolved:
+                        effect = "ambiguous"
+                        activities = SUBSTANTIVE | frozenset(activities)
+                        condition = "The conditions on this permission require policy review."
+                        # An unresolved condition cannot establish a narrower scope
+                        # that would let other substantive requests evade review.
+                        exam = assessed = False
                     result.append(
                         Rule(
                             effect=effect,

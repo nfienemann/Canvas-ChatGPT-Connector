@@ -79,6 +79,7 @@ class Limits:
     files: int = 3
     total_seconds: float = 90
     step_seconds: float = 30
+    workload_step_seconds: float = 75  # Membership, up to 45s of assignment reads, and processing.
     output_bytes: int = 40_000
     output_token_upper_bound: int = 40_000
     parallelism: int = 1

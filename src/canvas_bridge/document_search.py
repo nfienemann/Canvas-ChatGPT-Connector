@@ -1,7 +1,6 @@
 """Bounded authenticated search that can extract unread documents on demand."""
 
 import asyncio
-import re
 
 from canvas_bridge.course_files import (
     cell_references,
@@ -16,6 +15,7 @@ from canvas_bridge.document_diagnostics import diagnostics
 from canvas_bridge.domain import Coverage, DomainError, Result, utcnow
 from canvas_bridge.evidence import attach, fingerprint
 from canvas_bridge.parser_worker import PARSER
+from canvas_bridge.passage_search import OCR_WARNING, PassageMatcher, match_fields, uncertain_page
 
 SEARCH_SECONDS = 45
 CURSOR_SECONDS = 1800
@@ -52,6 +52,7 @@ def continuation(bridge, owner, ref, cursor, binding):
         "completed": 0,
         "failed": 0,
         "partial": 0,
+        "uncertain": False,
         "unversioned": False,
         "inventory_incomplete": False,
         "expires": utcnow().timestamp() + CURSOR_SECONDS,
@@ -66,6 +67,7 @@ def continuation(bridge, owner, ref, cursor, binding):
             raise DomainError(
                 "source_changed",
                 "Search scope, query or file inventory changed. Restart the search without a cursor.",
+                reason_code="DOCUMENT_SEARCH_SCOPE_CHANGED",
             )
         if value["expires"] < utcnow().timestamp():
             raise ValueError
@@ -77,11 +79,16 @@ def continuation(bridge, owner, ref, cursor, binding):
         raise
     except Exception as exc:
         raise DomainError(
-            "permission_denied", "This document search continuation is invalid or expired."
+            "permission_denied",
+            "This document search continuation is invalid or expired.",
+            reason_code="DOCUMENT_SEARCH_CURSOR_INVALID",
         ) from exc
 
 
-async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, max_documents):
+async def search_documents(
+    bridge, owner, ref, course_id, query, limit, cursor, max_documents, match_mode="exact"
+):
+    matcher = PassageMatcher(query, match_mode)
     if type(max_documents) is not int or not 1 <= max_documents <= 3:
         raise DomainError("needs_input", "Search one to three documents per request.")
     loop = asyncio.get_running_loop()
@@ -93,18 +100,20 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
         raise DomainError(
             "retry_later",
             "File discovery exceeded the search budget. No search result was produced.",
+            reason_code="DOCUMENT_SEARCH_TIMEOUT",
         ) from exc
     connection, _ = bridge.selected(owner, ref, [course_id])
     files = sorted(inventory.data["files"], key=lambda f: f["file_id"])
     version = inventory_version(inventory)
-    binding = fingerprint([course_id, connection.epoch, query.strip(), limit, version, PARSER])
+    binding = fingerprint(
+        [course_id, connection.epoch, query.strip(), limit, version, PARSER, matcher.mode]
+    )
     state = continuation(bridge, owner, ref, cursor, binding)
     state["inventory_incomplete"] |= inventory.status != "ok"
     if state["file"] > len(files):
         raise DomainError("permission_denied", "Document continuation is outside this inventory.")
     results, sources, statuses = [], {}, []
     attempted, indexed, unread_searched, budget_exhausted = 0, 0, False, False
-    matcher = re.compile(re.escape(query.strip()), re.IGNORECASE)
     while state["file"] < len(files) and attempted < max_documents and len(results) < limit:
         remaining = deadline - loop.time()
         if remaining <= 0:
@@ -125,6 +134,14 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                     ref,
                     file["file_id"],
                     length=1,
+                    **(
+                        {
+                            "page_start": state["page"] + 1,
+                            "page_end": state.get("page_count", state["page"] + 1),
+                        }
+                        if state["page"] and state.get("pdf")
+                        else {}
+                    ),
                     expected_hash=state["hash"] if state["page"] else None,
                 )
             if fresh.status == "unsupported_feature":
@@ -142,8 +159,14 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                         "source_changed",
                         "File metadata changed after discovery. Restart the search.",
                     )
+            # The PDF cursor counts original page positions. A random-access read
+            # may already have populated later positions in the sparse cache.
+            pdf = row.file_state.get("format") == "pdf"
+            state["pdf"] = pdf
+            state["page_count"] = row.file_state["page_count"]
+            positions = {p["page"]: p for p in row.locators} if pdf else {}
             # The authenticated row is detached; no untrusted content executes.
-            if state["page"] > len(row.locators):
+            if state["page"] > (row.file_state["page_count"] if pdf else len(row.locators)):
                 raise DomainError(
                     "source_changed", "Extracted document positions changed. Restart the search."
                 )
@@ -154,31 +177,41 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
             )
             state["unversioned"] |= file["source_version"] is None
             first_page = state["page"]
+            uncertain_pages = sum(uncertain_page(p) for p in row.locators)
+            state["uncertain"] |= bool(uncertain_pages)
+            searched_positions = []
             first_match = len(results)
             state["hash"] = row.version_hash
-            while state["page"] < len(row.locators) and len(results) < limit:
-                page = row.locators[state["page"]]
+            while len(results) < limit:
+                if pdf:
+                    page = positions.get(state["page"] + 1)
+                    if page is None:
+                        break
+                elif state["page"] < len(row.locators):
+                    page = row.locators[state["page"]]
+                else:
+                    break
+                searched_positions.append(page["page"])
                 state["page"] += 1
-                match = matcher.search(page["text"])
+                match = matcher.find(page)
                 if match is None:
                     continue
-                at = max(0, match.start() - 160)
+                at = max(0, match[0] - 160)
                 results.append(
                     {
                         "file_id": row.id,
                         "title": row.title,
                         "page": page["page"],
-                        "locator": passage_label(row, page, match.start(), match.end()),
+                        "locator": passage_label(row, page, match[0], match[1]),
                         **(
                             {
                                 "sheet_name": page["sheet_name"],
-                                "cell_references": cell_references(
-                                    page, match.start(), match.end()
-                                ),
+                                "cell_references": cell_references(page, match[0], match[1]),
                             }
                             if "sheet_name" in page
                             else {}
                         ),
+                        **match_fields(row, page, match),
                         "page_offset": at,
                         "passage": page["text"][at : at + 600],
                         "extraction_method": page.get("extraction_method", "text_extraction"),
@@ -187,21 +220,32 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                         "url": row.url,
                     }
                 )
-            complete = state["page"] == len(row.locators)
-            diagnostic = diagnostics(row.locators, row.limitations, row.file_state["page_count"])
+            complete = state["page"] == (row.file_state["page_count"] if pdf else len(row.locators))
+            if pdf and first_page == state["page"]:
+                # A document-wide text ceiling can leave no more searchable positions.
+                complete = True
+            diagnostic = diagnostics(
+                row.locators,
+                row.limitations,
+                row.file_state["page_count"],
+                row.file_state.get("format"),
+            )
             statuses.append(
                 {
                     **info,
                     "state": row.file_state["stage"],
                     "content_hash": row.version_hash,
+                    "uncertain_pages": uncertain_pages,
                     "extraction_coverage": row.file_state["coverage"],
                     "page_count": row.file_state["page_count"],
+                    "searched_positions": searched_positions,
                     "positions_searched_this_response": state["page"] - first_page,
                     "document_search_finished": complete,
                     "limitations": diagnostic["limitations"][:8],
                     "additional_limitation_count": max(0, len(diagnostic["limitations"]) - 8),
                     "document_diagnostics": diagnostic["document_diagnostics"][:8],
                     "parser_warnings": diagnostic["parser_warnings"][:8],
+                    "unit_coverage": diagnostic["unit_coverage"],
                     "ocr_coverage": diagnostic["ocr_coverage"],
                     "ocr_confidence": diagnostic["ocr_confidence"],
                     "search_outcome": "matched"
@@ -209,7 +253,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                     else "no_usable_text"
                     if not row.text.strip()
                     else "incomplete_search"
-                    if row.file_state["coverage"] != "text_only"
+                    if uncertain_pages or not complete or row.file_state["coverage"] != "text_only"
                     else "no_match_in_extracted_text",
                 }
             )
@@ -234,13 +278,16 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
                 raise DomainError(
                     "source_changed", "Course selection changed during document search."
                 ) from exc
+            from canvas_bridge.egress_errors import safe_error_result
+
+            clean = safe_error_result(Result(status=exc.status, summary="", data=exc.data))
             statuses.append(
                 {
                     **info,
                     "state": failure_state(exc),
-                    "reason": exc.message,
+                    "reason": clean.summary,
                     "status": exc.status,
-                    **exc.data,
+                    **clean.data,
                     "document_search_finished": False,
                     "search_outcome": "failed",
                 }
@@ -276,6 +323,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
     full_text = not (
         more
         or state["failed"]
+        or state["uncertain"]
         or state["partial"]
         or state["unversioned"]
         or state["inventory_incomplete"]
@@ -285,7 +333,12 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
         for reason, present in (
             ("DOCUMENTS_REMAIN", more),
             ("DOCUMENT_FAILURES", state["failed"]),
-            ("PARTIAL_EXTRACTION", state["partial"]),
+            ("UNCERTAIN_OCR", state["uncertain"]),
+            (
+                "PARTIAL_EXTRACTION",
+                state["partial"]
+                or any(item.get("extraction_coverage") == "partial" for item in statuses),
+            ),
             ("UNVERSIONED_SOURCE", state["unversioned"]),
             ("INVENTORY_INCOMPLETE", state["inventory_incomplete"]),
         )
@@ -298,7 +351,8 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
     ]
     warnings = [
         "Results cover a bounded, freshly authorized inventory observed over this search pass, not a simultaneous snapshot of all course content.",
-        "Search is literal text, with the first match per extracted page/slide/section. Images, diagrams, unreadable pages and external readings are not searched. No match does not establish topic absence.",
+        "One match per extracted position. Exact text has priority. Unread material may contain further matches.",
+        OCR_WARNING,
         "Follow next_cursor with the same course/query/limit to combine results; completed documents are not downloaded again. A changed inventory requires restarting.",
         "Failed or unsupported documents are not empty documents. Retry them individually with read_course_file; this pass records the failure and advances.",
         *inventory.meta.warnings,
@@ -308,6 +362,7 @@ async def search_documents(bridge, owner, ref, course_id, query, limit, cursor, 
         summary=f"{len(results)} matching passages in this response; {indexed} documents searched using authenticated extraction or current cache.",
         data={
             "results": results,
+            "match_mode": matcher.mode,
             "indexed_documents": indexed,
             "unindexed_documents": pending[:20],
             "unindexed_documents_truncated": len(pending) > 20,

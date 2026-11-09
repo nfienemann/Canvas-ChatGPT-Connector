@@ -1,0 +1,2885 @@
+{
+  "suite": "Academic Operations",
+  "date": "2026-11-05",
+  "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+  "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+  "bundle_sha256": "6e764062a07d490c1d7ed88e05f65e8633854331c42b16b82e00514fc04cc11c",
+  "fixture_sha256": "6d3322be08e6d449bb32a5f64b0928e6a350eb69aff6866fcab84a2c473cdf51",
+  "build_manifest": "mcp/build-identity.json",
+  "evidence_archive": "academic-operations-receipts.zip",
+  "baseline": {
+    "passed": 110,
+    "failed": 4,
+    "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+    "checkout": "existing working tree before these repairs; no pristine baseline tree hash recorded"
+  },
+  "bundled_after": {
+    "operations": 92,
+    "calendar": 13,
+    "boundaries": 9
+  },
+  "bundled_total_passed": 114,
+  "mcp_calls": 65,
+  "environment": {
+    "python": "3.14.5",
+    "platform": "Windows",
+    "transport": "authenticated streamable HTTP MCP, local synthetic profile, OS-isolated document worker",
+    "host": "Codex",
+    "calendar": "proposals and simulated confirmed event inventories"
+  },
+  "specs": [
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "OPS-01",
+      "disposition": "fixed",
+      "finding": "Local completion releases successors. The four isolated successors receive all 240 minutes. Partial work and requested revisions use current remaining effort. Official submission stays unknown.",
+      "evidence": [
+        "mcp/grounded-progress-isolated.json",
+        "mcp/grounded-analysis-completed.json",
+        "tests/test_academic_operations.py"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "OPS-02",
+      "disposition": "fixed",
+      "finding": "The late-clock pin is retained with its original time and blocker. Executable work omits it. The earlier-deadline error survives the MCP error boundary.",
+      "evidence": [
+        "mcp/grounded-clock-advanced.json",
+        "mcp/grounded-earlier-deadline-pin-conflict.json",
+        "tests/test_academic_operations.py"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "OPS-03",
+      "disposition": "fixed",
+      "finding": "Eighteen work steps project to three reminders. Stable source replacements produce one scoped update and no duplicate on confirmed replay. Distinct authorized imports produce three explicit ambiguities.",
+      "evidence": [
+        "mcp/calendar-base.json",
+        "mcp/calendar-deadline-extension.json",
+        "mcp/confirmed-deadline-extension.json",
+        "mcp/reimport-ambiguity.json"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "OPS-04",
+      "disposition": "fixed",
+      "finding": "The direct-capacity metric already matched its definition. The new summary accounts for all known remaining effort, unknown effort, completions and receipt checks.",
+      "evidence": [
+        "mcp/grounded-base.json",
+        "mcp/grounded-lost-evening.json",
+        "mcp/grounded-missing-critical-source.json"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "OPS-QA-01",
+      "disposition": "passed",
+      "finding": "Running local checkout, production importer and parser, authenticated HTTP MCP adapter and Codex host synthesis. Deployed ChatGPT UI acceptance is recorded separately.",
+      "evidence": [
+        "mcp/build-identity.json",
+        "mcp/selected-sources.json",
+        "host/",
+        "mcp/"
+      ]
+    }
+  ],
+  "additional_boundaries": [
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "withheld-operations-notice",
+      "disposition": "intended-limitation",
+      "finding": "OPS330-N01 was rejected before import by the existing privacy check. The operations brief independently states its deadline.",
+      "evidence": [
+        "mcp/withheld-OPS330-N01.json",
+        "mcp/source-OPS330-A05.json"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deleted-source-lineage",
+      "disposition": "intended-limitation",
+      "finding": "The adapter withheld the reimport after an integrity-bound original was deleted. The separate authorized reimport produced explicit ambiguities.",
+      "evidence": [
+        "mcp/reimport-after-revocation.json",
+        "mcp/reimport-ambiguity.json"
+      ]
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "installed-chatgpt-ui",
+      "disposition": "blocked",
+      "finding": "No isolated ChatGPT client installation bound to this newly tested source was available in this session. The installed personal connector is a separate target.",
+      "evidence": [
+        "mcp/build-identity.json"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/0",
+      "evidence": "engine/after/operations.json#/cases/0"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/1",
+      "evidence": "engine/after/operations.json#/cases/1"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/2",
+      "evidence": "engine/after/operations.json#/cases/2"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/3",
+      "evidence": "engine/after/operations.json#/cases/3"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/4",
+      "evidence": "engine/after/operations.json#/cases/4"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/5",
+      "evidence": "engine/after/operations.json#/cases/5"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/6",
+      "evidence": "engine/after/operations.json#/cases/6"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/7",
+      "evidence": "engine/after/operations.json#/cases/7"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/8",
+      "evidence": "engine/after/operations.json#/cases/8"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/9",
+      "evidence": "engine/after/operations.json#/cases/9"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/10",
+      "evidence": "engine/after/operations.json#/cases/10"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/11",
+      "evidence": "engine/after/operations.json#/cases/11"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/12",
+      "evidence": "engine/after/operations.json#/cases/12"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/13",
+      "evidence": "engine/after/operations.json#/cases/13"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/14",
+      "evidence": "engine/after/operations.json#/cases/14"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/15",
+      "evidence": "engine/after/operations.json#/cases/15"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/16",
+      "evidence": "engine/after/operations.json#/cases/16"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/17",
+      "evidence": "engine/after/operations.json#/cases/17"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance-allocation",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/18",
+      "evidence": "engine/after/operations.json#/cases/18"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-total-effort",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/19",
+      "evidence": "engine/after/operations.json#/cases/19"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-explicit-shortfall",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/20",
+      "evidence": "engine/after/operations.json#/cases/20"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base-effort-balance",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/21",
+      "evidence": "engine/after/operations.json#/cases/21"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/22",
+      "evidence": "engine/after/operations.json#/cases/22"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/23",
+      "evidence": "engine/after/operations.json#/cases/23"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/24",
+      "evidence": "engine/after/operations.json#/cases/24"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/25",
+      "evidence": "engine/after/operations.json#/cases/25"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/26",
+      "evidence": "engine/after/operations.json#/cases/26"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/27",
+      "evidence": "engine/after/operations.json#/cases/27"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/28",
+      "evidence": "engine/after/operations.json#/cases/28"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/29",
+      "evidence": "engine/after/operations.json#/cases/29"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/30",
+      "evidence": "engine/after/operations.json#/cases/30"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-other-inputs",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "harness_control",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/31",
+      "evidence": "engine/after/operations.json#/cases/31"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/32",
+      "evidence": "engine/after/operations.json#/cases/32"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/33",
+      "evidence": "engine/after/operations.json#/cases/33"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/34",
+      "evidence": "engine/after/operations.json#/cases/34"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/35",
+      "evidence": "engine/after/operations.json#/cases/35"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/36",
+      "evidence": "engine/after/operations.json#/cases/36"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/37",
+      "evidence": "engine/after/operations.json#/cases/37"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/38",
+      "evidence": "engine/after/operations.json#/cases/38"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/39",
+      "evidence": "engine/after/operations.json#/cases/39"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/40",
+      "evidence": "engine/after/operations.json#/cases/40"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/41",
+      "evidence": "engine/after/operations.json#/cases/41"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/42",
+      "evidence": "engine/after/operations.json#/cases/42"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/43",
+      "evidence": "engine/after/operations.json#/cases/43"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/44",
+      "evidence": "engine/after/operations.json#/cases/44"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/45",
+      "evidence": "engine/after/operations.json#/cases/45"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/46",
+      "evidence": "engine/after/operations.json#/cases/46"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/47",
+      "evidence": "engine/after/operations.json#/cases/47"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/48",
+      "evidence": "engine/after/operations.json#/cases/48"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/49",
+      "evidence": "engine/after/operations.json#/cases/49"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "progress-no-rework",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/50",
+      "evidence": "engine/after/operations.json#/cases/50"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "progress-unblocks-next",
+      "suite": "operations",
+      "disposition": "fixed",
+      "classification": "behavioral",
+      "baseline": "fail",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/51",
+      "evidence": "engine/after/operations.json#/cases/51"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "progress-isolated",
+      "suite": "operations",
+      "disposition": "fixed",
+      "classification": "behavioral",
+      "baseline": "fail",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/52",
+      "evidence": "engine/after/operations.json#/cases/52"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/53",
+      "evidence": "engine/after/operations.json#/cases/53"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/54",
+      "evidence": "engine/after/operations.json#/cases/54"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/55",
+      "evidence": "engine/after/operations.json#/cases/55"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/56",
+      "evidence": "engine/after/operations.json#/cases/56"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/57",
+      "evidence": "engine/after/operations.json#/cases/57"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/58",
+      "evidence": "engine/after/operations.json#/cases/58"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/59",
+      "evidence": "engine/after/operations.json#/cases/59"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/60",
+      "evidence": "engine/after/operations.json#/cases/60"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/61",
+      "evidence": "engine/after/operations.json#/cases/61"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "estimate-balance",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/62",
+      "evidence": "engine/after/operations.json#/cases/62"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/63",
+      "evidence": "engine/after/operations.json#/cases/63"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/64",
+      "evidence": "engine/after/operations.json#/cases/64"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/65",
+      "evidence": "engine/after/operations.json#/cases/65"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/66",
+      "evidence": "engine/after/operations.json#/cases/66"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/67",
+      "evidence": "engine/after/operations.json#/cases/67"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/68",
+      "evidence": "engine/after/operations.json#/cases/68"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/69",
+      "evidence": "engine/after/operations.json#/cases/69"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/70",
+      "evidence": "engine/after/operations.json#/cases/70"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source-dependencies",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/71",
+      "evidence": "engine/after/operations.json#/cases/71"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-partial",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/72",
+      "evidence": "engine/after/operations.json#/cases/72"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-no-premature-valuation",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/73",
+      "evidence": "engine/after/operations.json#/cases/73"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-other-courses",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/74",
+      "evidence": "engine/after/operations.json#/cases/74"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "repeat-stable",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/75",
+      "evidence": "engine/after/operations.json#/cases/75"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-0",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/76",
+      "evidence": "engine/after/operations.json#/cases/76"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-1",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/77",
+      "evidence": "engine/after/operations.json#/cases/77"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-2",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/78",
+      "evidence": "engine/after/operations.json#/cases/78"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-3",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/79",
+      "evidence": "engine/after/operations.json#/cases/79"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-4",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/80",
+      "evidence": "engine/after/operations.json#/cases/80"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-returns",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/81",
+      "evidence": "engine/after/operations.json#/cases/81"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-windows",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/82",
+      "evidence": "engine/after/operations.json#/cases/82"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-busy",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/83",
+      "evidence": "engine/after/operations.json#/cases/83"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-overlap",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/84",
+      "evidence": "engine/after/operations.json#/cases/84"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-deadline",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/85",
+      "evidence": "engine/after/operations.json#/cases/85"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-no-past",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/86",
+      "evidence": "engine/after/operations.json#/cases/86"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-accounting",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/87",
+      "evidence": "engine/after/operations.json#/cases/87"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-purpose",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/88",
+      "evidence": "engine/after/operations.json#/cases/88"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced-dependencies",
+      "suite": "operations",
+      "disposition": "fixed",
+      "classification": "behavioral",
+      "baseline": "fail",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/89",
+      "evidence": "engine/after/operations.json#/cases/89"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "elapsed-not-complete",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/90",
+      "evidence": "engine/after/operations.json#/cases/90"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "earlier-pin-conflict",
+      "suite": "operations",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/operations.json#/cases/91",
+      "evidence": "engine/after/operations.json#/cases/91"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-three-deadlines",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/0",
+      "evidence": "engine/after/calendar.json#/cases/0"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-proposal-only",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/1",
+      "evidence": "engine/after/calendar.json#/cases/1"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-idempotent",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/2",
+      "evidence": "engine/after/calendar.json#/cases/2"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-scoped-update",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/3",
+      "evidence": "engine/after/calendar.json#/cases/3"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-no-unrelated-action",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/4",
+      "evidence": "engine/after/calendar.json#/cases/4"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-update-idempotent",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/5",
+      "evidence": "engine/after/calendar.json#/cases/5"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-version-check",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/6",
+      "evidence": "engine/after/calendar.json#/cases/6"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-order",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/7",
+      "evidence": "engine/after/calendar.json#/cases/7"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-reimport-no-blind-create",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/8",
+      "evidence": "engine/after/calendar.json#/cases/8"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-no-invented-date",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/9",
+      "evidence": "engine/after/calendar.json#/cases/9"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-partial-flag",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/10",
+      "evidence": "engine/after/calendar.json#/cases/10"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-stale",
+      "suite": "calendar",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/11",
+      "evidence": "engine/after/calendar.json#/cases/11"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CAL-handoff-cardinality",
+      "suite": "calendar",
+      "disposition": "fixed",
+      "classification": "integration_contract",
+      "baseline": "fail",
+      "final": "pass",
+      "before_evidence": "engine/before/calendar.json#/cases/12",
+      "evidence": "engine/after/calendar.json#/cases/12"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DST-90-minutes",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/0",
+      "evidence": "engine/after/boundaries.json#/cases/0"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DST-elapsed-minutes",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/1",
+      "evidence": "engine/after/boundaries.json#/cases/1"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DST-both-busy-intervals",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/2",
+      "evidence": "engine/after/boundaries.json#/cases/2"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DST-dependency-order",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/3",
+      "evidence": "engine/after/boundaries.json#/cases/3"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DATE-zone-required",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/4",
+      "evidence": "engine/after/boundaries.json#/cases/4"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "DATE-zone-resolves",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/5",
+      "evidence": "engine/after/boundaries.json#/cases/5"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CYCLE-no-silent-allocation",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/6",
+      "evidence": "engine/after/boundaries.json#/cases/6"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CYCLE-no-input-mutation",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/7",
+      "evidence": "engine/after/boundaries.json#/cases/7"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "CYCLE-recovers",
+      "suite": "boundaries",
+      "disposition": "already-passing",
+      "classification": "behavioral",
+      "baseline": "pass",
+      "final": "pass",
+      "before_evidence": "engine/before/boundaries.json#/cases/8",
+      "evidence": "engine/after/boundaries.json#/cases/8"
+    }
+  ],
+  "transitions": [
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "base",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1380,
+        "allocated_work_minutes": 1010,
+        "total_known_unallocated_minutes": 370,
+        "capacity_blocked_minutes": 70,
+        "dependency_blocked_minutes": 300,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "03a1e174707c5b055a0a576b573f6a884e01a033c029badd4067c2cf22eb09ce"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-base.json",
+        "mcp/plan-base.json",
+        "mcp/calendar-base.json",
+        "host/base.md"
+      ],
+      "host_response": "1010 of 1380 known work minutes fit. 370 are unscheduled, including 70 limited by capacity and 300 blocked by prerequisites. Begin with the three source reviews on Thursday. The finance cash-flow schedule needs another 70 work minutes before the remaining valuation, recommendation, assembly and file check can finish. Reserve more time ahead of the finance deadline or revisit the remaining estimates. The baseline calendar has three proposed deadline reminders.",
+      "calendar_proposals": 3
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "single-finance",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 480,
+        "allocated_work_minutes": 480,
+        "total_known_unallocated_minutes": 0,
+        "capacity_blocked_minutes": 0,
+        "dependency_blocked_minutes": 0,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "cf9bab913daa8e7b06e6009e07b1ba9f0dec740156a148dac928b68a9e7bc97c"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "bd9311da9aeb5f888f6e7e366d28e658aeea6b940a8495f4874e025971ade949"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "bd9311da9aeb5f888f6e7e366d28e658aeea6b940a8495f4874e025971ade949"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-single-finance.json",
+        "mcp/plan-single-finance.json",
+        "mcp/calendar-single-finance.json",
+        "host/single-finance.md"
+      ],
+      "host_response": "480 of 480 known work minutes fit. 0 are unscheduled, including 0 limited by capacity and 0 blocked by prerequisites. All six finance steps fit when finance has the windows to itself. Begin with the case assumptions and clarify the two word ranges. The final 20 minutes cover the export and submission-evidence check. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "deadline-extension",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1380,
+        "allocated_work_minutes": 1020,
+        "total_known_unallocated_minutes": 360,
+        "capacity_blocked_minutes": 60,
+        "dependency_blocked_minutes": 300,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "393184b9271d2121c3f72d9e96170a103560e75d305da38f46d92fcb3f1ab4a8"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "aed8f8e518760d4819601de2e2e6761794a9e44e0fce50c6a05087a3484b1690"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "aed8f8e518760d4819601de2e2e6761794a9e44e0fce50c6a05087a3484b1690"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-deadline-extension.json",
+        "mcp/plan-deadline-extension.json",
+        "mcp/calendar-deadline-extension.json",
+        "host/deadline-extension.md"
+      ],
+      "host_response": "1020 of 1380 known work minutes fit. 360 are unscheduled, including 60 limited by capacity and 300 blocked by prerequisites. The scenario moves marketing to November 4 at 23:59 EST and shifts its check to 20:40–21:00 that day. Replan only against the supplied change. The finance chain still has unfinished work. Review the update to the marketing reminder only.",
+      "calendar_proposals": 1
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "lost-evening",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1380,
+        "allocated_work_minutes": 825,
+        "total_known_unallocated_minutes": 555,
+        "capacity_blocked_minutes": 170,
+        "dependency_blocked_minutes": 385,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "03a1e174707c5b055a0a576b573f6a884e01a033c029badd4067c2cf22eb09ce"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-lost-evening.json",
+        "mcp/plan-lost-evening.json",
+        "mcp/calendar-lost-evening.json",
+        "host/lost-evening.md"
+      ],
+      "host_response": "825 of 1380 known work minutes fit. 555 are unscheduled, including 170 limited by capacity and 385 blocked by prerequisites. Removing the four-hour Sunday window leaves both the operations recommendation and the finance cash-flow schedule unfinished. Their dependent assembly and verification steps also need time. Revisit availability ahead of the two deadlines. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "analysis-completed",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1200,
+        "allocated_work_minutes": 1005,
+        "total_known_unallocated_minutes": 195,
+        "capacity_blocked_minutes": 110,
+        "dependency_blocked_minutes": 85,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [
+          "MKT320-A05-S1",
+          "MKT320-A05-S2"
+        ],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "80755203092e3a81bd9e42aaefb901cc59c214ed4c64190f9cbd547a115893c5"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "635ad0642e83d9061d5a5f5a7e9a1eec2ba84ad43bbf2f6efaa4df0ac27f8aa2"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "635ad0642e83d9061d5a5f5a7e9a1eec2ba84ad43bbf2f6efaa4df0ac27f8aa2"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-analysis-completed.json",
+        "mcp/plan-analysis-completed.json",
+        "mcp/calendar-analysis-completed.json",
+        "host/analysis-completed.md"
+      ],
+      "host_response": "1005 of 1200 known work minutes fit. 195 are unscheduled, including 110 limited by capacity and 85 blocked by prerequisites. Accept the student’s report that marketing source review and calculations are done. Continue with interpretation, writing, assembly and the final file check. In this three-course plan, the remaining capacity shortage and blocked work are in finance. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "progress-isolated",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 240,
+        "allocated_work_minutes": 240,
+        "total_known_unallocated_minutes": 0,
+        "capacity_blocked_minutes": 0,
+        "dependency_blocked_minutes": 0,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [
+          "MKT320-A05-S1",
+          "MKT320-A05-S2"
+        ],
+        "receipt_verification_work_ids": [
+          "MKT320-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "0e640fff1a23fdb6dfc8277fe1a586aedcdc8bd360e0149f8b9300d61de6b4e8"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "9ca98944274a1adb3562ea04767c93e858b6d5460a5f36e925d42dfc92807630"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "9ca98944274a1adb3562ea04767c93e858b6d5460a5f36e925d42dfc92807630"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-progress-isolated.json",
+        "mcp/plan-progress-isolated.json",
+        "mcp/calendar-progress-isolated.json",
+        "host/progress-isolated.md"
+      ],
+      "host_response": "240 of 240 known work minutes fit. 0 are unscheduled, including 0 limited by capacity and 0 blocked by prerequisites. Marketing’s four remaining steps fit after the student marks review and calculations complete. Start with interpretation, then write the recommendation, assemble the files, and check the export and submission evidence. The assignment receipt is still unknown. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "remaining-estimate",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1290,
+        "allocated_work_minutes": 1005,
+        "total_known_unallocated_minutes": 285,
+        "capacity_blocked_minutes": 90,
+        "dependency_blocked_minutes": 195,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "695c95d4587fa8962f077c654da5bd59ccb518256a49ef294765833a50dc3e87"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "f996691f41073b6b9f05b92a57a6cfe571a1f8c1774c812765e80e543ec48bae"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "f996691f41073b6b9f05b92a57a6cfe571a1f8c1774c812765e80e543ec48bae"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-remaining-estimate.json",
+        "mcp/plan-remaining-estimate.json",
+        "mcp/calendar-remaining-estimate.json",
+        "host/remaining-estimate.md"
+      ],
+      "host_response": "1005 of 1290 known work minutes fit. 285 are unscheduled, including 90 limited by capacity and 195 blocked by prerequisites. Use the student's revised 30 minutes for the operations capacity calculation. That removes 90 minutes from the baseline upper estimate. Finance still needs time for valuation and the work that depends on it. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "missing-critical-source",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1335,
+        "allocated_work_minutes": 900,
+        "total_known_unallocated_minutes": 435,
+        "capacity_blocked_minutes": 0,
+        "dependency_blocked_minutes": 435,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [
+          "FIN310-A03-S1"
+        ],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "411a6348750f27bd72c6aee918997d2e7689ebcadb8cd36713e22fc1d428ef7b"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "7d480ecaec2ec20d0bfe8815777d355e4b1bd20338ed6740e5f9ec2a7b16eb57"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "7d480ecaec2ec20d0bfe8815777d355e4b1bd20338ed6740e5f9ec2a7b16eb57"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-missing-critical-source.json",
+        "mcp/plan-missing-critical-source.json",
+        "mcp/calendar-missing-critical-source.json",
+        "host/missing-critical-source.md"
+      ],
+      "host_response": "900 of 1335 known work minutes fit. 435 are unscheduled, including 0 limited by capacity and 435 blocked by prerequisites. The selected investment case is unavailable. Leave finance recovery unestimated and its five dependent stages on hold. Continue marketing and operations from the surviving sources. Add recovery time only after the case becomes available. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "clock-advanced",
+      "disposition": "passed",
+      "clock": "2026-11-02T12:00:00-05:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1380,
+        "allocated_work_minutes": 375,
+        "total_known_unallocated_minutes": 1005,
+        "capacity_blocked_minutes": 380,
+        "dependency_blocked_minutes": 625,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "03a1e174707c5b055a0a576b573f6a884e01a033c029badd4067c2cf22eb09ce"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-clock-advanced.json",
+        "mcp/plan-clock-advanced.json",
+        "mcp/calendar-clock-advanced.json",
+        "host/clock-advanced.md"
+      ],
+      "host_response": "375 of 1380 known work minutes fit. 1005 are unscheduled, including 380 limited by capacity and 625 blocked by prerequisites. As of noon November 2, assembly for marketing cannot finish ahead of the pinned 19:40–20:00 EST file check. The pin remains visible for a decision. Move it after assembly within the deadline, or add enough earlier time for the prerequisite work. Elapsed blocks provide no completion evidence. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "needs_input",
+      "reason_code": "PIN_CONFLICTS_WITH_SOURCE_TIMING",
+      "effort_summary": null,
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "4ec178c9da3697684d16e05ba0b2397d6020ffe0e205ba932617698675a13116"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "c45d068c52e5c5591143b95d510f8a90d99eeba545804604733167b493f67ce8"
+      },
+      "current_sources": [],
+      "evidence": [
+        "mcp/grounded-earlier-deadline-pin-conflict.json",
+        "mcp/plan-earlier-deadline-pin-conflict.json",
+        "mcp/calendar-earlier-deadline-pin-conflict.json",
+        "host/earlier-deadline-pin-conflict.md"
+      ],
+      "host_response": "The scenario moves marketing to October 30 at 23:59 EDT. The retained November 2 check is too late. Choose an earlier available time and rerun planning. The deadline reminder can be reviewed separately. Review the update to the marketing reminder only.",
+      "calendar_proposals": 1
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "same-state-repeat",
+      "disposition": "passed",
+      "clock": "2026-10-29T12:00:00-04:00",
+      "plan_status": "partial_data",
+      "reason_code": null,
+      "effort_summary": {
+        "known_remaining_minutes": 1380,
+        "allocated_work_minutes": 1010,
+        "total_known_unallocated_minutes": 370,
+        "capacity_blocked_minutes": 70,
+        "dependency_blocked_minutes": 300,
+        "other_unallocated_minutes": 0,
+        "uncredited_block_minutes": 0,
+        "unknown_effort_work_ids": [],
+        "completed_work_ids": [],
+        "receipt_verification_work_ids": [
+          "FIN310-A03-S6",
+          "MKT320-A05-S6",
+          "OPS330-A05-S6"
+        ],
+        "receipt_checks": [
+          {
+            "work_id": "FIN310-A03-S6",
+            "title": "FIN310-A03 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "MKT320-A05-S6",
+            "title": "MKT320-A05 / Check exported files, requirements and submission evidence"
+          },
+          {
+            "work_id": "OPS330-A05-S6",
+            "title": "OPS330-A05 / Check exported files, requirements and submission evidence"
+          }
+        ],
+        "unresolved_requirement_ids": []
+      },
+      "raw_dataset": {
+        "document_id": "4a21b460331e42809907837e02dd013d",
+        "expected_hash": "03a1e174707c5b055a0a576b573f6a884e01a033c029badd4067c2cf22eb09ce"
+      },
+      "grounded_dataset": {
+        "document_id": "acddc473bf1a46c580c192f181b8b1f7",
+        "expected_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+      },
+      "current_sources": [
+        {
+          "source_id": "acddc473bf1a46c580c192f181b8b1f7",
+          "content_hash": "26b65e300e9f540f24ba76641941cb98c7c0daa6e1f63ef6591be40c280bb088"
+        },
+        {
+          "source_id": "db54f0011c014c4eab4f891316c05f07",
+          "content_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+        },
+        {
+          "source_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+          "content_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+        },
+        {
+          "source_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+          "content_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+        },
+        {
+          "source_id": "a0177b15f307465db67b0be32cc2b3ee",
+          "content_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+        },
+        {
+          "source_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+          "content_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+        }
+      ],
+      "evidence": [
+        "mcp/grounded-same-state-repeat.json",
+        "mcp/plan-same-state-repeat.json",
+        "mcp/calendar-same-state-repeat.json",
+        "host/same-state-repeat.md"
+      ],
+      "host_response": "1010 of 1380 known work minutes fit. 370 are unscheduled, including 70 limited by capacity and 300 blocked by prerequisites. Repeating the baseline yields the same proposed work blocks, the same 370 unscheduled work minutes and no duplicate deadline reminder. The scoped confirmed baseline reminders need no changes.",
+      "calendar_proposals": 0
+    }
+  ],
+  "selected_sources": {
+    "MKT320-A05": {
+      "document_id": "db54f0011c014c4eab4f891316c05f07",
+      "expected_hash": "1b9a28073e3af4ccf9933ded115c02a7e4838ca72f9ea938eacc0f5b352ad5ed"
+    },
+    "OPS330-A05": {
+      "document_id": "20b143652e9d4bf2a5bd1dd06d84def7",
+      "expected_hash": "d715d17d03480078affb0f538ea048be76d775a768d8239f937f160911f8e8d4"
+    },
+    "FIN310-A03": {
+      "document_id": "03fcf62aa9cb4ad9bd2c3036769cd839",
+      "expected_hash": "5cc00034bc6e1cadcbf2b54902a6e88419e2732176de538ea54e681037521549"
+    },
+    "MKT320-N01": {
+      "document_id": "cbc0d56d7f354c0daf7827301483ffe9",
+      "expected_hash": "5e4ecab7330eaef89a7dd305cff13a91d40b511ffd85a1b454a52a88bd9ea4d0"
+    },
+    "FIN310-N02": {
+      "document_id": "669d72ce5e6b4fd2b07b0535b449c3b4",
+      "expected_hash": "e9d33e9f2c5af3063abf209ddacb7972807b5409aaee72b8d7f069aea01f8c21"
+    },
+    "FIN310-U01": {
+      "document_id": "e1ff09c40ff844d6a920542d8a63e830",
+      "expected_hash": "d04a0e6211e6fa717e801bb551156f60677e68f86783e6ebf130ed7e97dc4c6e"
+    },
+    "BUS_SHARED_Study_Preferences": {
+      "document_id": "a0177b15f307465db67b0be32cc2b3ee",
+      "expected_hash": "5fe00b84b7cec27c9182371e837b3c1e828745a113662c806f2bc9a654eebe6b"
+    },
+    "FIN310-C01": {
+      "document_id": "98df0f7ebb0f4c22a9713349fa40bb54",
+      "expected_hash": "b73f4bce2cfc452403e84f5a35bf0efe36304e31798c33f6acbce4ecf828ef3f"
+    }
+  },
+  "withheld_source": {
+    "file_sha256": "5939afddbaaa2607ce4fa4d31c746acefec76429e061b2686ddde0453d6465c7",
+    "reason_code": "EGRESS_REVIEW_REQUIRED"
+  },
+  "regression_checks": {
+    "broader_intermediate_run": {
+      "passed": 495,
+      "failed": 1,
+      "failure": "test_pure_planning_matches_existing_engine"
+    },
+    "final_affected_run": {
+      "passed": 58,
+      "included_previously_failing_test": true,
+      "included_real_mcp_replay": true
+    },
+    "ruff": "passed on edited Python files",
+    "full_repository_suite": "not run or reused"
+  },
+  "mcp_observations": [
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-analysis-completed",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-analysis-completed.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-base",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-base.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-clock-advanced",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-clock-advanced.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-deadline-extension",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-deadline-extension.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-earlier-deadline-pin-conflict.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-lost-evening",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-lost-evening.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-missing-critical-source",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-missing-critical-source.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-progress-isolated",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-progress-isolated.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-remaining-estimate",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-remaining-estimate.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-same-state-repeat",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-same-state-repeat.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "calendar-single-finance",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/calendar-single-finance.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "confirmed-deadline-extension",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/confirmed-deadline-extension.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "confirmed-earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/confirmed-earlier-deadline-pin-conflict.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-analysis-completed",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-analysis-completed.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-base",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-base.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-clock-advanced",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-clock-advanced.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-deadline-extension",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-deadline-extension.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "status": "needs_input",
+      "evidence": "mcp/grounded-earlier-deadline-pin-conflict.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-lost-evening",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-lost-evening.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-missing-critical-source",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-missing-critical-source.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-progress-isolated",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-progress-isolated.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-remaining-estimate",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-remaining-estimate.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-same-state-repeat",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-same-state-repeat.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "grounded-single-finance",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/grounded-single-finance.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "incomplete-calendar",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/incomplete-calendar.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-0",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/order-0.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-1",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/order-1.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-2",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/order-2.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-3",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/order-3.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "order-4",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/order-4.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-analysis-completed",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-analysis-completed.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-base",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-base.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-clock-advanced",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-clock-advanced.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-deadline-extension",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-deadline-extension.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "status": "needs_input",
+      "evidence": "mcp/plan-earlier-deadline-pin-conflict.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-lost-evening",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-lost-evening.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-missing-critical-source",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-missing-critical-source.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-progress-isolated",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-progress-isolated.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-remaining-estimate",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-remaining-estimate.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-same-state-repeat",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-same-state-repeat.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "plan-single-finance",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/plan-single-finance.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "reimport-after-revocation",
+      "disposition": "intended-limitation",
+      "status": "permission_denied",
+      "evidence": "mcp/reimport-after-revocation.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "reimport-ambiguity",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/reimport-ambiguity.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "requirements-FIN310-A03",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/requirements-FIN310-A03.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "requirements-MKT320-A05",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/requirements-MKT320-A05.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "requirements-OPS330-A05",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/requirements-OPS330-A05.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-BUS_SHARED_Study_Preferences",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-BUS_SHARED_Study_Preferences.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-FIN310-A03",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-FIN310-A03.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-FIN310-C01",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-FIN310-C01.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-FIN310-N02",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-FIN310-N02.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-FIN310-U01",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-FIN310-U01.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-MKT320-A05",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-MKT320-A05.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-MKT320-N01",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-MKT320-N01.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "source-OPS330-A05",
+      "disposition": "passed",
+      "status": "ok",
+      "evidence": "mcp/source-OPS330-A05.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-analysis-completed",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-analysis-completed.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-calendar",
+      "disposition": "passed",
+      "status": "partial_data",
+      "evidence": "mcp/stale-calendar.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-clock-advanced",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-clock-advanced.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-deadline-extension",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-deadline-extension.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-earlier-deadline-pin-conflict",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-earlier-deadline-pin-conflict.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-lost-evening",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-lost-evening.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-missing-critical-source",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-missing-critical-source.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-progress-isolated",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-progress-isolated.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-remaining-estimate",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-remaining-estimate.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-same-state-repeat",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-same-state-repeat.json"
+    },
+    {
+      "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+      "source_sha256": "63636b6bf267a063663649c3e66e8baf0a3b32c16fc778316ec81941d304e741",
+      "id": "stale-single-finance",
+      "disposition": "passed",
+      "status": "source_changed",
+      "evidence": "mcp/stale-single-finance.json"
+    }
+  ]
+}

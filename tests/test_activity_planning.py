@@ -32,10 +32,10 @@ from tests.test_obligations import read
 @pytest.fixture
 def planning_now(activities, monkeypatch, bridge):
     monkeypatch.setattr(activity_planning, "utcnow", lambda: activities)
-    import canvas_bridge.discussion_integration as integration
+    # Discussion freshness comes from the accepted Canvas response receipt.
+    monkeypatch.setattr("canvas_bridge.canvas.utcnow", lambda: activities)
     import canvas_bridge.discussions as discussions
 
-    monkeypatch.setattr(integration, "utcnow", lambda: activities)
     monkeypatch.setattr(discussions, "utcnow", lambda: activities)
     topic = bridge.synthetic.data["discussion_topics"]["11"][0]
     topic.update(user_can_see_posts=True, require_initial_post=False)

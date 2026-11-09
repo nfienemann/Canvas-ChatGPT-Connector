@@ -80,6 +80,11 @@ the [synthetic validation record](sanitized-results/authorization-policy-gateway
 
 ## AI egress and content-governance prerequisite — October 25, 2026
 
+November 4 private-operation exception: explicit `BRIDGE_EGRESS_MODE=permissive`
+can suspend egress review requirements for loopback, read-only personal operation.
+This is not release-gate evidence. Hosted operation rejects that setting, and
+public/pilot approval claims still require the strict gateway and evidence below.
+
 The [data egress gateway](../docs/data-egress-governance.md) requires an exact,
 administrator-reviewed recipient plan/workspace, authenticated environment
 claims, content classification and applicable source/modality/byte-hash reviews
@@ -392,3 +397,85 @@ The [follow-up evidence](sanitized-results/stress-followup-2026-10-28.md) record
 repairs and additional synthetic acceptance. Genuine UI acknowledgment, original
 PPTX pixel observation and disposable deployment-recovery acceptance retain
 their own gates; corpus improvements do not waive them.
+
+## API usage governor gate — October 29, 2026
+
+The [API transaction governor](../docs/api-usage-governor.md) enforces a durable local
+admission ceiling independently from source authorization and technical throttling.
+Unknown contract terms fail closed. Synthetic policies cannot use real transports.
+Signed operator changes preserve consumption and confer no institutional approval.
+Backup restore places accounting on hold until verified vendor reconciliation.
+
+[Local evidence](sanitized-results/api-usage-governor-2026-10-29.md) records actual
+checks. Multiworker PostgreSQL, hosted load/recovery, real vendor counting and
+installed-client acceptance require their own executed evidence. No paid allowance,
+overage, deployment or live Canvas access is authorized by this implementation.
+Missing source-bound or PostgreSQL acceptance keeps the compliance section at
+IMPLEMENTED_UNVERIFIED; external approvals remain REQUIRES_EXTERNAL_APPROVAL.
+
+## Independent usefulness gate — October 29, 2026
+
+The [six usefulness specifications](../docs/usefulness/implementation.md) extend
+existing independent sources and academic process state behind an opt-in flag.
+Require current passing synthetic authorization/lifecycle checks and normal
+HTTP UI-to-MCP acceptance before enabling a selected deployment. The
+[verification report](sanitized-results/usefulness-2026-10-29.md) separates
+implemented features, fixture outcomes, real local-browser proof and remaining
+host/pilot/environment gates. No numbered test name alone certifies all clauses
+of its source specification. Failed regressions cannot be offset by retrieval scores.
+
+No live-provider acquisition, automatic notification, calendar mutation, native
+chat attachment transfer or institutional approval is established by this work.
+Source-dependent study records remain subject to source expiry/revocation.
+Independent backup content is excluded rather than restored as usable evidence.
+
+## Private media library gate — October 29, 2026
+
+The [private library](../docs/private-media-library.md) adds default-off durable
+independent storage and authenticated browser intake. Its [verification record](sanitized-results/private-library-2026-10-29.md)
+separates local implementation, synthetic/loopback HTTP MCP tests, visible local
+browser evidence and unexecuted acceptance clauses. Existing LMS authorization,
+institutional restrictions and directory/distribution gates remain independent.
+
+Local encrypted-directory success does not certify hosted storage, PostgreSQL
+multiworker behavior, physical backup expiry, reference-load performance or actual
+host-client acceptance. Require separate executed evidence before those releases.
+Native host intake is absent and audio/video is disabled. No upload/grant/deletion
+tool can convert model assertions or source-document instructions into consent.
+No private service, data migration, public deployment or paid infrastructure was
+activated by this implementation.
+
+
+## Personal development accounting — November 3, 2026
+
+The owner explicitly deferred commercial allowance enforcement for private use.
+An opt-in owner-only personal mode counts bounded local requests without asserting
+vendor billing terms. Hosted/public commercial gates remain independent. See the
+[verification record](sanitized-results/personal-development-usage-2026-11-03.md).
+This grants no source access, sharing permission, or public-release readiness.
+
+The [November 3 library integration retest](sanitized-results/private-library-2026-11-03.md)
+records 46 passing focused cases against the updated shared modules. It does not
+claim a fresh full-suite result or close the hosted/native-client/media gates.
+
+
+Private-library local implementation and deferred release requirements (2026-11-03):
+see [the canonical checklist](../docs/private-library-release-checklist.md).
+Local synthetic evidence does not close PostgreSQL, hosted object storage, actual
+client, assistive-technology or public release gates. L2 and L3 remain disabled.
+
+
+## Registrar final-time host composition - November 3, 2026
+
+The [registrar lookup handoff](../docs/registrar-final-times.md) adds final timing
+gap discovery and Calendar proposal holds to existing authorized workflows.
+Bridge-side tests do not verify original-email/PDF reading, sender authenticity,
+section matching or model compliance in an installed host. Require executed
+[synthetic host acceptance](../docs/registrar-host-acceptance.json) before claiming
+those behaviors. Email evidence remains host-only; no new mailbox retrieval,
+import permission, background monitoring, calendar write or deployment is enabled.
+See [local checks](sanitized-results/registrar-final-times-2026-11-03.md).
+
+## Stage 6 academic operations analytics
+
+The [Stage 6 verification record](sanitized-results/stage6-academic-analytics.md) covers synthetic calculation, authorization, saved history and authenticated local MCP delivery. Installed-client acceptance requires the baseline and sparse requests to reach this build directly and the resulting client answers to pass the host rubric. Confirmed external effects require an authoritative, course-bound receipt from the executing adapter.

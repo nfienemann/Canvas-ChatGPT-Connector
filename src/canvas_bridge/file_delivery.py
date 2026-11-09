@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import quote
 from uuid import uuid4
 
+from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from canvas_bridge.auth import READ_SCOPE, principal_id
@@ -627,13 +628,62 @@ class OriginalResponse(StreamingResponse):
 
     def __init__(self, content, headers, manager, item, slot):
         super().__init__(content, headers=headers)
+        from canvas_bridge.failure_diagnostics import Attempt, current
+
         self.manager, self.item, self.slot = manager, item, slot
+        self.attempt = current.get() or Attempt()
+        self.headers["x-bridge-request-id"] = self.attempt.request_id
 
     async def __call__(self, scope, receive, send):
+        from canvas_bridge.egress_errors import safe_error_result
+        from canvas_bridge.failure_diagnostics import StreamInterrupted, current, describe
+        from canvas_bridge.failure_events import record
+
+        sent = 0
+        in_send = False
+
+        async def observed_send(message):
+            nonlocal sent, in_send
+            size = len(message.get("body", b""))
+            in_send = size > 0
+            await send(message)
+            sent += size
+            in_send = False
+
+        token = current.set(self.attempt)
         try:
             async with asyncio.timeout(self.manager.settings.file_delivery_budget_seconds):
-                await super().__call__(scope, receive, send)
+                await super().__call__(scope, receive, observed_send)
+        except (Exception, asyncio.CancelledError) as exc:
+            self.attempt.delivery = "unknown" if in_send else "partial" if sent else "none"
+            self.attempt.capture(exc)
+            result = Result(
+                status="operation_failed", summary="", data={"reason_code": "TRANSPORT_FAILED"}
+            )
+            if isinstance(exc, DomainError):
+                result = safe_error_result(Result(status=exc.status, summary="", data=exc.data))
+            describe(result, "not_evaluated")
+            record(self.manager.bridge.egress)
+            # A committed stream can carry no second response. Preserve the
+            # disconnect protocol without passing provider exception text to ASGI.
+            if isinstance(exc, DomainError):
+                # Existing in-process consumers depend on the typed denial. Scope
+                # the message to this chunk, and discard all upstream details.
+                blocked = DomainError(
+                    result.status,
+                    "Content was not transmitted for the blocked chunk.",
+                    reason_code=result.data["reason_code"],
+                )
+                blocked.bridge_request_id = self.attempt.request_id
+                raise blocked from None
+            if isinstance(exc, ClientDisconnect):
+                exc.bridge_request_id = self.attempt.request_id
+                raise exc from None
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            raise StreamInterrupted(self.attempt.request_id) from None
         finally:
+            current.reset(token)
             try:
                 await self.body_iterator.aclose()
             finally:
@@ -650,7 +700,27 @@ def register_download_routes(mcp, bridge, verifier):
 
     async def serve(request, *, bearer):
         context = RequestAuthorization("download_original", recipient="user_download")
+        from canvas_bridge.egress_transport import emergency_message, inspected_failure
+        from canvas_bridge.failure_diagnostics import Attempt, current
+        from canvas_bridge.privacy.transport import receipts
+
         context_token = request_authorization.set(context)
+        diagnostic_token = current.set(Attempt(request_id=context.request_id))
+
+        def safe_download_error(result):
+            receipt_token = receipts.set(set())
+            try:
+                response = inspected_failure(bridge.egress, None, source=result)
+                return Result.model_validate(response.structuredContent)
+            except Exception as exc:
+                return Result(
+                    status="operation_failed",
+                    summary=emergency_message(bridge.egress, exc),
+                    data={"request_id": context.request_id},
+                )
+            finally:
+                receipts.reset(receipt_token)
+
         stack = None
         item = None
         entered = False
@@ -677,7 +747,7 @@ def register_download_routes(mcp, bridge, verifier):
                     or not token.subject
                     or not token.claims
                 ):
-                    safe = bridge.egress.safe_error(
+                    safe = safe_download_error(
                         Result(
                             status="permission_denied",
                             summary="",
@@ -762,7 +832,7 @@ def register_download_routes(mcp, bridge, verifier):
                 if exc.status in {"permission_denied", "reconnect_required"}
                 else 503
             )
-            safe = bridge.egress.safe_error(
+            safe = safe_download_error(
                 Result(status=exc.status, summary=exc.message, data=exc.data)
             )
             return JSONResponse(
@@ -771,7 +841,7 @@ def register_download_routes(mcp, bridge, verifier):
                 headers=HEADERS,
             )
         except OSError:
-            safe = bridge.egress.safe_error(
+            safe = safe_download_error(
                 Result(
                     status="retry_later", summary="", data={"reason_code": "STAGING_UNAVAILABLE"}
                 )
@@ -783,6 +853,7 @@ def register_download_routes(mcp, bridge, verifier):
                 await stack.__aexit__(None, None, None)
                 manager.cleanup()
             request_authorization.reset(context_token)
+            current.reset(diagnostic_token)
 
     @mcp.custom_route("/course-file-download/{capability}", methods=["GET", "HEAD"])
     async def capability_download(request):

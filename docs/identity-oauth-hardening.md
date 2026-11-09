@@ -142,3 +142,5 @@ Protocol references reviewed on 2026-10-25:
 [Instructure OAuth endpoints](https://developerdocs.instructure.com/services/canvas/oauth2/file.oauth_endpoints),
 and [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html).
 These describe protocol behavior; they do not authorize this integration.
+
+For the deployed request path, diagnostic fields and caller recovery sequence, see [authentication diagnostics and recovery](authentication-diagnostics.md).

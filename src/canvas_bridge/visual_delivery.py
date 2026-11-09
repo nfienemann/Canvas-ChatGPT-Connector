@@ -15,6 +15,11 @@ STAGES = (
     "image_visible_to_model",
     "visual_interpretation_completed",
     "interpretation_verified",
+    "presentation_converted",
+    "image_validated",
+    "image_release_checked",
+    "transport_emission",
+    "client_decoding",
 )
 
 
@@ -38,7 +43,10 @@ def lifecycle(*, rendered=False, events=()):
         "authorization": ("source_authorized", "fresh_file_authorization"),
         "source_fetch": ("source_retrieved", "version_checked_source_bytes"),
         "pdf_page_render": ("page_rendered", "validated_png"),
+        "pptx_conversion": ("presentation_converted", "version_checked_derivative"),
     }
+    if rendered:
+        stages["image_validated"] = {"status": "established", "evidence": "validated_png"}
     for event in events:
         if event.get("stage") not in mapping:
             continue
@@ -53,6 +61,22 @@ def lifecycle(*, rendered=False, events=()):
                 "evidence": event.get("error_classification", "server_stage_failed"),
             }
     return stages
+
+
+def observe_stage(stage, result, *, cache_hit=False):
+    from canvas_bridge.failure_diagnostics import current
+
+    attempt = current.get()
+    if (
+        attempt
+        and stage in {"authorization", "source_fetch", "pptx_conversion", "pdf_page_render"}
+        and result in {"completed", "failed", "unavailable"}
+    ):
+        attempt.visual_events[stage] = {
+            "stage": stage,
+            "result": result,
+            "resources": {"cache_hit": bool(cache_hit)},
+        }
 
 
 def capability(settings, client_info=None):
@@ -141,7 +165,17 @@ def image_response(result, png, settings, client_info=None):
         "model_visibility": "unknown",
         "visual_interpretation_established": False,
     }
-    result.data.setdefault("visual_pipeline", lifecycle())
+    stages = result.data.setdefault("visual_pipeline", lifecycle())
+    if (
+        png
+        and result.meta.egress
+        and result.meta.egress.get("decision") in {"ALLOW", "ALLOW_MINIMIZED", "ALLOW_REDACTED"}
+    ):
+        stages["image_release_checked"] = {
+            "status": "established",
+            "evidence": "image_release_policy",
+        }
+        stages["image_validated"] = {"status": "established", "evidence": "validated_png"}
     contents = [TextContent(type="text", text=result.model_dump_json())]
     metadata = {}
     if png and mode != "text":

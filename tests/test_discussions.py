@@ -162,7 +162,12 @@ async def test_DP10_11_pagination_exhaustion(bridge, owner, seeded, discussion, 
     discussion["overrides"][(path, "2")] = (
         httpx.Response(503) if fail else httpx.Response(200, json=[entry(2)])
     )
-    p = (await read(bridge, owner, seeded, discussion)).data["participation"]
+    result = await read(bridge, owner, seeded, discussion)
+    p = result.data["participation"]
+    scope = result.meta.coverage[1]
+    assert scope.state == ("partial" if fail else "complete")
+    assert scope.pages_consumed == p["coverage"]["pages_fetched"] == (1 if fail else 2)
+    assert scope.pagination_complete == p["coverage"]["pagination_exhausted"] == (not fail)
     assert p["state"] == ("partial" if fail else "verified_present")
     assert p["top_level_posts"] == (1 if fail else 2)
     assert p["coverage"]["complete"] is not fail
@@ -375,6 +380,27 @@ async def test_discussion_mcp_serialized_fields_and_self_label(
         ):
             assert tools[name].annotations.readOnlyHint
             assert "student_id" not in tools[name].inputSchema["properties"]
+        prompt = await session.call_tool(
+            "read_discussion_topic",
+            {"connection_id": seeded, "course_id": discussion["course"], "topic_id": "20"},
+        )
+        wire = prompt.structuredContent
+        assert wire == json.loads(prompt.content[0].text)
+        assert wire["data"]["topic"]["coverage"]["complete"] and "participation" not in wire["data"]
+        assert wire["meta"]["freshness"] == "live"
+        assert wire["meta"]["retrieved_at"] == wire["data"]["topic"]["coverage"]["fetched_at"]
+        prompt_scope, entries_scope = wire["meta"]["coverage"]
+        assert (prompt_scope["resource"], prompt_scope["state"]) == (
+            "discussion_prompt",
+            "complete",
+        )
+        assert (entries_scope["resource"], entries_scope["state"]) == (
+            "discussion_entries",
+            "not_refreshed",
+        )
+        assert entries_scope["pages_consumed"] == 0 and not entries_scope["pagination_complete"]
+        assert wire["evidence"][0]["coverage"] == [prompt_scope, entries_scope]
+        assert not wire["evidence"][0]["uncertainty"]
         result = await session.call_tool(
             "get_my_discussion_participation",
             {"connection_id": seeded, "course_id": discussion["course"], "topic_id": "20"},
@@ -416,6 +442,8 @@ async def test_timeout_preserves_verified_findings_and_cancels_request(
     result = await read(bridge, owner, seeded, discussion)
     p = result.data["participation"]
     assert p["state"] == "partial" and p["initial_post_state"] == "verified_present"
+    assert result.meta.coverage[1].state == "partial"
+    assert "request_timeout" in result.meta.coverage[1].warning
     assert "request_timeout" in p["coverage"]["partial_reasons"] and cancelled
 
 
@@ -434,6 +462,8 @@ async def test_audit_topic_limit_has_complete_coverage_shape(bridge, owner, seed
     reports, _ = await scan_topics(bridge, owner, seeded, discussion["course"], ["20", "21"])
     assert reports["20"]["participation"]["coverage"]["complete"]
     unknown = reports["21"]["participation"]["coverage"]
+    assert reports["21"]["participation"]["fetched_at"] is unknown["fetched_at"] is None
+    assert unknown["freshness"] == "not_refreshed"
     assert unknown["partial_reasons"] == ["topic_limit"] and not unknown["complete"]
     assert {
         "pages_fetched",
@@ -531,6 +561,11 @@ async def test_denied_thread_never_falls_back_or_claims_absence(
     else:
         result = await read(bridge, owner, seeded, discussion)
         assert result.data["participation"]["state"] == "access_restricted"
+        assert result.meta.coverage[1].state == (
+            "permission_denied" if status == 403 else "unavailable"
+        )
+        assert result.meta.coverage[1].upstream_http_status == status
+        assert result.data["participation"]["coverage"]["cache_age_seconds"] is None
     assert not any(r.url.path.endswith("/entries") for r in bridge.synthetic.requests)
 
 
@@ -680,3 +715,246 @@ async def test_planning_prioritizes_reply_deadline_without_duplicate_tasks(
         ]
         == 1
     )
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("limit", [50, 1])
+async def test_topic_list_wire_evidence(running, bridge, seeded, discussion, token_factory, limit):
+    bridge.synthetic.data["discussion_topics"]["11"].append({**discussion["topic"], "id": 21})
+    async with client_session(running, token_factory()) as session:
+        result = await session.call_tool(
+            "list_course_discussions",
+            {"connection_id": seeded, "course_id": discussion["course"], "limit": limit},
+        )
+    wire = result.structuredContent
+    assert wire == json.loads(result.content[0].text)
+    complete = limit >= 2
+    assert wire["status"] == ("ok" if complete else "partial_data")
+    assert len(wire["data"]["topics"]) == min(2, limit)
+    coverage = wire["data"]["coverage"]
+    assert coverage["complete"] == complete and coverage["pagination_exhausted"]
+    assert coverage["cache_age_seconds"] == 0
+    assert wire["meta"]["freshness"] == "live"
+    (scope,) = wire["meta"]["coverage"]
+    assert scope["state"] == ("complete" if complete else "partial")
+    assert scope["resource"] == "discussion_topics"
+    assert scope["pagination_complete"] and scope["pages_consumed"] == coverage["pages_fetched"]
+    assert len(wire["evidence"]) == min(2, limit)
+    assert all(e["coverage"] == [scope] and not e["uncertainty"] for e in wire["evidence"])
+    assert not any(r.url.path.endswith(("/view", "/entries")) for r in bridge.synthetic.requests)
+
+
+@pytest.mark.parametrize(
+    "mode,count,pages,exhausted,state,reason",
+    [
+        ("multi", 2, 2, True, "complete", None),
+        ("empty", 0, 1, True, "complete", None),
+        ("limit", 1, 2, True, "partial", "topic_limit"),
+        ("budget", 1, 1, False, "partial", "TASK_BUDGET_EXCEEDED"),
+        ("timeout", 1, 1, False, "partial", "UPSTREAM_REQUEST_TIMEOUT"),
+        ("invalid", 1, 1, False, "partial", "UPSTREAM_RESPONSE_INVALID"),
+        ("denied", 0, 0, False, "permission_denied", "RESOURCE_PERMISSION_DENIED"),
+        ("later_denied", 0, 1, False, "permission_denied", "RESOURCE_PERMISSION_DENIED"),
+    ],
+)
+async def test_topic_page_outcomes(
+    bridge, owner, seeded, discussion, monkeypatch, mode, count, pages, exhausted, state, reason
+):
+    from canvas_bridge.evidence import attach
+
+    original = bridge.synthetic.handle
+    path = BASE.rsplit("/", 1)[0]
+    requests = []
+
+    def handle(request):
+        if request.url.path != path:
+            return original(request)
+        page = request.url.params.get("page", "1")
+        requests.append(page)
+        if mode == "denied" or (mode == "later_denied" and page == "2"):
+            return httpx.Response(403)
+        if mode == "empty":
+            return httpx.Response(200, json=[])
+        if page == "1":
+            return httpx.Response(
+                200,
+                json=[discussion["topic"]],
+                headers={"Link": f'<{request.url.copy_set_param("page", "2")}>; rel="next"'},
+            )
+        if mode == "timeout":
+            raise httpx.ReadTimeout("synthetic")
+        if mode == "invalid":
+            return httpx.Response(200, json={})
+        return httpx.Response(200, json=[{**discussion["topic"], "id": 21}])
+
+    monkeypatch.setattr(bridge.synthetic, "handle", handle)
+    if mode == "budget":
+        bridge.settings.max_pages = 1
+    result = attach(
+        await list_discussions(
+            bridge, owner, seeded, discussion["course"], limit=1 if mode == "limit" else 50
+        )
+    )
+    data, scope = result.data["coverage"], result.meta.coverage[0]
+    assert len(result.data["topics"]) == count
+    assert scope.resource == "discussion_topics" and scope.state == state
+    assert data["complete"] == (state == "complete") == (result.status == "ok")
+    assert data["pages_fetched"] == scope.pages_consumed == pages
+    assert data["pagination_exhausted"] == scope.pagination_complete == exhausted
+    assert result.meta.freshness == ("live" if pages else "not_refreshed")
+    assert data["entries_examined"] == 0
+    assert data["cache_age_seconds"] == (0 if pages else None)
+    assert bool(data["fetched_at"]) == bool(pages)
+    if reason:
+        assert reason in data["partial_reasons"] and reason in scope.warning
+        if mode != "limit":
+            assert scope.reason_code == reason
+    assert all(e["coverage"] == [scope.model_dump(mode="json")] for e in result.evidence)
+    if mode in {"denied", "later_denied"}:
+        assert requests == (["1"] if mode == "denied" else ["1", "2"])
+        assert not result.sources and scope.upstream_http_status == 403
+
+
+@pytest.mark.parametrize("unattempted", [True, False])
+async def test_topic_unattempted_or_unknown_origin(
+    bridge, owner, seeded, discussion, monkeypatch, unattempted
+):
+    from canvas_bridge.canvas import CanvasClient, Collection
+
+    async def collection(*args, **kwargs):
+        if unattempted:
+            return Collection(failure="not_refreshed", reason_code="INVENTORY_NOT_ATTEMPTED")
+        return Collection(items=[discussion["topic"]], complete=True, pages=1)
+
+    monkeypatch.setattr(CanvasClient, "collection", collection)
+    result = await list_discussions(bridge, owner, seeded, discussion["course"])
+    data, scope = result.data["coverage"], result.meta.coverage[0]
+    assert result.meta.freshness == ("not_refreshed" if unattempted else "unknown")
+    assert data["fetched_at"] is data["cache_age_seconds"] is None
+    assert data["complete"] == scope.pagination_complete == (not unattempted)
+    if unattempted:
+        assert scope.state == "not_refreshed"
+        assert scope.reason_code == "INVENTORY_NOT_ATTEMPTED"
+        assert scope.reason_code in data["partial_reasons"]
+    else:
+        (topic,) = result.data["topics"]
+        assert topic["fetched_at"] is topic["coverage"]["fetched_at"] is None
+        assert topic["coverage"]["cache_age_seconds"] is None
+
+
+@pytest.mark.contract
+async def test_topic_authorized_cache_receipt(
+    running, bridge, seeded, discussion, token_factory, monkeypatch
+):
+    from dataclasses import replace
+
+    from canvas_bridge.usage.transport import OPERATIONS
+
+    # Exercise the real cache under a fixture-only policy. Production lists bypass it.
+    name = "canvas.discussions"
+    assert not OPERATIONS[name].cache_eligible
+    monkeypatch.setitem(OPERATIONS, name, replace(OPERATIONS[name], cache_eligible=True))
+    get = bridge.upstream_cache.get
+
+    async def with_fixture_ttl(key, authorize, fetch, *, ttl):
+        return await get(key, authorize, fetch, ttl=60)
+
+    monkeypatch.setattr(bridge.upstream_cache, "get", with_fixture_ttl)
+    args = {"connection_id": seeded, "course_id": discussion["course"]}
+    async with client_session(running, token_factory()) as session:
+        first = (await session.call_tool("list_course_discussions", args)).structuredContent
+        assert first["meta"]["freshness"] == "live"
+        before = len(bridge.synthetic.requests)
+        second = (await session.call_tool("list_course_discussions", args)).structuredContent
+        assert not any(
+            r.url.path.endswith("/discussion_topics") for r in bridge.synthetic.requests[before:]
+        )
+    assert second["meta"]["freshness"] == "cached"
+    assert bridge.upstream_cache.hits == 1
+    coverage = second["data"]["coverage"]
+    assert coverage["complete"] and coverage["pagination_exhausted"]
+    assert coverage["fetched_at"] == first["data"]["coverage"]["fetched_at"]
+    assert second["sources"][0]["retrieved_at"] == coverage["fetched_at"]
+    assert second["evidence"][0]["coverage"] == second["meta"]["coverage"]
+
+
+def test_topic_mixed_page_times_and_unverified_receipts():
+    from datetime import UTC, datetime, timedelta
+
+    from canvas_bridge.read_evidence import read_observation
+
+    now = datetime(2026, 1, 8, tzinfo=UTC)
+    earlier = now - timedelta(seconds=9)
+    live = {"source": "upstream", "retrieved_at": now.isoformat()}
+    cached = {"source": "cache", "retrieved_at": earlier.isoformat()}
+    assert read_observation([live, cached], 2, now) == ("cached", earlier, 9)
+    assert read_observation([{**live, "source": "cache"}], 1, now) == ("cached", now, 0)
+    for unverified in ([], [{"source": "cache"}], [{**live, "source": "unknown"}]):
+        assert read_observation(unverified, 1, now) == ("unknown", None, None)
+
+
+@pytest.mark.contract
+async def test_denied_topic_list_wire_evidence(
+    running, bridge, seeded, discussion, token_factory, monkeypatch
+):
+    original = bridge.synthetic.handle
+    denied = []
+
+    def handle(request):
+        if request.url.path == BASE.rsplit("/", 1)[0]:
+            denied.append(request)
+            return httpx.Response(403)
+        return original(request)
+
+    monkeypatch.setattr(bridge.synthetic, "handle", handle)
+    async with client_session(running, token_factory()) as session:
+        result = await session.call_tool(
+            "list_course_discussions", {"connection_id": seeded, "course_id": discussion["course"]}
+        )
+    wire = result.structuredContent
+    assert wire == json.loads(result.content[0].text)
+    assert len(denied) == 1 and wire["status"] == "partial_data"
+    assert wire["data"]["topics"] == wire["evidence"] == []
+    (scope,) = wire["meta"]["coverage"]
+    assert scope["state"] == "permission_denied" and not scope["pagination_complete"]
+    assert (
+        scope["reason_code"] == "RESOURCE_PERMISSION_DENIED"
+        and scope["upstream_http_status"] == 403
+    )
+    assert scope["reason_code"] in wire["data"]["coverage"]["partial_reasons"]
+    assert wire["meta"]["freshness"] == "not_refreshed"
+
+
+@pytest.mark.contract
+async def test_prompt_cache_receipt_with_live_entries(
+    running, bridge, seeded, discussion, token_factory, monkeypatch
+):
+    from dataclasses import replace
+
+    from canvas_bridge.usage.transport import OPERATIONS
+
+    name = "canvas.discussion"
+    monkeypatch.setitem(OPERATIONS, name, replace(OPERATIONS[name], cache_eligible=True))
+    get = bridge.upstream_cache.get
+
+    async def with_ttl(key, authorize, fetch, *, ttl):
+        return await get(key, authorize, fetch, ttl=60)
+
+    monkeypatch.setattr(bridge.upstream_cache, "get", with_ttl)
+    args = {"connection_id": seeded, "course_id": discussion["course"], "topic_id": "20"}
+    async with client_session(running, token_factory()) as session:
+        first = (await session.call_tool("read_discussion_topic", args)).structuredContent
+        before = len(bridge.synthetic.requests)
+        second = (
+            await session.call_tool("read_discussion_topic", {**args, "include_entries": True})
+        ).structuredContent
+    paths = [r.url.path for r in bridge.synthetic.requests[before:]]
+    assert BASE not in paths and BASE + "/view" in paths
+    assert first["meta"]["freshness"] == "live" and second["meta"]["freshness"] == "cached"
+    assert second["data"]["topic"]["coverage"]["freshness"] == "cached"
+    assert second["data"]["participation"]["coverage"]["freshness"] == "live"
+    prompt_time = first["data"]["topic"]["coverage"]["fetched_at"]
+    assert second["data"]["topic"]["fetched_at"] == second["meta"]["retrieved_at"] == prompt_time
+    assert second["data"]["participation"]["coverage"]["complete"]
+    assert second["data"]["participation"]["state"] == "verified_absent"
+    assert second["evidence"][0]["coverage"] == second["meta"]["coverage"]

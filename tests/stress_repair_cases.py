@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import traceback
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -263,9 +264,34 @@ async def execute(h):
         return
     if ident.startswith("AI-"):
         if ident == "AI-19":
-            raise Blocked(
-                "This case requires an actual acknowledgment through the test UI; no human UI consent was supplied or manufactured."
+            from scripts.run_integrity_acknowledgment_demo import SILENT, implementation_hashes
+
+            path = os.environ.get("CANVAS_BRIDGE_ACK_RECEIPT")
+            if not path:
+                raise Blocked(
+                    "This case requires an actual acknowledgment through the isolated test UI; no consent was supplied or manufactured."
+                )
+            receipt = json.loads(await asyncio.to_thread(Path(path).read_text, encoding="utf-8"))
+            assert receipt["case_id"] == ident and receipt["status"] == "PASS"
+            assert receipt["interaction"] == "explicit_human_browser_form"
+            assert receipt["implementation_hashes"] == implementation_hashes()
+            assert receipt["source_sha256"] == hashlib.sha256(SILENT).hexdigest()
+            assert receipt["allowed_after_acknowledgment"] and not receipt["permission_established"]
+            assert receipt["different_activity_reason"] == "INTEGRITY_ACKNOWLEDGMENT_SCOPE_MISMATCH"
+            assert not receipt["institutional_access_enabled"]
+            h.observe(
+                "separate_human_ui_acceptance",
+                {
+                    "receipt_sha256": hashlib.sha256(
+                        await asyncio.to_thread(Path(path).read_bytes)
+                    ).hexdigest()
+                },
+                receipt,
             )
+            h.limits.append(
+                "Source-bound receipt of the separately observed human UI test, not a new acknowledgment or permission in this corpus run."
+            )
+            return
         scope = await h.policy()
         if ident == "AI-03":
             scope["assessment_id"] = None
@@ -383,24 +409,35 @@ async def execute(h):
             parts.extend(result["data"]["parts"])
             cursor = result["data"]["next_part"]
             assert len(parts) <= 200
-        if ident in {"VI-01", "VI-02"}:
+        if ident in {"VI-01", "VI-02", "VI-08"}:
             h.bridge.settings.file_reading_enabled = True
             h.bridge.settings.parser_root = (
-                h.pytest_request.getfixturevalue("tmp_path") / "visual-parser"
+                Path(os.environ["CANVAS_BRIDGE_TEST_PARSER_ROOT"])
+                if os.environ.get("CANVAS_BRIDGE_TEST_PARSER_ROOT")
+                else h.pytest_request.getfixturevalue("tmp_path") / "visual-parser"
             )
+            page = 10 if ident == "VI-08" else 1
+            if ident == "VI-08":
+                office = os.environ.get("CANVAS_BRIDGE_TEST_OFFICE_ROOT")
+                if not office:
+                    raise Blocked(
+                        "Original PPTX pixels require an explicitly configured trusted native renderer."
+                    )
+                h.bridge.settings.pptx_rendering_enabled = True
+                h.bridge.settings.pptx_renderer_root = Path(office)
             response = await h.session.call_tool(
-                "render_local_document_page", {"document_id": selected["document_id"], "page": 1}
+                "render_local_document_page", {"document_id": selected["document_id"], "page": page}
             )
             result = response.structuredContent
             images = [block for block in response.content if block.type == "image"]
             h.observe(
                 "render_local_document_page",
-                {"document_id": selected["document_id"], "page": 1},
+                {"document_id": selected["document_id"], "page": page},
                 result,
             )
             if not images:
                 raise Blocked(
-                    "No native pixels were delivered by the permitted PDF renderer: "
+                    "No native pixels were delivered by the permitted renderer: "
                     + str(result.get("data", {}).get("reason_code"))
                 )
             raw = base64.b64decode(images[0].data, validate=True)
@@ -412,7 +449,19 @@ async def execute(h):
                 {"source_sha256": selected["expected_hash"]},
                 {"image_sha256": pixel_hash, "path": destination.name},
             )
-            observation_path = os.environ.get("CANVAS_BRIDGE_VISUAL_OBSERVATIONS")
+            if ident == "VI-08":
+                assert result["data"]["source_slide"] == 10
+                assert result["data"]["source_slide_count"] == 10
+                assert result["data"]["slide_to_page"] == [
+                    {"source_slide": 10, "pdf_page": 1, "hidden": False}
+                ]
+                assert result["data"]["content_hash"] == selected["expected_hash"]
+                assert result["sources"][0]["locator"] == "Slide 10"
+            observation_path = os.environ.get(
+                "CANVAS_BRIDGE_SLIDE_OBSERVATIONS"
+                if ident == "VI-08"
+                else "CANVAS_BRIDGE_VISUAL_OBSERVATIONS"
+            )
             if not observation_path:
                 raise Blocked(
                     "Native PNG saved; actual model pixel review has not yet been recorded."
@@ -426,7 +475,13 @@ async def execute(h):
             ):
                 raise Blocked("Recorded pixel observation is for a different source or rendering.")
             h.observe("recorded_model_pixel_observation", {"image_sha256": pixel_hash}, observation)
-            if ident == "VI-01":
+            if ident == "VI-08":
+                assert (
+                    observation["source_slide"] == 10
+                    and observation["visual_inspection_performed"] is True
+                )
+                assert observation["visible_evidence"] and observation["unknowns"]
+            elif ident == "VI-01":
                 assert (
                     observation["control"] == 50
                     and observation["treatment"] == 75
@@ -443,16 +498,6 @@ async def execute(h):
                 "External model observation of this exact saved PNG, not automatic backend interpretation or installed personal-client acceptance."
             )
             return
-        if ident == "VI-08":
-            response = await h.session.call_tool(
-                "render_local_document_page", {"document_id": selected["document_id"], "page": 10}
-            )
-            assert not any(block.type == "image" for block in response.content)
-            assert response.structuredContent["status"] == "unsupported_feature"
-            h.observe("render_local_document_page", {"page": 10}, response.model_dump(mode="json"))
-            raise Blocked(
-                "The independent page-render route does not support PPTX and no trusted slide converter is configured. Original-slide pixel delivery and observation remain unverified."
-            )
         if ident == "VI-03":
             result = await h.workflow("assessment", documents=[selected])
             assert result["data"]["figure_interpretation"] == "not_performed"
@@ -1164,7 +1209,9 @@ async def test_stress_case(
     h = None
     status, error = "FAIL", None
     try:
-        async with client_session(running, token_factory()) as session:
+        # Native conversion has its own bounded OS deadline; a five-second
+        # client read timeout must not cancel a valid sandboxed conversion.
+        async with client_session(running, token_factory(), read_timeout=120) as session:
             h = Harness(bridge, owner, session, case, seeded)
             h.pytest_request = request
             h.dependencies = corpus_dependencies
@@ -1174,9 +1221,9 @@ async def test_stress_case(
             except Blocked as exc:
                 status, error = "BLOCKED", str(exc)
             except Exception as exc:
-                error = type(exc).__name__ + ": " + str(exc)[:1500]
+                error = "".join(traceback.format_exception(exc))[-6000:]
     except Exception as exc:
-        error = type(exc).__name__ + ": " + str(exc)[:1500]
+        error = "".join(traceback.format_exception(exc))[-6000:]
     finally:
         receipt = {
             "case": case,

@@ -9,12 +9,13 @@ from contextlib import nullcontext
 from datetime import timedelta
 
 from canvas_bridge.course_files import authorized, checked_row, fresh_cache, source
+from canvas_bridge.document_ranges import validate_document_range
 from canvas_bridge.domain import DomainError, Result, utcnow
 from canvas_bridge.file_download import download_file, file_format, file_metadata, file_version
 from canvas_bridge.parser_sandbox import extract_isolated
 from canvas_bridge.parser_worker import PARSER
 from canvas_bridge.presentation_render_worker import CONVERTER
-from canvas_bridge.visual_delivery import lifecycle
+from canvas_bridge.visual_delivery import lifecycle, observe_stage
 
 logger = logging.getLogger(__name__)
 STAGES = (
@@ -48,6 +49,7 @@ class Trace:
         if error:
             event["error_classification"] = error
         self.events[stage] = event
+        observe_stage(stage, result, cache_hit=event["resources"].get("cache_hit", False))
         # Only allowlisted stages/results and numeric resource values, no IDs,
         # document text, paths, URLs, native stderr or credentials.
         logger.info("presentation_stage %s", event)
@@ -177,6 +179,14 @@ async def render_slide(
             version = file_version(metadata)
             if not version:
                 raise DomainError("source_changed", "A stable source version is required.")
+            if fresh_cache(row, metadata, bridge.settings, now=bridge.retention.clock()):
+                if expected_source_hash is not None and expected_source_hash != row.version_hash:
+                    raise DomainError(
+                        "source_changed",
+                        "The presentation changed; begin a fresh visual review.",
+                        reason_code="SOURCE_CHANGED",
+                    )
+                validate_document_range(slide, slide, row.file_state.get("page_count"))
             fallback = text_fallback(
                 row, metadata, bridge.settings, slide, now=bridge.retention.clock()
             )
@@ -190,9 +200,11 @@ async def render_slide(
             if cached:
                 derivative, pdf = cached
                 digest = derivative["source_content_hash"]
-                if expected_source_hash and expected_source_hash != digest:
+                if expected_source_hash is not None and expected_source_hash != digest:
                     raise DomainError(
-                        "source_changed", "The presentation changed; begin a fresh visual review."
+                        "source_changed",
+                        "The presentation changed; begin a fresh visual review.",
+                        reason_code="SOURCE_CHANGED",
                     )
                 trace.record("source_fetch", "completed", resources={"cache_hit": 1})
                 trace.record("pptx_conversion", "completed", resources={"cache_hit": 1})
@@ -215,9 +227,11 @@ async def render_slide(
                         "source_changed", "The presentation changed while downloading."
                     )
                 digest = hashlib.sha256(download.data).hexdigest()
-                if expected_source_hash and expected_source_hash != digest:
+                if expected_source_hash is not None and expected_source_hash != digest:
                     raise DomainError(
-                        "source_changed", "The presentation changed; begin a fresh visual review."
+                        "source_changed",
+                        "The presentation changed; begin a fresh visual review.",
+                        reason_code="SOURCE_CHANGED",
                     )
                 trace.record(
                     stage,
@@ -385,6 +399,13 @@ async def render_slide(
                 meta=bridge.meta(),
             ), png
         except DomainError as exc:
+            if exc.reason_code == "DOCUMENT_RANGE_OUT_OF_BOUNDS":
+                if stage == "pptx_conversion":
+                    from canvas_bridge.course_files import recheck_range_error
+
+                    await recheck_range_error(bridge, owner, ref, file_id, epoch, version)
+                exc.details["visual_pipeline"] = lifecycle(events=trace.result())
+                raise
             if exc.status in {"permission_denied", "reconnect_required", "source_changed"}:
                 bridge.presentation_derivatives.invalidate(owner, ref, file_id)
             trace.record(

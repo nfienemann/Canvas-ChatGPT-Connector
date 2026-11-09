@@ -3,3 +3,8 @@
 *.pdf binary
 Codex_Spec.md whitespace=-blank-at-eol
 packaging/licenses/*.txt whitespace=-blank-at-eol,-blank-at-eof
+# Preserve Markdown hard breaks and unified-diff context in supplied evidence.
+docs/api-usage-governor-specifications/*.md whitespace=-blank-at-eol
+evidence/sanitized-results/*.patch whitespace=-blank-at-eol
+# These fixture inventories bind the original file bytes, including line endings.
+tests/fixtures/registrar/** -text whitespace=cr-at-eol

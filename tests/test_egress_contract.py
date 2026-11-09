@@ -25,6 +25,68 @@ from tests.test_permission_consistency_contract import client_session
 
 
 @pytest.mark.contract
+async def test_permissive_outline_releases_unreviewed_content(
+    running, token_factory, bridge, seeded, readable
+):
+    course, file = readable
+    bridge.settings.egress_mode = "permissive"
+    bridge.synthetic.egress_contexts = {file: {"classification": CC.UNKNOWN_OR_UNCLASSIFIED}}
+    async with client_session(running, token_factory(), read_timeout=30) as session:
+        response = await session.call_tool(
+            "get_course_outline", {"connection_id": seeded, "course_id": course.id}
+        )
+    result = response.structuredContent
+    assert result["status"] in {"ok", "partial_data"}
+    assert result["data"]["materials"]
+    assert result["meta"]["egress"]["reason_code"] == "EGRESS_PERMISSIVE_MODE"
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize(
+    "classification,reason",
+    [
+        (CC.PUBLIC_OR_APPROVED, None),
+        (CC.UNKNOWN_OR_UNCLASSIFIED, "EGRESS_CLASSIFICATION_UNKNOWN"),
+        (CC.RESTRICTED_ASSESSMENT, "EGRESS_RESTRICTED_CONTENT"),
+    ],
+)
+async def test_outline_release_and_correlated_safe_denial(
+    running, token_factory, bridge, seeded, readable, caplog, classification, reason
+):
+    course, file = readable
+    bridge.synthetic.egress_contexts = {file: {"classification": classification}}
+    async with client_session(running, token_factory(), read_timeout=30) as session:
+        response = await session.call_tool(
+            "get_course_outline", {"connection_id": seeded, "course_id": course.id}
+        )
+    result = response.structuredContent
+    if reason is None:
+        assert result["status"] in {"ok", "partial_data"}
+        assert result["data"]["materials"]
+    else:
+        assert result["status"] == "permission_denied"
+        assert result["data"]["reason_code"] == reason
+        assert result["data"]["content_decision"] in {"DENY", "REQUIRES_AUTHORIZED_REVIEW"}
+        assert "materials" not in result["data"]
+        assert result["sources"] == []
+        events = [r.message for r in caplog.records if "data_egress_blocked" in r.message]
+        assert any(result["meta"]["request_id"] in event and reason in event for event in events)
+        assert all(file not in event and course.id not in event for event in events)
+        diagnostic = result["data"]["diagnostic"]
+        assert (
+            diagnostic["requested_content_policy"]
+            == {"DENY": "deny", "REQUIRES_AUTHORIZED_REVIEW": "requires_review"}[
+                result["data"]["content_decision"]
+            ]
+        )
+        assert diagnostic["sanitized_error_release"] == "allow"
+        assert diagnostic["code"] == reason and diagnostic["category"] == "policy"
+        if classification == CC.UNKNOWN_OR_UNCLASSIFIED:
+            assert diagnostic["next_action"] == "request_source_classification_review"
+            assert result["data"]["processing_stage"] == "source_classification"
+
+
+@pytest.mark.contract
 @pytest.mark.parametrize(
     "classification",
     [
@@ -162,11 +224,14 @@ async def test_live_mock_minimized_records_require_exact_verified_environment(
         "end": (utcnow() + timedelta(days=7)).isoformat(),
         "timezone": "UTC",
     }
-    async with client_session(running, token_factory()) as session:
+    # Recipient-policy acceptance is not a five-second multi-course latency test.
+    async with client_session(running, token_factory(), read_timeout=30) as session:
         live_fixture(bridge)
         denied = await session.call_tool("get_workload", args)
         assert denied.structuredContent["data"]["reason_code"] == "EGRESS_RECIPIENT_UNVERIFIED"
-    async with client_session(running, token_factory(**recipient_claims())) as session:
+    async with client_session(
+        running, token_factory(**recipient_claims()), read_timeout=30
+    ) as session:
         allowed = await session.call_tool("get_workload", args)
         assert allowed.structuredContent["data"]["items"]
         assert allowed.structuredContent["meta"]["egress"]["decision"] in {
@@ -251,7 +316,12 @@ async def test_live_document_needs_review_and_rechecks_content_after_local_read(
     running, token_factory, bridge, owner, seeded, readable, monkeypatch
 ):
     _, file = readable
-    async with client_session(running, token_factory(**recipient_claims())) as session:
+    # This security contract exercises repeated signed authorization, governed
+    # downloads and post-read review. Give the harness the existing workflow
+    # budget; a five-second HTTP client timeout is not a product latency contract.
+    async with client_session(
+        running, token_factory(**recipient_claims()), read_timeout=30
+    ) as session:
         approvals = install_approvals(bridge)
         live_fixture(bridge)
         install_governance(bridge, approvals)
@@ -313,6 +383,13 @@ async def test_egress_is_reevaluated_before_each_download_chunk(
         return actual(item, bearer=bearer)
 
     monkeypatch.setattr(bridge.egress, "download", change_after_first_chunk)
-    with pytest.raises(DomainError, match="Content was not transmitted"):
+    with pytest.raises(DomainError, match="Content was not transmitted") as caught:
         await http_delivery.get(payload["external_url"])
+    assert caught.value.reason_code == "EGRESS_RESTRICTED_CONTENT"
+    from canvas_bridge.failure_events import journal, lookup
+
+    (event,) = lookup(journal(bridge.settings), caught.value.bridge_request_id)
+    assert event["requested_content_policy"] == "deny"
+    assert event["content_delivery"] == "partial"
+    assert event["sanitized_error_release"] == "not_evaluated"
     assert len(calls) == 3 and not bridge.original_files.active

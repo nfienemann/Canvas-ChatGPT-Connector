@@ -18,6 +18,7 @@ from tests.test_course_files import file_record
 from tests.test_domain_planning import NOW, task
 from tests.test_file_reading import scientific_pdf
 from tests.test_mcp_contract import running as running
+from tests.test_permission_consistency_contract import client_session
 
 
 def candidate(text):
@@ -218,8 +219,8 @@ async def test_T11_authenticated_schedule_document_dates(
     bridge.synthetic.data["file_types"] = {"51": mime}
     bridge.settings.file_reading_enabled = True
 
-    async def parser(data, kind, settings):
-        return extract(data, kind)
+    async def parser(data, kind, settings, page_range=None):
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", parser)
     result = await academic_request(bridge, owner, seeded, academic.id)
@@ -266,6 +267,17 @@ async def test_T11_T14_schedule_pagination_denied_source_and_duplicate_course(
     assert partial.data["findings"][0]["collection_complete"] is False
     bridge.synthetic.failures["/api/v1/courses/11"] = 403
     missing = await academic_request(bridge, owner, seeded, academic.id)
+    coverage = partial.data["evidence_graph"]["audit_coverage"]
+    assert coverage["source_retrieval"] == coverage["entity_matching"] == "partial"
+    assert (
+        coverage["unmatched_occurrences"]
+        and coverage["cross_source_comparison"] == "not_established"
+    )
+    graph = missing.data["evidence_graph"]
+    assert graph["audit_coverage"]["source_retrieval"] == "partial"
+    assert all(
+        q["result"]["cross_source_consistency"] == "not_established" for q in graph["queries"]
+    )
     assert not missing.data["obligations"]
     assert any("could not be retrieved" in text for text in missing.data["limitations"])
 
@@ -276,3 +288,246 @@ def test_T11_date_only_comparison_does_not_invent_clock_agreement():
     assert result["comparisons"][0]["time_agreement_established"] is False
     assert result["obligations"][0]["timezone"] is None
     assert result["obligations"][0]["precision"] == "date"
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("11/11", (None, 11, 11)),
+        ("10/26", (None, 10, 26)),
+        ("26/10/2026", (2026, 10, 26)),
+        ("11/12/2026", (2026, None, None)),
+        ("2/30", (None, None, None)),
+    ],
+)
+def test_numeric_components(raw, expected):
+    value = candidate(raw)
+    assert tuple(value[k] for k in ("year", "month", "day")) == expected
+    assert value["date"] == ("2026-10-26" if raw == "26/10/2026" else None)
+    assert value["clock"] is None and value["timezone"] is None
+
+
+@pytest.mark.parametrize(
+    "passage,titles",
+    [
+        ("Life extension (Quiz 12)", ["Quiz 12", "Quiz-12 makeup"]),
+        ("Quiz 12 or Quiz 13", ["Quiz 12"]),
+        ("Quiz 12 or 13", ["Quiz 12"]),
+        ("Quiz 12 (Quiz 12)", ["Quiz 12"]),
+    ],
+)
+def test_embedded_identifier_requires_unique_reference(passage, titles):
+    items = [
+        {**task(str(i)).model_dump(mode="json"), "title": title} for i, title in enumerate(titles)
+    ]
+    report = deadline_findings([source_doc("11/11 " + passage)], items, None, True)
+    assert report["findings"][0]["match"] == "ambiguous"
+    assert report["findings"][0]["work_id"] is None
+
+
+async def test_quiz_schedule_audit_graph(bridge, owner, seeded, academic, monkeypatch):
+    from canvas_bridge import academic_intelligence as ai
+
+    line = "11/11 Life extension (Quiz 12)"
+    bridge.synthetic.data["assignments"]["11"][0].update(
+        name="QUIZ #12", due_at="2026-11-11T20:00:00Z"
+    )
+    bridge.synthetic.data["course_details"]["11"]["syllabus_body"] = "<p>" + line + "</p>"
+    original = bridge.synthetic.handle
+
+    def schedule_page(request):
+        if request.url.path.endswith("/courses/11/pages/page_id:41"):
+            return httpx.Response(
+                200,
+                json={
+                    "page_id": 41,
+                    "published": True,
+                    "title": "Module 4 Schedule",
+                    "body": "<p>" + line + "</p><p>Module 4 Schedule</p>",
+                },
+            )
+        return original(request)
+
+    monkeypatch.setattr(bridge.synthetic, "handle", schedule_page)
+    outline = await ai.outline(bridge, owner, seeded, academic.id)
+    selected = next(m["id"] for m in outline.data["materials"] if m["kind"] == "page")
+    data = (
+        await academic_request(bridge, owner, seeded, academic.id, "audit", material_ids=[selected])
+    ).data
+    assert len(data["comparisons"]) == 2
+    assert all(c["outcome"] == "indeterminate" for c in data["comparisons"])
+    (group,) = data["obligation_groups"]
+    assert group["match"] == "unique_embedded_identifier"
+    assert group["matched_identifier"] == "Quiz 12" and group["assignment_title"] == "QUIZ #12"
+    assert len([f for f in data["findings"] if f["kind"] == "source_date_unresolved"]) == 1
+    citations = [o["evidence"] for o in group["occurrences"]]
+    assert {c["source_type"] for c in citations} == {"syllabus", "canvas_page"}
+    assert len({c["document_version"] for c in citations}) == 2
+    graph = data["evidence_graph"]
+    (query,) = graph["queries"]
+    assert group["work_id"] == query["work_id"]
+    result = query["result"]
+    assert len(result["candidates"]) == 3
+    assert result["authority"] == result["cross_source_consistency"] == "not_established"
+    assert graph["audit_coverage"]["compared_cross_source_pairs"] == 0
+    assert graph["audit_coverage"]["unmatched_occurrences"] == 0
+    for assertion in result["candidates"]:
+        value = assertion["value"]
+        if value.get("raw_date"):
+            assert value["day"] == value["month"] == 11
+            assert value["year"] is value["timezone"] is None
+            assert value["deadline_wording"] is False
+
+
+@pytest.mark.parametrize("amendment", ["", " explicitly replaces the earlier deadline"])
+async def test_two_document_deadlines_are_compared_without_timestamp_precedence(
+    bridge, owner, seeded, academic, monkeypatch, amendment
+):
+    from canvas_bridge.retrieval import outline
+
+    bridge.synthetic.data["assignments"]["11"][0]["due_at"] = "2026-11-11T20:00:00Z"
+    bridge.synthetic.data["course_details"]["11"]["syllabus_body"] = (
+        "<p>Exam 1 due 11/11/2026 at 20:00 UTC</p>"
+    )
+    original = bridge.synthetic.handle
+
+    def schedule_page(request):
+        if request.url.path.endswith("/courses/11/pages/page_id:41"):
+            return httpx.Response(
+                200,
+                json={
+                    "page_id": 41,
+                    "published": True,
+                    "updated_at": "2026-11-05T00:00:00Z",
+                    "body": "<p>Exam 1 due 11/11/2026 at 21:00 UTC" + amendment + "</p>",
+                },
+            )
+        return original(request)
+
+    monkeypatch.setattr(bridge.synthetic, "handle", schedule_page)
+    listing = await outline(bridge, owner, seeded, academic.id)
+    selected = next(m["id"] for m in listing.data["materials"] if m["kind"] == "page")
+    result = await academic_request(
+        bridge, owner, seeded, academic.id, "audit", material_ids=[selected]
+    )
+    graph = result.data["evidence_graph"]
+    coverage = graph["audit_coverage"]
+    assert coverage["compared_cross_source_pairs"] == 3
+    assert coverage["cross_source_comparison"] == "complete_at_available_precision"
+    query = graph["queries"][0]["result"]
+    assert query["cross_source_consistency"] == "source_difference"
+    assert len(query["conflicts"]) == 2
+    assert bool(query["supersession_candidates"]) == bool(amendment)
+    assert query["selected_assertion"] is None
+
+
+@pytest.mark.parametrize(
+    "line,unmatched", [("Bring a notebook.", 0), ("Quiz 77 due 10/26/2026", 1)]
+)
+async def test_single_source_query_after_complete_retrieval(
+    bridge, owner, seeded, academic, line, unmatched
+):
+    bridge.synthetic.data["course_details"]["11"]["syllabus_body"] = "<p>" + line + "</p>"
+    bridge.synthetic.data["assignments"]["11"][0]["due_at"] = "2026-11-11T20:00:00Z"
+    result = await academic_request(bridge, owner, seeded, academic.id, "audit", material_ids=[])
+    graph = result.data["evidence_graph"]
+    coverage = graph["audit_coverage"]
+    assert coverage["source_retrieval"] == "complete_within_scope"
+    assert coverage["unmatched_occurrences"] == unmatched
+    assert coverage["cross_source_comparison"] == "not_established"
+    assert "Cross-source deadline consistency is not established" in result.summary
+    query = graph["queries"][0]["result"]
+    assert len(query["candidates"]) == 1
+    assert query["candidates"][0]["provenance"][0]["complete"]
+    assert query["cross_source_consistency"] == "not_established"
+
+
+@pytest.mark.parametrize("qualification", ["", " if the instructor approves"])
+def test_original_and_extended_deadline_evidence(qualification):
+    line = (
+        "Quiz 12 was originally due on November 2, 2026, but the deadline "
+        f"has been extended to November 9, 2026{qualification}."
+    )
+    item = task("quiz").model_dump(mode="json")
+    item.update(title="Quiz 12", effective_due={"kind": "local_date", "local_date": "2026-11-09"})
+    audit = deadline_findings([source_doc(line)], [item], "UTC", True)
+    old, new = audit["obligations"]
+    assert old["evidence"]["passage"] == new["evidence"]["passage"] == line
+    assert old["date_offset"] == line.index("November 2")
+    assert new["date_offset"] == line.index("November 9")
+    if qualification:
+        assert not audit["comparisons"]
+        assert {finding["kind"] for finding in audit["findings"]} == {"ambiguous_match"}
+    else:
+        assert old["interpretation_status"] == "historical"
+        assert not audit["findings"]
+        assert [c["obligation_id"] for c in audit["comparisons"]] == [new["id"]]
+
+
+@pytest.mark.parametrize(
+    "assignment_day,outcome", [("09", "same_at_available_precision"), ("02", "different")]
+)
+async def test_quiz_amendment_compares_only_replacement_in_audit(
+    bridge, running, token_factory, seeded, academic, assignment_day, outcome
+):
+    line = "Quiz 12 was originally due on November 2, 2026, but the deadline has been extended to November 9, 2026."
+    bridge.synthetic.data["course_details"]["11"]["syllabus_body"] = f"<p>{line}</p>"
+    bridge.synthetic.data["assignments"]["11"][0].update(
+        name="Quiz 12", due_at=f"2026-11-{assignment_day}T15:00:00Z"
+    )
+    async with client_session(running, token_factory(scope="academic:read")) as session:
+        result = await session.call_tool(
+            "audit_course_consistency", {"connection_id": seeded, "course_id": academic.id}
+        )
+    audit = result.structuredContent["data"]
+    (comparison,) = audit["comparisons"]
+    assert comparison["outcome"] == outcome
+    conflicts = [f for f in audit["findings"] if f["kind"] == "conflicting_deadlines"]
+    assert [f["obligation"]["id"] for f in conflicts] == (
+        [comparison["obligation_id"]] if assignment_day == "02" else []
+    )
+    graph = audit["evidence_graph"]
+    assert graph["audit_coverage"]["compared_cross_source_pairs"] == 1
+    (former,) = [a for a in graph["assertions"] if a["predicate"] == "historical_deadline"]
+    (replacement,) = [
+        a
+        for a in graph["assertions"]
+        if a["predicate"] == "deadline" and a["value"].get("raw_date") == "November 9, 2026"
+    ]
+    assert former["subject"] == replacement["subject"]
+    assert former["value"]["raw_date"] == "November 2, 2026"
+    for fact, date_text in [(former, "November 2"), (replacement, "November 9")]:
+        (citation,) = fact["provenance"]
+        assert citation["source"]["locator"].endswith(f"date offset {line.index(date_text)}")
+    edges = [r for r in graph["relationships"] if r["kind"] == "SUPERSEDES"]
+    assert [(r["left"], r["right"]) for r in edges] == [(replacement["id"], former["id"])]
+
+
+@pytest.mark.parametrize(
+    "prefix,connector,suffix,resolved",
+    [
+        ("Lab 3 deadline moved from", "to", ".", True),
+        ("Lab 3 was due", "but is now due on", ".", True),
+        ("Lab 3 was due", "but may be extended to", ".", False),
+        ("Lab 3 or 4 deadline moved from", "to", ".", False),
+        ("Lab 3 deadline moved from", "to", " or November 11, 2026.", False),
+        ("Lab 3 deadline moved from", "to", "?", False),
+    ],
+)
+def test_amendment_wording_controls(prefix, connector, suffix, resolved):
+    line = f"{prefix} November 2, 2026 {connector} November 9, 2026{suffix}"
+    item = task("lab").model_dump(mode="json")
+    item.update(title="Lab 3", effective_due={"kind": "local_date", "local_date": "2026-11-09"})
+    audit = deadline_findings([source_doc(line)], [item], "UTC", True)
+    if resolved:
+        old, new = audit["obligations"]
+        assert old["title"] == new["title"] == "Lab 3"
+        assert new["replaces_obligation_id"] == old["id"]
+        assert [c["obligation_id"] for c in audit["comparisons"]] == [new["id"]]
+    else:
+        assert not audit["comparisons"]
+        assert all(
+            o["interpretation_status"] == "unresolved_amendment" for o in audit["obligations"]
+        )
+        assert len(audit["findings"]) == len(audit["obligations"])
+        assert all(f["kind"] == "ambiguous_match" for f in audit["findings"])

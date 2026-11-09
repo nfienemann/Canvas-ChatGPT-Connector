@@ -3,18 +3,26 @@
 import asyncio
 import base64
 import hashlib
+import io
 import math
 import struct
 import time
 from contextlib import nullcontext
 from datetime import timedelta
 
-from canvas_bridge.course_files import authorized, checked_row, source
+from canvas_bridge.course_files import (
+    authorized,
+    checked_row,
+    fresh_cache,
+    recheck_range_error,
+    source,
+)
+from canvas_bridge.document_ranges import validate_document_range
 from canvas_bridge.domain import DomainError, Result, utcnow
 from canvas_bridge.file_download import download_file, file_format, file_metadata, file_version
 from canvas_bridge.parser_sandbox import extract_isolated
 from canvas_bridge.presentation_render_worker import RENDERER as PPTX_RENDERER
-from canvas_bridge.visual_delivery import lifecycle
+from canvas_bridge.visual_delivery import lifecycle, observe_stage
 from canvas_bridge.visual_worker import MAX_PNG, RENDERER
 
 
@@ -22,6 +30,9 @@ def validate_rendering(result, data, request):
     renderer = PPTX_RENDERER if request.get("kind") == "pptx" else RENDERER
     if not result.get("ok"):
         reason = result.get("reason")
+        if reason == "document_range_out_of_bounds":
+            validate_document_range(request["page"], request["page"], result.get("page_count"))
+            raise ValueError("Inconsistent worker range")
         allowed = {
             "file_size_or_signature",
             "invalid_page_or_rotation",
@@ -105,20 +116,66 @@ def validate_rendering(result, data, request):
             ):
                 raise ValueError("Invalid OCR word geometry")
         return r
-    png = base64.b64decode(r["png"], validate=True)
+    try:
+        png = base64.b64decode(r["png"], validate=True)
+    except (ValueError, TypeError, KeyError) as exc:
+        raise DomainError(
+            "operation_failed",
+            "The renderer returned an invalid PNG.",
+            reason_code="RENDER_IMAGE_INVALID",
+        ) from exc
     if (
         r["renderer"] != renderer
         or r["content_hash"] != hashlib.sha256(data).hexdigest()
         or r["page"] != request["page"]
         or r["rotation"] != request["rotation"]
         or not 1 <= r["page"] <= r["page_count"] <= 200
+        or len(png) < 24
         or not png.startswith(b"\x89PNG\r\n\x1a\n")
         or len(png) > MAX_PNG
         or r["image_hash"] != hashlib.sha256(png).hexdigest()
         or list(struct.unpack(">II", png[16:24])) != r["pixels"]
         or not all(type(n) is int and 1 <= n <= 2401 for n in r["pixels"])
     ):
-        raise ValueError("Invalid isolated rendering result")
+        raise DomainError(
+            "operation_failed",
+            "The renderer returned an invalid PNG.",
+            reason_code="RENDER_IMAGE_INVALID",
+        )
+    # Reject ancillary chunks and trailing bytes, including text after IDAT.
+    position = 8
+    while position + 12 <= len(png):
+        length, chunk = struct.unpack_from(">I4s", png, position)
+        position += length + 12
+        if chunk not in {b"IHDR", b"IDAT", b"IEND"} or position > len(png):
+            break
+        if chunk == b"IEND":
+            break
+    if chunk != b"IEND" or position != len(png):
+        raise DomainError(
+            "operation_failed",
+            "The renderer returned an invalid PNG.",
+            reason_code="RENDER_IMAGE_INVALID",
+        )
+    # The isolated worker emits a metadata-free RGB PNG. Validate that exact
+    # profile before allowing bytes in a native block or private reader payload.
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(png), formats=["PNG"]) as picture:
+            if picture.mode != "RGB" or picture.info or list(picture.size) != r["pixels"]:
+                raise ValueError
+            picture.verify()
+        with Image.open(io.BytesIO(png), formats=["PNG"]) as picture:
+            picture.load()
+        if not png.endswith(b"\x00\x00\x00\x00IEND\xaeB\x60\x82"):
+            raise ValueError
+    except (OSError, ValueError, SyntaxError) as exc:
+        raise DomainError(
+            "operation_failed",
+            "The renderer returned an invalid PNG.",
+            reason_code="RENDER_IMAGE_INVALID",
+        ) from exc
     return r
 
 
@@ -144,10 +201,26 @@ async def render_document(data, settings, page=1, rotation=0, *, max_edge=2400):
     )
 
 
+async def render_pdf_with_fallback(data, settings, page, rotation):
+    """One bounded resolution fallback, without increasing any output/resource cap."""
+    try:
+        return await render_document(data, settings, page, rotation), False
+    except DomainError as exc:
+        if exc.reason_code != "RENDER_IMAGE_OUTPUT_LIMIT":
+            raise
+    try:
+        return await render_document(data, settings, page, rotation, max_edge=1600), True
+    except DomainError as exc:
+        exc.details["resolution_fallback"] = "failed"
+        raise
+
+
 async def render_file(bridge, owner, ref, file_id, page=1, rotation=0, expected_hash=None):
     if type(page) is not int or not 1 <= page <= 200 or rotation not in {0, 90, 180, 270}:
         raise DomainError(
-            "needs_input", "Choose one PDF page (1â€“200) and rotation 0, 90, 180 or 270."
+            "needs_input",
+            "Choose one PDF page (1-200) and rotation 0, 90, 180 or 270.",
+            reason_code="TOOL_INPUT_INVALID",
         )
     # Compatibility alias: existing clients can continue requesting PPTX pages.
     # The dedicated slide pipeline owns its lock and rechecks source access.
@@ -160,6 +233,7 @@ async def render_file(bridge, owner, ref, file_id, page=1, rotation=0, expected_
         )
     async with bridge.lock("file:" + ref + ":" + file_id):
         row, course, metadata, epoch = await authorized(bridge, owner, ref, file_id)
+        observe_stage("authorization", "completed")
         if file_format(metadata) != file_format(initial):
             raise DomainError(
                 "source_changed", "The file format changed. Start a new visual review."
@@ -179,12 +253,28 @@ async def render_file(bridge, owner, ref, file_id, page=1, rotation=0, expected_
             )
         digest = hashlib.sha256(download.data).hexdigest()
         if expected_hash is not None and expected_hash != digest:
-            raise DomainError("source_changed", "The document changed. Start a new visual review.")
+            raise DomainError(
+                "source_changed",
+                "The document changed. Start a new visual review.",
+                reason_code="SOURCE_CHANGED",
+            )
+        observe_stage("source_fetch", "completed")
         started = time.perf_counter()
         from canvas_bridge.worker_storage import processing
 
         with processing(owner, ref, namespace=bridge.processing_namespace):
-            rendering = await render_document(download.data, bridge.settings, page, rotation)
+            try:
+                if row.version_hash == digest and fresh_cache(
+                    row, metadata, bridge.settings, now=bridge.retention.clock()
+                ):
+                    validate_document_range(page, page, row.file_state.get("page_count"))
+                rendering, standard_fallback = await render_pdf_with_fallback(
+                    download.data, bridge.settings, page, rotation
+                )
+            except DomainError as exc:
+                if exc.reason_code == "DOCUMENT_RANGE_OUT_OF_BOUNDS":
+                    await recheck_range_error(bridge, owner, ref, file_id, epoch, download.revision)
+                raise
         duration_ms = round((time.perf_counter() - started) * 1000)
         async with bridge.client(owner, ref) as client:
             after = await file_metadata(client, course.source_id, row.source_id)
@@ -256,7 +346,14 @@ async def render_file(bridge, owner, ref, file_id, page=1, rotation=0, expected_
                     "Forms and annotations are excluded; embedded scripts are never executed.",
                     "Tiny text, merged cells and color meanings may remain ambiguous. Do not guess.",
                     "Use interpret_course_schedule with this receipt to structure visible rows; TBD stays undated.",
-                ],
+                ]
+                + (
+                    [
+                        "The page used standard 1600-pixel resolution after high-resolution image output exceeded the transport limit; inspect small details cautiously."
+                    ]
+                    if standard_fallback
+                    else []
+                ),
                 "retention": "No persistent binary/image cache. Temporary worker files are deleted after each request.",
             },
             sources=[citation],

@@ -209,8 +209,17 @@ def main():
     from canvas_bridge.compliance.cli import arguments as compliance_arguments
 
     compliance_arguments(sub)
+    from canvas_bridge.usage.admin import arguments as budget_arguments
+
+    budget_arguments(sub)
+    from canvas_bridge.database_upgrade import arguments as database_arguments
+
+    database_arguments(sub)
     for name in ("init-demo", "serve", "doctor", "verify-read", "worker", "purge"):
-        sub.add_parser(name)
+        entry = sub.add_parser(name)
+        if name == "doctor":
+            entry.add_argument("--database", action="store_true")
+            entry.add_argument("--deployment-root", type=Path)
     upgrade_parser = sub.add_parser(
         "deployment-upgrade",
         help="Stop service/workers first; encrypted backup precedes schema changes.",
@@ -231,10 +240,48 @@ def main():
     personal_parser.add_argument("--expected-canvas-user", required=True)
     backup_parser = sub.add_parser("backup")
     backup_parser.add_argument("destination", type=Path)
+    library_backup = sub.add_parser(
+        "library-backup", help="Encrypted owner-qualified library snapshot; stop writers first."
+    )
+    library_backup.add_argument("owner")
+    library_backup.add_argument("destination", type=Path)
+    library_restore = sub.add_parser(
+        "library-restore",
+        help="Restore into an empty isolated library; current deletion journal required.",
+    )
+    library_restore.add_argument("owner")
+    library_restore.add_argument("source", type=Path)
+    library_restore.add_argument("--journal", required=True, type=Path)
+    library_health = sub.add_parser(
+        "library-health", help="Read-only aggregate library diagnostics; no source content."
+    )
+    library_health.add_argument("--verify-originals", action="store_true")
+    library_health.add_argument("--verify-backups", action="store_true")
+    managed_backup = sub.add_parser(
+        "library-managed-backup",
+        help="Create a verified encrypted backup in the configured private backup root.",
+    )
+    managed_backup.add_argument("owner")
+    sub.add_parser(
+        "library-maintain",
+        help="Run retention, lease/orphan and managed-backup expiry reconciliation.",
+    )
     restore_parser = sub.add_parser("restore")
     restore_parser.add_argument("source", type=Path)
     restore_parser.add_argument("--journal", required=True, type=Path)
     args = parser.parse_args()
+    if args.command == "database-upgrade" or (args.command == "doctor" and args.database):
+        from canvas_bridge.database_upgrade import run as database_command
+
+        if not args.deployment_root:
+            parser.error("--deployment-root is required for database diagnostics")
+        if args.command == "doctor":
+            args.status = args.backup_only = args.backup_and_apply = args.stop_application = False
+            args.backup_dir = args.expected_target = None
+            from canvas_bridge.resources import resource_root
+
+            args.pg_bin = resource_root() / ".tools/pgsql/bin"
+        raise SystemExit(database_command(args))
     if args.command == "compliance-report":
         from canvas_bridge.compliance.cli import run as compliance_report
 
@@ -248,6 +295,21 @@ def main():
         run_personal_setup(args.institution, args.expected_canvas_user)
         return
     settings = Settings()
+    if args.command == "budget":
+        from canvas_bridge.usage.admin import run as budget_command
+
+        try:
+            print(json.dumps(budget_command(args, settings), indent=2))
+        except Exception:
+            print(
+                json.dumps(
+                    {
+                        "error": "Budget command rejected; validate schema, operator signature and ledger availability."
+                    }
+                )
+            )
+            raise SystemExit(1) from None
+        return
     if args.command in {"deployment-upgrade", "recover-journal"}:
         from canvas_bridge.deployment import recover_journal, upgrade
 
@@ -308,6 +370,31 @@ def main():
             from canvas_bridge.lifecycle import backup
 
             print(json.dumps(backup(bridge, args.destination)))
+        elif args.command == "library-backup":
+            from canvas_bridge.library.recovery import backup as library_backup
+
+            print(json.dumps(library_backup(bridge.library, args.owner, args.destination)))
+        elif args.command == "library-managed-backup":
+            from canvas_bridge.library.backups import create as managed_backup_create
+
+            print(json.dumps(managed_backup_create(bridge.library, args.owner)))
+        elif args.command == "library-health":
+            print(
+                json.dumps(
+                    bridge.library.health(
+                        verify_originals=args.verify_originals, verify_backups=args.verify_backups
+                    )
+                )
+            )
+        elif args.command == "library-maintain":
+            bridge.library.sweep()
+            print(json.dumps(bridge.library.health()))
+        elif args.command == "library-restore":
+            from canvas_bridge.library.recovery import restore as library_restore
+
+            print(
+                json.dumps(library_restore(bridge.library, args.owner, args.source, args.journal))
+            )
         elif args.command == "restore":
             from canvas_bridge.lifecycle import restore
 

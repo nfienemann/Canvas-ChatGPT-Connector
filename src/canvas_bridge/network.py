@@ -18,6 +18,7 @@ from canvas_bridge.policy import public_ip
 from canvas_bridge.request_limits import RequestLimits
 
 network_permit = ContextVar("network_permit", default=None)
+usage_admission = ContextVar("usage_admission", default=None)
 _loop_limits = WeakKeyDictionary()
 
 
@@ -40,12 +41,26 @@ def deny_network():
 class GuardedHTTP:
     """Every send (including mock transports, retries and redirects) is fenced."""
 
-    def __init__(self, client, check):
+    def __init__(self, client, check, *, usage=None, infrastructure=False):
         self._client, self._check = client, check
+        self.usage, self.infrastructure = usage, infrastructure
 
     @asynccontextmanager
     async def stream(self, method, url, **kwargs):
+        if self.usage:
+            follow_redirects = kwargs.pop("follow_redirects", False)
+            request = self._client.build_request(method, url, **kwargs)
+            response = await self.send(request, stream=True, follow_redirects=follow_redirects)
+            try:
+                yield response
+            finally:
+                await response.aclose()
+            return
         self._check(method, str(url))
+        if not self.infrastructure:
+            from canvas_bridge.usage.ledger import deny
+
+            deny("GOVERNOR_UNAVAILABLE")
         token = network_permit.set((method, str(url)))
         try:
             async with self._client.stream(method, url, **kwargs) as response:
@@ -54,7 +69,21 @@ class GuardedHTTP:
             network_permit.reset(token)
 
     async def send(self, request, **kwargs):
+        if self.usage:
+            from canvas_bridge.usage.transport import governed_send
+
+            stream = kwargs.pop("stream", False)
+            if kwargs.get("follow_redirects"):
+                deny_network()
+            response = await governed_send(self._client, request, self._check, self.usage, **kwargs)
+            if not stream:
+                await response.aread()
+            return response
         self._check(request.method, str(request.url))
+        if not self.infrastructure:
+            from canvas_bridge.usage.ledger import deny
+
+            deny("GOVERNOR_UNAVAILABLE")
         token = network_permit.set((request.method, str(request.url)))
         try:
             return await self._client.send(request, **kwargs)
@@ -72,7 +101,7 @@ def infrastructure_http(client, *, method, url):
         if actual_method != method or actual_url != url:
             deny_network()
 
-    return GuardedHTTP(client, check)
+    return GuardedHTTP(client, check, infrastructure=True)
 
 
 class PublicBackend(httpcore.AsyncNetworkBackend):
@@ -153,6 +182,10 @@ class PublicTransport(httpx.AsyncBaseTransport):
         handed_off = False
         try:
             async with asyncio.timeout(15):
+                # Local transport capacity must pass before the authoritative
+                # SENT transition. A denied local lease has sent no request.
+                if admission := usage_admission.get():
+                    admission()
                 response = await self.pool.handle_async_request(
                     httpcore.Request(
                         method=request.method,

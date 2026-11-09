@@ -16,6 +16,15 @@ represent printed Excel pages. Each passage includes `sheet_name`, `sheet_state`
 `cell_references`, and a human-readable sheet/cell locator. Search uses the same
 extracted text and cell spans.
 
+A response window can end inside a JSON record, even inside an escaped string.
+Start at offset zero. Append each `data.text` verbatim in continuation order
+without adding a separator. Continue until `continuation` is null, then split
+the assembled string on LF and parse each nonblank line as JSON.
+`text_truncated` is true when a window omits a prefix or suffix, including the
+last window of a multi-window read. `next_offset` identifies the next character
+position. Structured cells in `document_model` can be consumed directly within
+their separate structure budget.
+
 - Strings preserve leading zeroes, Unicode, rich-text content and OOXML escapes.
   Phonetic annotations are excluded. Newlines and quotes are JSON-escaped.
 - Numeric values are strings containing their original numeric representation.

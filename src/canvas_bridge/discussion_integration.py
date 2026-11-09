@@ -13,7 +13,7 @@ from canvas_bridge.discussions import (
     discussion_request,
     list_discussions,
 )
-from canvas_bridge.domain import DomainError, utcnow
+from canvas_bridge.domain import DomainError
 
 
 def unknown(reason):
@@ -22,7 +22,7 @@ def unknown(reason):
         initial_post_state="unavailable",
         additional_replies_state="unavailable",
         coverage=DiscussionCoverage(partial_reasons=[reason]),
-        fetched_at=utcnow(),
+        fetched_at=None,
         confidence="not_scanned",
     ).model_dump(mode="json", exclude={"entries"})
 

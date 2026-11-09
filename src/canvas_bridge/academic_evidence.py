@@ -42,6 +42,18 @@ def course_deadline_graph(bridge, owner, ref, bundle, report):
         purposes={"study"},
         recipients={context.recipient if context else "local"},
     )
+    retrieval_complete = (
+        bundle["assignments_complete"]
+        and all(entry.state == "complete" for entry in bundle["coverage"])
+        and all(row["detail_complete"] for row in bundle["assignments"].values())
+        and not bundle["policy_discovery"]
+        and not bundle["inaccessible_materials"]
+        and all(d["complete"] for d in bundle["documents"])
+        and all(d["state"] == "reviewed" for d in bundle["material_discovery"]["documents"])
+    )
+    unmatched = sum(
+        len(group["occurrences"]) for group in report["obligation_groups"] if not group["work_id"]
+    )
     graph = deadline_graph(
         scope=Scope(
             principal=owner, institution=conn.institution, connection=ref, course_id=course.id
@@ -52,15 +64,74 @@ def course_deadline_graph(bridge, owner, ref, bundle, report):
         items=bundle["items"],
         report=report,
         timezone=bundle["timezone"],
-        complete=bundle["assignments_complete"] and all(d["complete"] for d in bundle["documents"]),
+        complete=retrieval_complete and not unmatched,
+        item_coverage={key: row["detail_complete"] for key, row in bundle["assignments"].items()},
     )
+    queries = []
+    compared = 0
+    for entity in graph.entities:
+        if entity.kind != E.ASSIGNMENT:
+            continue
+        result = graph.query(entity.id, "deadline")
+        by_assertion = {
+            candidate["id"]: candidate["provenance"][0]["source"]["id"]
+            for candidate in result["candidates"]
+        }
+        pairs = {
+            frozenset((a, b))
+            for a, b in combinations(by_assertion, 2)
+            if by_assertion[a] != by_assertion[b]
+        }
+        checked = [
+            edge
+            for edge in graph.relationships
+            if edge.kind in {R.SUPPORTS, R.CONTRADICTS}
+            and frozenset((edge.left, edge.right)) in pairs
+        ]
+        compared += len(checked)
+        result["cross_source_comparison"] = (
+            "complete_at_available_precision"
+            if checked and len(checked) == len(pairs)
+            else "partial"
+            if checked
+            else "not_established"
+        )
+        result["cross_source_consistency"] = (
+            "source_difference"
+            if any(e.kind == R.CONTRADICTS for e in checked)
+            else "not_established"
+            if not graph.complete or not checked or len(checked) != len(pairs)
+            else "agreement_at_available_precision"
+        )
+        if result["cross_source_comparison"] == "not_established":
+            result["uncertainty"].append("Cross-source deadline consistency is not established.")
+        elif result["cross_source_consistency"] == "agreement_at_available_precision":
+            result["status"] = "supported_at_available_precision"
+        queries.append({"work_id": entity.reference, "result": result})
     return {
         **graph.view(),
-        "queries": [
-            {"work_id": entity.reference, "result": graph.query(entity.id, "deadline")}
-            for entity in graph.entities
-            if entity.kind == E.ASSIGNMENT
-        ],
+        "audit_coverage": {
+            "source_retrieval": "complete_within_scope" if retrieval_complete else "partial",
+            "graph_construction": "built_from_retrieved_evidence",
+            "entity_matching": "partial"
+            if unmatched or not bundle["assignments_complete"]
+            else "matched_observed_candidates"
+            if report["obligation_groups"]
+            else "no_candidates",
+            "unmatched_occurrences": unmatched,
+            "compared_cross_source_pairs": compared,
+            "cross_source_comparison": "complete_at_available_precision"
+            if graph.complete
+            and queries
+            and all(
+                q["result"]["cross_source_comparison"] == "complete_at_available_precision"
+                for q in queries
+            )
+            else "partial"
+            if compared
+            else "not_established",
+        },
+        "queries": queries,
     }
 
 

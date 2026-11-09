@@ -1,0 +1,1932 @@
+--- a/src/canvas_bridge/independent.py
++++ b/src/canvas_bridge/independent.py
+@@ -591,6 +591,13 @@
+                         if offset or characters != 18000
+                         else {}
+                     ),
++                    **({"text_spans": [
++                        {"start": max(offset, span["start"]) - offset,
++                         "end": min(offset + characters, span["end"]) - offset,
++                         "source_kind": span["source_kind"]}
++                        for span in p["text_spans"]
++                        if span["start"] < offset + characters and span["end"] > offset
++                    ]} if p.get("text_spans") else {}),
+                     "structure": bounded_table_structure(p.get("structure", {})),
+                 }
+                 for i, p in selected
+--- a/src/canvas_bridge/egress_errors.py
++++ b/src/canvas_bridge/egress_errors.py
+@@ -10,6 +10,7 @@
+ from canvas_bridge.input_diagnostics import CAPABILITIES, diagnostic_fields
+ from canvas_bridge.integrity.guidance import safe_guidance
+ from canvas_bridge.integrity.reasons import SAFE_CODES as INTEGRITY_CODES
++from canvas_bridge.processes.reasons import READINESS_MESSAGES
+ from canvas_bridge.processes.reasons import SAFE_CODES as PROCESS_CODES
+ from canvas_bridge.usage.ledger import REMEDIES as USAGE_MESSAGES
+ 
+@@ -17,6 +18,7 @@
+     SAFE_CODES
+     | RULES.keys()
+     | INTEGRITY_CODES
++    | frozenset(READINESS_MESSAGES)
+     | PROCESS_CODES
+     | frozenset(USAGE_MESSAGES)
+     | frozenset(
+@@ -301,6 +303,8 @@
+             data["content_decision"] = result.data["content_decision"]
+         if code == "EGRESS_CLASSIFICATION_UNKNOWN":
+             data["processing_stage"] = "source_classification"
++    elif code in READINESS_MESSAGES:
++        summary = READINESS_MESSAGES[code]
+     elif code.startswith("PROCESS_"):
+         summary = "This process needs current source access, evidence or an exact confirmed preview. Refresh the relevant source or process record and review the reason code."
+         data["transmitted"] = False
+--- a/src/canvas_bridge/processes/privacy.py
++++ b/src/canvas_bridge/processes/privacy.py
+@@ -2,6 +2,11 @@
+ 
+ FIELDS = frozenset(
+     """
++candidate_assessments candidate_id claim plan revision progress_state applicability_basis_kind reference_validation affected_sources version_match plan_as_of selected_bindings rereview_needed work_basis payload_type membership_complete logical_id governing criterion assessment_status applicability applicability_basis
++rationale coverage_rule reviewed_extent surface quote followup gap_kind action completion_condition measured_artifact_hash
++work_item definition_version summary_status applicable_required not_applicable_required unknown_applicability_required
++requirement_id requirement_ids requirement_set_revision assessment_revision assessed_at view_mode review_scope
++bindings requirements remaining_work review_followups not_applicable satisfied needs_work optional conflict availability
+ term origin sensitivity retention entity field basis unit total seen unreadable extraction
+ resolutions canonical_fields impacts repair_plan
+ historical_content
+--- a/src/canvas_bridge/processes/service.py
++++ b/src/canvas_bridge/processes/service.py
+@@ -282,6 +282,7 @@
+             "citation": citation,
+             "work": None,
+             "text": "\n".join(p.get("text", "") for p in pages)[:200_000],
++            "pages": pages,
+         }
+ 
+     @staticmethod
+--- a/src/canvas_bridge/processes/state.py
++++ b/src/canvas_bridge/processes/state.py
+@@ -260,7 +260,13 @@
+                 or not source.observed_at <= self.clock() < source.expires_at
+             ):
+                 failure("PROCESS_SOURCE_STALE")
+-            self.authorize(session, owner, source, purpose)
++            authorized = self.authorize(session, owner, source, purpose)
++            if record.data.get("payload_type") == "assignment_readiness" and (
++                source.origin != "local_document"
++                or not authorized.provenance.get("share_text")
++                or "grade_planning" not in authorized.provenance.get("scope", ())
++            ):
++                failure("READINESS_SOURCE_UNAVAILABLE")
+ 
+     def read(self, owner, record_id):
+         with self.store.transaction() as session:
+@@ -453,6 +459,45 @@
+                 "external_transfer": False,
+             }
+ 
++    def save_readiness(self, owner, record_id, expected_revision, replay_key, intent, build):
++        """Commit one reviewed assignment update under the same principal lock as ordinary saves."""
++        key = fingerprint(["assignment-readiness", owner, replay_key])
++        with self.store.transaction() as session:
++            self.store.principal(session, owner)
++            row, state = self._load(session, owner)
++            prior = state.receipts.get(key)
++            if prior:
++                if prior["request_hash"] != intent:
++                    failure("PROCESS_IDEMPOTENCY_CONFLICT")
++                return prior
++            before = state.records.get(record_id)
++            if expected_revision != (before.revision if before else 0):
++                failure(
++                    "PROCESS_REVISION_MISMATCH",
++                    "Retrieve the last confirmed record and retry with its revision.",
++                )
++            if before and (
++                before.state != "valid" or before.data.get("payload_type") != "assignment_readiness"
++            ):
++                failure("PROCESS_RECORD_NOT_VALID")
++            now = self.clock()
++            after = build(before, now)
++            self._require(session, owner, after, "write")
++            change = preview(
++                state, owner, record_id, after, "correction" if before else "create", now=now
++            )
++            updated = apply(state, change, now=now)
++            receipt = dict(
++                request_hash=intent,
++                revision_id=change.id,
++                record_id=record_id,
++                revision=after.revision,
++                external_writes=False,
++            )
++            receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
++            self._save(session, owner, row, updated.model_copy(update={"receipts": receipts}))
++            return receipt
++
+ 
+ def read_portable_export(payload, *, owner):
+     """Validate portable records without importing them or granting source rights."""
+--- a/src/canvas_bridge/processes/surfaces.py
++++ b/src/canvas_bridge/processes/surfaces.py
+@@ -9,9 +9,12 @@
+ 
+ TOOLS = frozenset(
+     {
++        "get_assignment_readiness",
+         "evaluate_academic_process",
+         "preview_academic_process_change",
+         "confirm_academic_process_change",
++        "save_assignment_readiness",
++        "record_readiness_progress",
+         "get_academic_process_records",
+         "preview_academic_process_recovery",
+         "export_academic_process_records",
+@@ -22,6 +25,8 @@
+ SAFE_RECEIPTS = frozenset(
+     {
+         "confirm_academic_process_change",
++        "save_assignment_readiness",
++        "record_readiness_progress",
+         "get_academic_support_report",
+         "preview_academic_process_recovery",
+         "get_academic_process_records",
+--- a/src/canvas_bridge/processes/tools.py
++++ b/src/canvas_bridge/processes/tools.py
+@@ -2,15 +2,65 @@
+ 
+ from typing import Annotated, Literal
+ 
+-from pydantic import Field
++from pydantic import AwareDatetime, Field
+ 
+ from canvas_bridge.auth import request_identity
+ from canvas_bridge.domain import DomainError, Result
++from canvas_bridge.planning import PlanRequest
++from canvas_bridge.processes import readiness
+ from canvas_bridge.processes.models import Ref
+ from canvas_bridge.processes.requests import EvaluationRequest, SaveRequest
+ 
+ 
+ def register_tools(register, bridge):
++    @register(write=True)
++    async def save_assignment_readiness(review: readiness.Review) -> Result:
++        """Remember the requested review of independent materials. Bind each source by logical ID, document ID and SHA-256. Cite exact passages for each criterion and finding. For absence/all_claims include inspected artifact parts. Use expected_revision=0 to create. Returns confirmed record ID and revision; read it to show the projection."""
++        owner = request_identity().owner
++        bridge.processes.enabled()
++        await readiness.authorize_bindings(bridge, owner, review.bindings)
++        return readiness.save(bridge.processes, owner, review)
++
++    @register()
++    async def get_assignment_readiness(
++        record_id: Ref,
++        revision: int | None = None,
++        selection: readiness.Selection | None = None,
++        plan: PlanRequest | None = None,
++        plan_as_of: AwareDatetime | None = None,
++    ) -> Result:
++        """Recall a saved readiness review or historical revision. Supply selection for an explicit current-version comparison. Supply plan to propose work from the saved tasks."""
++        owner = request_identity().owner
++        bridge.processes.enabled()
++        stored = readiness.snapshot(bridge.processes.repository, owner, record_id, revision)
++        bindings = [readiness.Binding.model_validate(b) for b in stored.data["bindings"]]
++        withheld = await readiness.authorize_bindings(
++            bridge, owner, bindings, partial=True, planning=plan is not None
++        )
++        if selection:
++            await readiness.authorize_bindings(bridge, owner, selection.bindings)
++        return readiness.view(
++            bridge.processes,
++            owner,
++            record_id,
++            stored.revision,
++            selection,
++            plan,
++            plan_as_of,
++            withheld,
++        )
++
++    @register(write=True)
++    async def record_readiness_progress(request: readiness.Progress) -> Result:
++        """Save explicitly declared personal progress for one existing remediation item. Retrieve the record to see its assessment alongside task progress."""
++        owner = request_identity().owner
++        bridge.processes.enabled()
++        stored = readiness.snapshot(bridge.processes.repository, owner, request.record_id)
++        await readiness.authorize_bindings(
++            bridge, owner, [readiness.Binding.model_validate(b) for b in stored.data["bindings"]]
++        )
++        return readiness.update_progress(bridge.processes, owner, request)
++
+     @register()
+     async def evaluate_academic_process(request: EvaluationRequest) -> Result:
+         """Evaluate sourced evidence, conflicts, feasibility, lifecycle, identity, concepts, unofficial degree progress or portfolio review. Caller claims remain unverified. Does not save a plan, send a message, submit work or publish."""
+--- /dev/null
++++ b/src/canvas_bridge/processes/readiness.py
+@@ -0,0 +1,645 @@
++"""Version-bound assignment readiness stored in the existing scoped process journal."""
++
++from typing import Annotated, Literal
++
++from pydantic import Field, model_validator
++
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes.models import Model, Ref
++from canvas_bridge.processes.state import failure
++
++Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
++Text = Annotated[str, Field(min_length=1, max_length=1200)]
++Key = Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")]
++
++
++class Binding(Model):
++    logical_id: Key
++    role: Literal["brief", "artifact", "reference", "measurement", "other"]
++    document_id: Ref | None = None
++    content_hash: Digest | None = None
++
++    @model_validator(mode="after")
++    def verified_pair(self):
++        if bool(self.document_id) != bool(self.content_hash):
++            raise ValueError(
++                "Supply the imported document and hash together, or leave both absent."
++            )
++        return self
++
++
++def record_key(scope, assignment):
++    return fingerprint(["assignment_readiness", scope.model_dump(mode="json"), assignment])
++
++
++def bind(entries, bindings):
++    tags = [e["tag"] for e in entries.values()]
++    if any(t.scope != tags[0].scope or t.origin != "local_document" for t in tags):
++        failure("PROCESS_SCOPE_MISMATCH")
++    by_key = {b.logical_id: b for b in bindings}
++    if len(by_key) != len(bindings) or {b.document_id for b in bindings if b.document_id} != set(
++        entries
++    ):
++        failure("READINESS_SELECTION_INVALID", "Bind each selected import to its logical source.")
++    for b in bindings:
++        if b.document_id and b.content_hash != entries[b.document_id]["tag"].version:
++            failure(
++                "READINESS_VERSION_MISMATCH",
++                "Read the current document status and review that version.",
++            )
++    return by_key
++
++
++def snapshot(repository, owner, record_id, revision=None):
++    """Select one immutable image; the caller authorizes each returned field before release."""
++    with repository.store.transaction() as session:
++        _, state = repository._load(session, owner)
++        record = state.records.get(record_id)
++        if record and record.state != "valid":
++            failure("PROCESS_RECORD_NOT_VALID")
++        if record and revision is not None and record.revision != revision:
++            record = next(
++                (
++                    image
++                    for change in reversed(state.revisions)
++                    for image in (change.after, change.before)
++                    if image and image.id == record_id and image.revision == revision
++                ),
++                None,
++            )
++        if (
++            not record
++            or record.scope.principal != owner
++            or record.state != "valid"
++            or record.data.get("payload_type") != "assignment_readiness"
++        ):
++            failure("PROCESS_RECORD_UNAVAILABLE")
++        return record
++
++
++class Anchor(Model):
++    source: Key
++    part: int = Field(ge=1, le=200)
++    surface: Literal["text", "slide", "notes"] = "text"
++    quote: Text
++
++
++class Extent(Model):
++    source: Key
++    parts: tuple[Annotated[int, Field(ge=1, le=200)], ...] = Field(min_length=1, max_length=200)
++
++
++class Candidate(Model):
++    candidate_id: Key
++    assessment_status: Literal["satisfied", "needs_work", "unknown"]
++    claim: Text
++    evidence: tuple[Anchor, ...] = Field(min_length=1, max_length=16)
++
++
++class Criterion(Model):
++    requirement_id: Key
++    criterion: Text
++    governing: Anchor
++    required: bool = True
++    applicability: Literal["applicable", "not_applicable", "unknown"] = "applicable"
++    applicability_basis_kind: Literal[
++        "governing_source", "host_interpretation", "user_declaration"
++    ] = "governing_source"
++    applicability_basis: Text
++    assessment_status: Literal["satisfied", "needs_work", "unknown", "conflict"] = "unknown"
++    rationale: Text
++    evidence: tuple[Anchor, ...] = Field(default=(), max_length=16)
++    coverage_rule: Literal["passage", "absence", "all_claims", "recorded_run"] = "passage"
++    reviewed_extent: tuple[Extent, ...] = Field(default=(), max_length=6)
++    coverage: Literal["complete", "partial", "unavailable"] = "unavailable"
++    followup: Key | None = None
++    gap_kind: Key | None = None
++    action: Text | None = None
++    completion_condition: Text | None = None
++    measured_artifact_hash: Digest | None = None
++    candidate_assessments: tuple[Candidate, ...] = Field(default=(), max_length=6)
++
++
++class Review(Model):
++    assignment_id: Key
++    course: Key
++    term: Key
++    expected_revision: int = Field(ge=0)
++    idempotency_key: Ref
++    membership_complete: bool
++    review_scope: Text
++    bindings: tuple[Binding, ...] = Field(min_length=1, max_length=6)
++    requested_work: tuple[Key, ...] = Field(
++        default=(),
++        max_length=40,
++        description="Requirement IDs the user explicitly asked to turn into optional or review tasks.",
++    )
++    requirements: tuple[Criterion, ...] = Field(max_length=40)
++
++
++def check_anchor(anchor, bindings, entries):
++    binding = bindings.get(anchor.source)
++    if not binding or not binding.document_id:
++        failure("READINESS_SOURCE_UNAVAILABLE")
++    pages = entries[binding.document_id]["pages"]
++    if anchor.part > len(pages):
++        failure(
++            "READINESS_LOCATOR_INVALID", "Choose a returned part number in the selected source."
++        )
++    page = pages[anchor.part - 1]
++    text = page.get("text", "")
++    spans = [text]
++    if anchor.surface != "text":
++        kind = {"notes": "speaker_notes", "slide": "slide_shapes_and_tables"}[anchor.surface]
++        spans = [
++            text[s["start"] : s["end"]]
++            for s in page.get("text_spans", [])
++            if s["source_kind"] == kind
++        ]
++    if not any(" ".join(anchor.quote.split()) in " ".join(span.split()) for span in spans):
++        failure(
++            "READINESS_QUOTE_MISMATCH", "Read the indicated source part and use its exact passage."
++        )
++
++
++def assess(row, bindings, entries):
++    if row.governing.source not in bindings or bindings[row.governing.source].role != "brief":
++        failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
++    check_anchor(row.governing, bindings, entries)
++    for anchor in row.evidence:
++        check_anchor(anchor, bindings, entries)
++    if row.assessment_status != "unknown" and (not row.evidence or row.coverage == "unavailable"):
++        failure("READINESS_EVIDENCE_REQUIRED")
++    candidates = row.candidate_assessments
++    if row.assessment_status == "conflict":
++        if (
++            len({c.candidate_id for c in candidates}) != len(candidates)
++            or len({c.assessment_status for c in candidates}) < 2
++        ):
++            failure(
++                "READINESS_CONFLICT_EVIDENCE_REQUIRED",
++                "Retain both conflicting interpretations and their source passages.",
++            )
++    elif candidates:
++        failure("READINESS_CONFLICT_STATUS_REQUIRED")
++    for candidate in candidates:
++        for anchor in candidate.evidence:
++            check_anchor(anchor, bindings, entries)
++    if row.assessment_status == "needs_work" and not (
++        row.gap_kind and row.action and row.completion_condition
++    ):
++        failure("READINESS_ACTION_REQUIRED")
++    bounded = row.coverage_rule in ("absence", "all_claims")
++    complete_artifacts = set()
++    for extent in row.reviewed_extent:
++        source = bindings.get(extent.source)
++        if not source or not source.document_id:
++            failure("READINESS_EXTENT_INVALID")
++        entry = entries[source.document_id]
++        if not set(extent.parts) <= entry["coverage"].seen:
++            failure("READINESS_EXTENT_INVALID")
++        if entry["coverage"].complete and set(extent.parts) == entry["coverage"].seen:
++            complete_artifacts.add(extent.source)
++    status = row.assessment_status
++    reason = row.followup
++    if bounded and (
++        row.coverage != "complete"
++        or not any(
++            b.role == "artifact" and b.logical_id in complete_artifacts for b in bindings.values()
++        )
++    ):
++        status, reason = "unknown", reason or "review_artifact"
++    version_match = "current"
++    coverage = row.coverage
++    if row.coverage_rule == "recorded_run" and (status != "unknown" or row.measured_artifact_hash):
++        measurement = [a for a in row.evidence if bindings[a.source].role == "measurement"]
++        if not row.measured_artifact_hash or not any(
++            row.measured_artifact_hash in entries[bindings[a.source].document_id]["text"]
++            for a in measurement
++        ):
++            failure("READINESS_MEASUREMENT_UNBOUND")
++        if any(
++            b.role == "artifact" and b.content_hash and b.content_hash != row.measured_artifact_hash
++            for b in bindings.values()
++        ):
++            status, reason = "unknown", "supporting_artifact_version_mismatch"
++            version_match, coverage = "mismatch", "unavailable"
++    return row.model_dump(mode="json") | {
++        "assessment_status": status,
++        "coverage": coverage,
++        "version_match": version_match,
++        "followup": reason,
++        "basis": "host_interpretation",
++        "reference_validation": "quotes_and_parts_resolved",
++    }
++
++
++def summarize(rows, membership_complete):
++    from collections import Counter
++
++    required = [r for r in rows if r["required"]]
++    applicable = [r for r in required if r["applicability"] == "applicable"]
++    counts = Counter(r["assessment_status"] for r in applicable)
++    unknown = sum(r["applicability"] == "unknown" for r in required)
++    summary = "ready"
++    if not rows or not membership_complete or unknown or counts["unknown"]:
++        summary = "unknown"
++    if counts["needs_work"]:
++        summary = "needs_work"
++    if counts["conflict"]:
++        summary = "conflict"
++    return dict(
++        summary_status=summary,
++        counts=dict(
++            requirements=len(rows),
++            required=len(required),
++            applicable_required=len(applicable),
++            optional=len(rows) - len(required),
++            not_applicable_required=sum(r["applicability"] == "not_applicable" for r in required),
++            unknown_applicability_required=unknown,
++            **{k: counts[k] for k in ("satisfied", "needs_work", "unknown", "conflict")},
++        ),
++    )
++
++
++def dependencies(row, bindings):
++    names = {
++        row["governing"]["source"],
++        *(a["source"] for a in row["evidence"]),
++        *(e["source"] for e in row["reviewed_extent"]),
++        *(a["source"] for c in row.get("candidate_assessments", []) for a in c["evidence"]),
++    }
++    if row["coverage_rule"] in {"all_claims", "absence", "recorded_run"}:
++        names.update(b.logical_id for b in bindings if b.role == "artifact")
++    return names
++
++
++def project(data, rows):
++    output = summarize(rows, data["membership_complete"])
++    work, followups = [], {}
++    for row in rows:
++        ident = row["requirement_id"]
++        if row["applicability"] == "not_applicable":
++            continue
++        status = row["assessment_status"]
++        if status in {"unknown", "conflict"} or row["applicability"] == "unknown":
++            reason = row.get("followup") or (
++                "resolve_applicability"
++                if row["applicability"] == "unknown"
++                else "resolve_conflict"
++                if status == "conflict"
++                else "review_criterion"
++            )
++            followups.setdefault(reason, []).append(ident)
++        if "work_item" in row:
++            work.append(
++                {
++                    **row["work_item"],
++                    "rereview_needed": data["progress"].get(row["work_item"]["work_id"])
++                    == "student_marked_done"
++                    and status == "needs_work",
++                    "progress_state": data["progress"].get(row["work_item"]["work_id"], "unknown"),
++                }
++            )
++    return output | dict(
++        definition_version="readiness-1",
++        requirements=rows,
++        remaining_work=work,
++        review_followups=[
++            {"reason": key, "requirement_ids": ids} for key, ids in sorted(followups.items())
++        ],
++    )
++
++
++async def authorize_bindings(bridge, owner, bindings, *, partial=False, planning=False):
++    """Use the ordinary independent workflow's source, integrity and release gates."""
++    from canvas_bridge.academic.independent_models import DocumentSelection, IndependentRequest
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.independent_intelligence import TOOL, require, require_use
++    from canvas_bridge.integrity.surfaces import before_tool
++
++    unavailable = set()
++    for binding in bindings:
++        if not binding.document_id:
++            continue
++        selected = DocumentSelection(
++            document_id=binding.document_id, expected_hash=binding.content_hash
++        )
++        payload = (
++            IndependentRequest(capability="planning", dataset=selected)
++            if planning
++            else IndependentRequest(capability="requirements", documents=[selected])
++        )
++        try:
++            row = require(bridge, owner, selected, check_version=False)
++            require_use(bridge, row, payload.capability)
++            await before_tool(bridge, owner, "read_local_document", {"document_id": row.id})
++            bridge.egress.release(
++                bridge.independent.read(owner, row.id, status=True),
++                owner,
++                {"document_id": row.id},
++                tool_name="get_local_document_status",
++            )
++            require(bridge, owner, selected)
++            bridge.egress.release(
++                bridge.independent.read(owner, row.id, limit=1, study=True),
++                owner,
++                {"request": payload},
++                tool_name=TOOL,
++            )
++        except DomainError:
++            if not partial:
++                raise
++            unavailable.add(binding.logical_id)
++    return unavailable
++
++
++def save(service, owner, review):
++    from canvas_bridge.domain import Result
++    from canvas_bridge.processes.models import AcademicRecord
++    from canvas_bridge.processes.requests import ProcessScope
++
++    selected = [b.document_id for b in review.bindings if b.document_id]
++    if not selected:
++        failure("READINESS_SOURCE_UNAVAILABLE")
++    entries = service.load(
++        owner,
++        ProcessScope(document_ids=tuple(selected), local_course=review.course, term=review.term),
++    )
++    bindings = bind(entries, review.bindings)
++    if not any(b.role == "brief" and b.document_id for b in review.bindings):
++        failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
++    tags = tuple(e["tag"] for e in entries.values())
++    scope = tags[0].scope
++    if scope.course != review.course or scope.term != review.term:
++        failure("PROCESS_SCOPE_MISMATCH")
++    key = record_key(scope, review.assignment_id)
++    rows = sorted(
++        [assess(r, bindings, entries) for r in review.requirements],
++        key=lambda r: r["requirement_id"],
++    )
++    if len({r["requirement_id"] for r in rows}) != len(rows):
++        failure("READINESS_DUPLICATE_REQUIREMENT")
++    criteria = [
++        "requirement_id",
++        "criterion",
++        "governing",
++        "required",
++        "applicability",
++    ]
++    revision = fingerprint(
++        [
++            key,
++            sorted((b.logical_id, b.content_hash) for b in review.bindings if b.role == "brief"),
++            [{k: r[k] for k in criteria} for r in rows],
++        ]
++    )
++    versions = sorted((b.logical_id, b.role, b.content_hash) for b in review.bindings)
++    if not set(review.requested_work) <= {r["requirement_id"] for r in rows}:
++        failure("READINESS_WORK_UNAVAILABLE")
++    for row in rows:
++        requested = row["requirement_id"] in review.requested_work
++        if requested and (
++            not row["action"]
++            or not row["completion_condition"]
++            or not row["gap_kind"]
++            or row["applicability"] == "not_applicable"
++        ):
++            failure("READINESS_ACTION_REQUIRED")
++        if requested or (
++            row["assessment_status"] == "needs_work"
++            and row["required"]
++            and row["applicability"] == "applicable"
++        ):
++            work_id = fingerprint([key, revision, versions, row["requirement_id"], row["gap_kind"]])
++            row["work_item"] = dict(
++                work_id=work_id,
++                work_basis="explicit_user_request" if requested else "supported_required_gap",
++                requirement_id=row["requirement_id"],
++                action=row["action"],
++                completion_condition=row["completion_condition"],
++                gap_kind=row["gap_kind"],
++            )
++
++    def build(before, now):
++        work_ids = {r["work_item"]["work_id"] for r in rows if "work_item" in r}
++        progress = (
++            {i: s for i, s in before.data["progress"].items() if i in work_ids} if before else {}
++        )
++        data = dict(
++            payload_type="assignment_readiness",
++            assignment_id=review.assignment_id,
++            requirement_set_revision=revision,
++            review_scope=review.review_scope,
++            assessed_at=now.isoformat(),
++            assessment_revision=review.expected_revision + 1,
++            membership_complete=review.membership_complete,
++            bindings=[b.model_dump(mode="json") for b in review.bindings],
++            requirements=rows,
++            progress=progress,
++        )
++        return AcademicRecord(
++            id=key,
++            kind="assignment",
++            scope=scope,
++            revision=review.expected_revision + 1,
++            data=data,
++            sources=tags,
++            updated_at=now,
++        )
++
++    receipt = service.repository.save_readiness(
++        owner,
++        key,
++        review.expected_revision,
++        review.idempotency_key,
++        fingerprint(review.model_dump(mode="json")),
++        build,
++    )
++    return Result(summary="Assignment readiness saved.", data=receipt)
++
++
++class Selection(Model):
++    requirement_set_revision: Ref
++    bindings: tuple[Binding, ...] = Field(min_length=1, max_length=6)
++
++
++def view(
++    service, owner, ident, revision=None, selection=None, plan=None, plan_as_of=None, withheld=()
++):
++    from canvas_bridge.domain import DomainError, Result, WorkItem
++    from canvas_bridge.planning import propose
++
++    service.enabled()
++    record = snapshot(service.repository, owner, ident, revision)
++    data = record.data
++    bindings = [Binding.model_validate(b) for b in data["bindings"]]
++    available = {}
++    changed = set()
++    unverified = set()
++    if selection:
++        selected = {b.logical_id: b for b in selection.bindings}
++        if len(selected) != len(selection.bindings):
++            failure("READINESS_SELECTION_INVALID")
++        for b in selected.values():
++            if (
++                b.document_id
++                and service.bridge.independent.require(owner, b.document_id).version_hash
++                != b.content_hash
++            ):
++                failure("READINESS_VERSION_MISMATCH")
++        changed = {
++            b.logical_id
++            for b in bindings
++            if b.logical_id not in selected
++            or (selected[b.logical_id].role, selected[b.logical_id].content_hash)
++            != (b.role, b.content_hash)
++        }
++        unverified = {
++            b.logical_id
++            for b in bindings
++            if b.logical_id not in selected or not selected[b.logical_id].content_hash
++        }
++        if set(selected) - {b.logical_id for b in bindings}:
++            # The saved inventory cannot attest new sources in the requested review scope.
++            changed.update(b.logical_id for b in bindings)
++        if selection.requirement_set_revision != data["requirement_set_revision"]:
++            changed.update(b.logical_id for b in bindings)
++    unavailable = set(withheld)
++    for b in bindings:
++        if not b.document_id or b.logical_id in unavailable:
++            continue
++        try:
++            tag = next(t for t in record.sources if t.id == b.document_id)
++            with service.bridge.store.transaction() as session:
++                row = service.authorize_source(session, owner, tag, "read")
++                if not row.provenance.get(
++                    "share_text"
++                ) or "grade_planning" not in row.provenance.get("scope", []):
++                    failure("READINESS_SOURCE_UNAVAILABLE")
++                available[b.logical_id] = service.bridge.independent.evidence(row)
++        except DomainError:
++            unavailable.add(b.logical_id)
++    if not available:
++        failure("READINESS_SOURCE_UNAVAILABLE")
++    rows = []
++    for original in data["requirements"]:
++        affected = dependencies(original, bindings) & (unavailable | changed)
++        if affected:
++            # Withhold free text derived from a source whose release is no longer authorized.
++            rows.append(
++                dict(
++                    requirement_id=original["requirement_id"],
++                    required=original["required"],
++                    applicability="unknown"
++                    if original["governing"]["source"] in (changed | unavailable)
++                    else original["applicability"],
++                    assessment_status="unknown",
++                    coverage="unavailable",
++                    version_match="unverified"
++                    if affected & unverified
++                    else "mismatch"
++                    if affected & changed
++                    else original.get("version_match", "current"),
++                    availability="unavailable" if affected & unavailable else "available",
++                    affected_sources=sorted(affected),
++                    followup="review_selected_version" if affected & changed else "refresh_source",
++                )
++            )
++        else:
++            rows.append(
++                original
++                | {
++                    "version_match": original.get("version_match", "current"),
++                    "availability": "available",
++                }
++            )
++    output = project(data, rows)
++    output["selected_bindings"] = (
++        [b.model_dump(mode="json") for b in selection.bindings] if selection else None
++    )
++    output.update(
++        record_id=ident,
++        revision=record.revision,
++        assessment_revision=data["assessment_revision"],
++        assessed_at=data["assessed_at"],
++        assignment_id=data["assignment_id"],
++        requirement_set_revision=data["requirement_set_revision"],
++        membership_complete=data["membership_complete"],
++        view_mode="current_selection" if selection else "saved_snapshot",
++        bindings=[
++            dict(
++                logical_id=b.logical_id,
++                role=b.role,
++                content_hash=b.content_hash,
++                availability="unavailable"
++                if b.logical_id in unavailable or not b.document_id
++                else "available",
++            )
++            for b in bindings
++        ],
++    )
++    if plan is not None:
++        items = [
++            WorkItem(
++                id=w["work_id"],
++                connection_id="independent",
++                institution_id="independent",
++                course_id=record.scope.course,
++                source_id=ident,
++                title=w["action"],
++                source=next(iter(available.values())),
++                personal_progress=w["progress_state"],
++                independent_personal_work=True,
++            )
++            for w in output["remaining_work"]
++        ]
++        clock = plan_as_of or service.bridge.retention.clock()
++        try:
++            output["plan"] = propose(items, plan, clock)
++        except ValueError:
++            failure(
++                "READINESS_PLAN_INVALID", "Use current remediation IDs and a valid planning window."
++            )
++        output["plan_as_of"] = clock.isoformat()
++    return Result(
++        summary="Version-bound assignment readiness.", data=output, sources=list(available.values())
++    )
++
++
++class Progress(Model):
++    record_id: Ref
++    work_id: Ref
++    expected_revision: int = Field(ge=1)
++    idempotency_key: Ref
++    progress_state: Literal["not_started", "in_progress", "student_marked_done"]
++
++
++def update_progress(service, owner, request):
++    from canvas_bridge.domain import Result
++
++    service.enabled()
++
++    def build(before, now):
++        if not before or request.work_id not in {
++            r["work_item"]["work_id"] for r in before.data["requirements"] if "work_item" in r
++        }:
++            failure("READINESS_WORK_UNAVAILABLE")
++        data = before.data | {
++            "progress": before.data["progress"] | {request.work_id: request.progress_state}
++        }
++        return before.model_copy(
++            update=dict(data=data, revision=before.revision + 1, updated_at=now)
++        )
++
++    receipt = service.repository.save_readiness(
++        owner,
++        request.record_id,
++        request.expected_revision,
++        request.idempotency_key,
++        fingerprint(request.model_dump(mode="json")),
++        build,
++    )
++    return Result(
++        summary="Personal progress saved. The artifact retains its assessed result.", data=receipt
++    )
+--- a/src/canvas_bridge/processes/reasons.py
++++ b/src/canvas_bridge/processes/reasons.py
+@@ -15,3 +15,21 @@
+ PROCESS_CAPABILITY_DENIED
+ """.split()
+ )
++# Public diagnostics use fixed remedies. Never echo host quotes or document identifiers.
++READINESS_MESSAGES = {
++    "READINESS_QUOTE_MISMATCH": "Read the selected part and surface again and supply its exact passage.",
++    "READINESS_LOCATOR_INVALID": "Choose a part number returned for the selected source version.",
++    "READINESS_SELECTION_INVALID": "Bind each selected document once to its logical source and byte hash.",
++    "READINESS_VERSION_MISMATCH": "Retrieve the current version and review the selected sources again.",
++    "READINESS_SOURCE_UNAVAILABLE": "Review the source status, sharing permission and current version.",
++    "READINESS_REQUIREMENT_SOURCE_REQUIRED": "Bind the governing requirement to a selected brief.",
++    "READINESS_EVIDENCE_REQUIRED": "Attach source evidence or leave the unassessed criterion unknown.",
++    "READINESS_CONFLICT_EVIDENCE_REQUIRED": "Retain the competing interpretations and their evidence.",
++    "READINESS_CONFLICT_STATUS_REQUIRED": "Use conflict for unresolved competing interpretations.",
++    "READINESS_ACTION_REQUIRED": "Supply the action, gap kind and evidence-based completion condition.",
++    "READINESS_EXTENT_INVALID": "Report only source parts actually available for inspection.",
++    "READINESS_MEASUREMENT_UNBOUND": "Bind the recorded measurement to its explicit artifact hash.",
++    "READINESS_DUPLICATE_REQUIREMENT": "Use one durable identifier per criterion in this assignment.",
++    "READINESS_WORK_UNAVAILABLE": "Retrieve the current assignment and choose an existing work item.",
++    "READINESS_PLAN_INVALID": "Use the returned work IDs and valid planning constraints.",
++}
+--- /dev/null
++++ b/tests/test_phase_b_readiness.py
+@@ -0,0 +1,741 @@
++"""Synthetic Phase B journeys with independent host contexts and a restarted SQLite-backed service."""
++
++import asyncio
++import contextlib
++import json
++import multiprocessing
++import os
++import socket
++from pathlib import Path
++from zipfile import ZipFile
++
++import httpx
++import pytest
++import uvicorn
++
++from canvas_bridge.app import create_app
++from canvas_bridge.config import Settings
++from canvas_bridge.processes.readiness import Review
++from tests.conftest import bridge as bridge_fixture
++from tests.test_permission_consistency_contract import client_session
++from tests.test_phase_a_benchmark import HOST_TOOLS, review_host, save, sha
++from tests.test_recovery_independence import parsed_locally as parsed_locally
++
++ROOT = Path(__file__).resolve().parents[1]
++BUNDLE = ROOT / "benchmarks/academic/phase-b/specs.zip"
++NATIVE = os.getenv("BRIDGE_PHASE_B_OUTPUT")
++
++
++def member(name):
++    with ZipFile(BUNDLE) as archive:
++        return archive.read("phase_b_readiness/" + name)
++
++
++def serve(raw, sock):
++    settings = Settings.model_validate_json(raw)
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        server = uvicorn.Server(
++            uvicorn.Config(create_app(settings, bridge), log_level="error", access_log=False)
++        )
++        server.run(sockets=[sock])
++
++
++@contextlib.asynccontextmanager
++async def running(settings):
++    with socket.socket() as sock:
++        sock.bind(("127.0.0.1", 0))
++        sock.listen()
++        settings.resource_url = f"http://127.0.0.1:{sock.getsockname()[1]}"
++        process = multiprocessing.get_context("spawn").Process(
++            target=serve, args=(settings.model_dump_json(), sock)
++        )
++        process.start()
++        try:
++            async with httpx.AsyncClient(timeout=2) as client:
++                async with asyncio.timeout(60):
++                    while process.is_alive():
++                        try:
++                            if (
++                                await client.get(
++                                    settings.resource_url + "/.well-known/oauth-protected-resource"
++                                )
++                            ).status_code == 200:
++                                break
++                        except httpx.TransportError:
++                            pass
++                        await asyncio.sleep(0.1)
++                    else:
++                        raise RuntimeError("Service stopped during startup.")
++            yield process.pid
++        finally:
++            process.terminate()
++            await asyncio.to_thread(process.join, 20)
++            assert not process.is_alive()
++
++
++async def import_case(bridge, owner, case):
++    index = json.loads(member("reference/phase_a_fixture/index.json"))
++    packet = next(c for c in index["cases"] if c["case_id"] == case)
++    bindings = []
++    roles = {
++        "brief.md": "brief",
++        "deck.pptx": "artifact",
++        "references.md": "reference",
++        "rehearsal.txt": "measurement",
++    }
++    for f in packet["model_input_files"]:
++        raw = member("reference/phase_a_fixture/" + f["path"])
++        assert sha(raw) == f["sha256"]
++        name = Path(f["path"]).name
++        mime = {
++            ".md": "text/markdown",
++            ".txt": "text/plain",
++            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++        }[Path(name).suffix]
++        ident = await bridge.independent.ingest(
++            owner,
++            raw,
++            name,
++            mime,
++            course="BenchLink",
++            own_material=True,
++            share_text=True,
++            allow_academic_analysis=True,
++        )
++        bindings.append(
++            dict(
++                logical_id=roles[name],
++                role=roles[name],
++                document_id=ident,
++                content_hash=f["sha256"],
++            )
++        )
++    if case == "missing_deck":
++        bindings.append(
++            dict(logical_id="artifact", role="artifact", document_id=None, content_hash=None)
++        )
++    return bindings
++
++
++@pytest.mark.skipif(not NATIVE, reason="Opt-in real Codex host benchmark")
++@pytest.mark.parametrize("case", ["baseline", "missing_deck"])
++async def test_host_journey(case, settings, owner, token_factory, tmp_path):
++    from canvas_bridge.processes.readiness import Progress
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "state.db")
++    settings.process_features_enabled = True
++    settings.file_reading_enabled = True
++    settings.parser_runtime_root = settings.parser_root = (
++        Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++    )
++    out = Path(NATIVE) / case
++    out.mkdir(parents=True)
++    workdir = tmp_path / "host"
++    workdir.mkdir()
++    tools = [
++        *HOST_TOOLS,
++        "save_assignment_readiness",
++        "get_assignment_readiness",
++        "record_readiness_progress",
++    ]
++    instruction = (
++        "Use only the coursework MCP tools; no filesystem, shell, external or other tools. Follow read_local_document continuations. Use run_independent_academic_workflow for a requirements review. For saves use the exact selected bindings, brief requirement IDs and governed passages. Select the appropriate coverage_rule, inspected artifact parts for absence/all_claims and measured_artifact_hash for recorded_run. Cite precise source quotes; notes means native speaker notes. Use a stable machine-readable gap_kind, action and completion_condition for each needs_work criterion. After a confirmed save get_assignment_readiness to report its actual projection. The backend schema for the review argument is "
++        + json.dumps(Review.model_json_schema())
++        + "; progress argument: "
++        + json.dumps(Progress.model_json_schema())
++    )
++
++    async def host(name, prompt, context):
++        folder = out / name
++        folder.mkdir()
++        answer = await review_host(
++            settings.resource_url,
++            token_factory(),
++            member("prompts/" + prompt + ".md").decode()
++            + "\nSelected context: "
++            + json.dumps(context),
++            workdir,
++            folder,
++            "native",
++            tools=tools,
++            instructions=instruction,
++        )
++        assert answer
++        return [
++            json.loads(line)["item"]
++            for line in (folder / "native-events.jsonl").read_text("utf8").splitlines()
++            if json.loads(line)["type"] == "item.completed"
++            and json.loads(line)["item"]["type"] == "mcp_tool_call"
++        ]
++
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        bindings = await import_case(bridge, owner, case)
++        ctx = dict(
++            assignment_id="BenchLink",
++            course="BenchLink",
++            term="fall-2026",
++            expected_revision=0,
++            bindings=bindings,
++        )
++        async with running(settings) as pid:
++            async with client_session(settings.resource_url, token_factory()) as session:
++                catalog = await session.list_tools()
++                save(
++                    out,
++                    "schemas.json",
++                    [t.model_dump(mode="json") for t in catalog.tools if t.name in tools],
++                )
++            await host(
++                "save", "missing_deck" if case == "missing_deck" else "review_and_remember", ctx
++            )
++            inventory = bridge.processes.repository.inventory(owner)
++            save(out, "inventory.json", inventory)
++            assert len(inventory["records"]) == 1
++            ident = inventory["records"][0]["id"]
++        async with running(settings) as pid2:
++            save(out, "restart.json", dict(before_pid=pid, after_pid=pid2, same_database=True))
++            await host("recall", "recall_readiness", dict(record_id=ident))
++            if case == "baseline":
++                await host("progress", "progress_and_plan", dict(record_id=ident))
++                revised = await import_case(bridge, owner, "corrected")
++                current = bridge.processes.repository.read(owner, ident)
++                await host(
++                    "revised",
++                    "review_revised_version",
++                    ctx
++                    | dict(bindings=revised, expected_revision=current.revision, record_id=ident),
++                )
++            current = bridge.processes.repository.read(owner, ident)
++            save(
++                out, "persisted.json", current.model_dump(mode="json", exclude={"scope", "sources"})
++            )
++
++
++def authored_review(bindings, label):
++    """Translate only the supplied evaluator payload. Native host tests never call this adapter."""
++    d = json.loads(member("fixtures/readiness_inputs.json"))
++    payload = next(
++        a for a in d["assessment_payloads"] if a["assessment_id"] == "BL-ASSESS-" + label + "-01"
++    )
++    evidence = {e["evidence_id"]: e for e in d["evidence_catalog"]}
++    logical = {b["content_hash"]: b["logical_id"] for b in bindings}
++
++    def anchor(key):
++        e = evidence[key]
++        loc = e["locator"]
++        return dict(
++            source=logical[e["source_sha256"]],
++            part=loc.get("slide_number", 1),
++            surface={"native_notes": "notes", "slide": "slide"}.get(loc.get("surface"), "text"),
++            quote=e["quote"],
++        )
++
++    rows = []
++    for criterion, r in zip(
++        d["requirement_set"]["requirements"], payload["requirement_results"], strict=True
++    ):
++        ident = r["requirement_id"]
++        status = r["assessment_status"]
++        gap = r.get("gap_kind")
++        coverage = r["evidence_coverage"]
++        rule = {"PA-R03": "all_claims", "PA-R04": "recorded_run"}.get(ident, "passage")
++        if ident == "PA-R01" and status != "satisfied":
++            rule = "absence"
++        ev = [anchor(k) for k in r["evidence_refs"] if evidence[k]["source_sha256"] in logical]
++        if ident == "PA-R03" and label == "BASELINE":
++            ev.append(anchor("EV-BASE-NOTES"))
++        rows.append(
++            dict(
++                requirement_id=ident,
++                criterion=criterion["criterion"],
++                governing=anchor("EV-" + ident),
++                applicability_basis="Explicit in the assignment brief.",
++                assessment_status=status,
++                rationale=r["rationale"],
++                coverage=coverage,
++                coverage_rule=rule,
++                evidence=ev,
++                candidate_assessments=[
++                    dict(
++                        candidate_id=c["candidate_id"],
++                        assessment_status=c["assessment_status"],
++                        claim=c["claim"],
++                        evidence=[anchor(k) for k in c["evidence_refs"]],
++                    )
++                    for c in r.get("candidate_assessments", [])
++                ],
++                reviewed_extent=[
++                    dict(source="artifact", parts=list(range(1, 6 if label == "PARTIAL" else 8)))
++                ]
++                if rule in {"absence", "all_claims"} and label != "MISSING"
++                else [],
++                followup=r.get("unknown_reason"),
++                gap_kind=gap,
++                action=("Revise " + criterion["title"]) if gap else None,
++                completion_condition=criterion["criterion"] if gap else None,
++                measured_artifact_hash=next(
++                    (b["content_hash"] for b in bindings if b["role"] == "artifact"), None
++                )
++                or payload["binding"]["artifact_sha256"]
++                if ident == "PA-R04"
++                else None,
++            )
++        )
++    return Review(
++        assignment_id="primary",
++        course="BenchLink",
++        term="fall-2026",
++        expected_revision=0,
++        idempotency_key=label,
++        membership_complete=True,
++        review_scope="Assignment brief",
++        bindings=bindings,
++        requirements=rows,
++    )
++
++
++def test_projection_controls():
++    from canvas_bridge.processes.readiness import summarize
++
++    for case in json.loads(member("fixtures/contract_controls.json"))["controls"]:
++        rows = [
++            r
++            | {
++                "assessment_status": r["assessment_status"]
++                if r["version_match"] == "current"
++                else "unknown"
++            }
++            for r in case["rows"]
++        ]
++        result = summarize(rows, case["membership_complete"])
++        assert result["summary_status"] == case["expected_summary_status"], case["id"]
++        for field, key in [
++            ("optional", "expected_optional"),
++            ("applicable_required", "expected_applicable_required"),
++            ("unknown_applicability_required", "expected_unknown_applicability_required"),
++            ("not_applicable_required", "expected_excluded_required"),
++        ]:
++            assert result["counts"][field] == case[key]
++
++
++async def test_authored_journeys(bridge, owner, tmp_path, request):
++    if not NATIVE:
++        request.getfixturevalue("parsed_locally")
++    import copy
++    from datetime import timedelta
++
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.planning import PlanRequest
++    from canvas_bridge.processes import readiness
++
++    bridge.settings.process_features_enabled = True
++    bridge.settings.file_reading_enabled = True
++    if os.name == "nt":
++        bridge.settings.parser_runtime_root = bridge.settings.parser_root = (
++            Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++        )
++    service = bridge.processes
++    baseline = await import_case(bridge, owner, "baseline")
++    corrected = await import_case(bridge, owner, "corrected")
++    missing = [
++        b if b["role"] != "artifact" else b | dict(document_id=None, content_hash=None)
++        for b in baseline
++    ]
++    expected = {
++        e["scenario_id"]: e
++        for e in json.loads(member("fixtures/expected_readiness.json"))["results"]
++    }
++    actual = {}
++
++    def check(number, result):
++        name = f"PHB-S{number:02d}"
++        d = result.data
++        actual[name] = d
++        target = expected[name]
++        assert (
++            d["summary_status"],
++            d["counts"],
++            len(d["remaining_work"]),
++            len(d["review_followups"]),
++        ) == (
++            target["summary_status"],
++            target["counts"],
++            target["current_work_item_count"],
++            target["review_followup_count"],
++        ), name
++
++    first = authored_review(baseline, "BASELINE")
++    receipt = readiness.save(service, owner, first).data
++    key = receipt["record_id"]
++
++    def view(**kwargs):
++        return readiness.view(service, owner, key, **kwargs)
++
++    check(1, view())
++    check(2, view())
++    assert readiness.save(service, owner, first).data == receipt
++    correct = authored_review(corrected, "CORRECTED")
++    original = view().data
++    selection = readiness.Selection(
++        requirement_set_revision=original["requirement_set_revision"], bindings=corrected
++    )
++    check(7, view(selection=selection))
++    # Reimport selects the same artifact content within this assignment.
++    duplicate = await import_case(bridge, owner, "baseline")
++    check(
++        6,
++        view(
++            selection=readiness.Selection(
++                requirement_set_revision=original["requirement_set_revision"], bindings=duplicate
++            )
++        ),
++    )
++    task = original["remaining_work"][0]["work_id"]
++    progress = readiness.Progress(
++        record_id=key,
++        work_id=task,
++        expected_revision=1,
++        idempotency_key="done",
++        progress_state="student_marked_done",
++    )
++    readiness.update_progress(service, owner, progress)
++    check(9, view())
++    with pytest.raises(DomainError):
++        readiness.save(
++            service,
++            owner,
++            first.model_copy(update=dict(idempotency_key="stale", expected_revision=1)),
++        )
++    rereview = first.model_copy(update=dict(expected_revision=2, idempotency_key="rereview"))
++    readiness.save(service, owner, rereview)
++    check(10, view())
++    assert view().data["remaining_work"][0]["progress_state"] == "student_marked_done"
++    assert view(revision=1).data["remaining_work"][0]["progress_state"] == "unknown"
++    at = bridge.retention.clock()
++    proposal = view(
++        plan=PlanRequest(windows=[dict(start=at + timedelta(hours=1), end=at + timedelta(hours=2))])
++    )
++    assert "plan" in proposal.data
++    readiness.save(service, owner, correct.model_copy(update=dict(expected_revision=3)))
++    check(3, view())
++    broken = copy.deepcopy(correct.model_dump(mode="json"))
++    broken.update(expected_revision=4, idempotency_key="reject")
++    broken["requirements"][0]["evidence"][0]["quote"] = "absent text"
++    with pytest.raises(DomainError, match="exact passage"):
++        readiness.save(service, owner, Review.model_validate(broken))
++    assert view().data["revision"] == 4
++    check(14, view())
++    for number, packet, label in [
++        (4, missing, "MISSING"),
++        (11, baseline, "CONFLICT"),
++        (12, corrected, "PARTIAL"),
++        (8, corrected, "CORRECTED"),
++        (5, baseline, "BASELINE"),
++        (13, baseline, "BASELINE"),
++    ]:
++        req = authored_review(packet, label).model_dump(mode="json")
++        req.update(assignment_id=f"scope-{number}", idempotency_key=f"save-{number}")
++        if number == 8:
++            req["bindings"] = [
++                b if b["role"] != "measurement" else baseline[-1] for b in req["bindings"]
++            ]
++            req["requirements"][-1] = first.requirements[-1].model_dump(mode="json")
++        if number in {5, 13}:
++            for row in req["requirements"]:
++                row.update(
++                    assessment_status="unknown",
++                    followup="awaiting_review",
++                    measured_artifact_hash=None,
++                    coverage="unavailable",
++                    evidence=[],
++                    reviewed_extent=[],
++                )
++        new = readiness.save(service, owner, Review.model_validate(req)).data
++        check(number, readiness.view(service, owner, new["record_id"]))
++    # Freshness affects only criteria dependent on the inaccessible source.
++    from canvas_bridge.storage import IndependentResource
++
++    with bridge.store.transaction() as session:
++        row = session.get(IndependentResource, corrected[1]["document_id"])
++        row.expires_at = at - timedelta(minutes=1)
++    limited = view()
++    assert any(b["availability"] == "unavailable" for b in limited.data["bindings"])
++    assert not any(s.id == corrected[1]["document_id"] for s in limited.sources)
++    if NATIVE:
++        save(Path(NATIVE), "authored-scenarios.json", actual)
++
++
++async def test_readiness_concurrent_commit_and_rollback(settings, owner, tmp_path, monkeypatch):
++    import threading
++
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.parser_worker import extract
++    from canvas_bridge.processes import readiness
++
++    # Exercise independent transactions against the same durable SQLite database.
++    async def parser(data, kind, settings):
++        return extract(data, kind)
++
++    monkeypatch.setattr("canvas_bridge.parser_sandbox.extract_document", parser)
++    settings.database_url = "sqlite:///" + str(tmp_path / "concurrent.db")
++    settings.process_features_enabled = True
++    trace = {}
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        packet = await import_case(bridge, owner, "baseline")
++        request = authored_review(packet, "BASELINE")
++
++        def submit(review):
++            return readiness.save(bridge.processes, owner, review).data
++
++        original = submit(request)
++        ident = original["record_id"]
++        before = readiness.view(bridge.processes, owner, ident).data
++        ready = threading.Barrier(2)
++
++        def race(key):
++            ready.wait(timeout=10)
++            try:
++                return submit(
++                    request.model_copy(update=dict(idempotency_key=key, expected_revision=1))
++                )
++            except DomainError as exc:
++                return dict(reason_code=exc.reason_code)
++
++        first, second = await asyncio.gather(
++            asyncio.to_thread(race, "one"), asyncio.to_thread(race, "two")
++        )
++        trace.update(before=before, competing_results=[first, second])
++        assert sum(r.get("revision") == 2 for r in (first, second)) == 1
++        assert {r.get("reason_code") for r in (first, second)} == {
++            None,
++            "PROCESS_REVISION_MISMATCH",
++        }
++        repo = bridge.processes.repository
++        write = repo._save
++
++        def injected(*args):
++            write(*args)
++            raise RuntimeError("synthetic failure before transaction exit")
++
++        retry = request.model_copy(update=dict(expected_revision=2, idempotency_key="retry"))
++        with monkeypatch.context() as patch:
++            patch.setattr(repo, "_save", injected)
++            with pytest.raises(RuntimeError, match="synthetic failure"):
++                submit(retry)
++        recovered = readiness.view(bridge.processes, owner, ident).data
++        assert (
++            recovered["revision"] == 2 and recovered["remaining_work"] == before["remaining_work"]
++        )
++        trace.update(
++            after_failure=recovered,
++            retry=submit(retry),
++            failure="synthetic failure before transaction exit",
++        )
++        assert trace["retry"]["revision"] == 3
++        with pytest.raises(DomainError):
++            readiness.view(bridge.processes, "other-owner", ident)
++        bad = retry.model_dump(mode="json")
++        bad["bindings"][0]["content_hash"] = "0" * 64
++        with pytest.raises(DomainError) as mismatch:
++            submit(Review.model_validate(bad))
++        assert mismatch.value.reason_code == "READINESS_VERSION_MISMATCH"
++        trace["bad_hash"] = mismatch.value.reason_code
++        if NATIVE:
++            save(Path(NATIVE), "concurrency.json", trace)
++
++
++async def test_readiness_wire_contract(bridge, settings, owner, token_factory, parsed_locally):
++    from datetime import timedelta
++
++    from canvas_bridge.storage import IndependentResource
++    from tests.test_mcp_contract import running as http_server
++
++    settings.process_features_enabled = True
++    packet = await import_case(bridge, owner, "baseline")
++    review = authored_review(packet, "BASELINE").model_dump(mode="json")
++    receipts = []
++    async for url in http_server.__wrapped__(bridge, settings, None):
++        async with client_session(url, token_factory(), read_timeout=120) as session:
++
++            async def call(tool, args):
++                result = (await session.call_tool(tool, args)).structuredContent
++                receipts.append(dict(tool=tool, arguments=args, result=result))
++                return result
++
++            receipt = await call("save_assignment_readiness", {"review": review})
++            assert receipt["status"] == "ok", receipt["summary"]
++            assert receipt["data"]["revision"] == 1
++            key = receipt["data"]["record_id"]
++            replay = await call("save_assignment_readiness", {"review": review})
++            assert replay["data"] == receipt["data"]
++            from copy import deepcopy
++
++            for error in ("wrong_quote", "invalid_part", "wrong_hash"):
++                bad = deepcopy(review)
++                bad.update(expected_revision=1, idempotency_key=error)
++                if error == "wrong_quote":
++                    bad["requirements"][0]["governing"]["quote"] = "A different unobserved passage."
++                elif error == "invalid_part":
++                    bad["requirements"][0]["governing"]["part"] = 99
++                else:
++                    bad["bindings"][0]["content_hash"] = "0" * 64
++                rejected = await call("save_assignment_readiness", {"review": bad})
++                assert (
++                    rejected["data"]["reason_code"]
++                    == {
++                        "invalid_part": "READINESS_LOCATOR_INVALID",
++                        "wrong_quote": "READINESS_QUOTE_MISMATCH",
++                        "wrong_hash": "INDEPENDENT_SOURCE_CHANGED",
++                    }[error]
++                )
++
++            at = bridge.retention.clock()
++            result = await call(
++                "get_assignment_readiness",
++                dict(
++                    record_id=key,
++                    plan=dict(
++                        windows=[
++                            dict(
++                                start=(at + timedelta(hours=1)).isoformat(),
++                                end=(at + timedelta(hours=2)).isoformat(),
++                            )
++                        ]
++                    ),
++                ),
++            )
++            assert result["status"] == "ok", result["summary"]
++            assert result["data"]["revision"] == 1
++            assert len(result["data"]["plan"]["effort_summary"]["unknown_effort_work_ids"]) == 3
++            assert len(result["data"]["remaining_work"]) == 3
++            task = result["data"]["remaining_work"][0]["work_id"]
++            changed = await call(
++                "record_readiness_progress",
++                dict(
++                    request=dict(
++                        record_id=key,
++                        expected_revision=1,
++                        idempotency_key="done",
++                        work_id=task,
++                        progress_state="student_marked_done",
++                    )
++                ),
++            )
++            assert changed["data"]["revision"] == 2
++            reread = await call("get_assignment_readiness", dict(record_id=key))
++            assert reread["data"]["remaining_work"][0]["progress_state"] == "student_marked_done"
++            with bridge.store.transaction() as db:
++                item = db.get(IndependentResource, packet[1]["document_id"])
++                item.provenance = item.provenance | {"share_text": False}
++            limited = await call("get_assignment_readiness", dict(record_id=key))
++            assert not any(s["id"] == packet[1]["document_id"] for s in limited["sources"])
++            assert limited["data"]["counts"]["unknown"] >= 1
++            denied = await call(
++                "save_assignment_readiness",
++                {"review": review | {"expected_revision": 2, "idempotency_key": "withheld"}},
++            )
++            assert denied["status"] != "ok"
++            if NATIVE:
++                save(Path(NATIVE), "wire-contract.json", receipts)
++
++
++async def test_readiness_scope_and_review_controls(bridge, owner, parsed_locally):
++    from canvas_bridge.processes import readiness
++
++    bridge.settings.process_features_enabled = True
++    bindings = await import_case(bridge, owner, "baseline")
++    source = member("fixtures/control_requirements.md")
++    ident = await bridge.independent.ingest(
++        owner,
++        source,
++        "control_requirements.md",
++        "text/markdown",
++        course="BenchLink",
++        own_material=True,
++        share_text=True,
++        allow_academic_analysis=True,
++    )
++    selection = dict(
++        logical_id="controls", role="brief", document_id=ident, content_hash=sha(source)
++    )
++    first = authored_review(bindings, "BASELINE")
++    req = first.model_dump(mode="json")
++    req.update(assignment_id="scope-controls", bindings=[*bindings, selection])
++
++    def row(line, required, applicability):
++        quote = next(s for s in source.decode().splitlines() if s.startswith(line))
++        anchor = dict(source="controls", part=1, surface="text", quote=quote)
++        return dict(
++            requirement_id=line,
++            criterion=quote,
++            governing=anchor,
++            required=required,
++            applicability=applicability,
++            applicability_basis=quote,
++            assessment_status="needs_work" if not required else "unknown",
++            rationale=quote,
++            evidence=[anchor],
++            coverage="complete",
++            gap_kind="polish",
++            action="Review visual polish",
++            completion_condition="Complete the requested review",
++        )
++
++    rows = [
++        row("CR-OPTIONAL", False, "applicable"),
++        row("CR-EXEMPT", True, "not_applicable"),
++        row("CR-UNKNOWN", True, "unknown"),
++    ]
++    req.update(
++        requirements=rows,
++        requested_work=["CR-OPTIONAL"],
++        expected_revision=0,
++        idempotency_key="scope-controls",
++    )
++    receipt = readiness.save(bridge.processes, owner, Review.model_validate(req)).data
++    key = receipt["record_id"]
++    v = readiness.view(bridge.processes, owner, key).data
++    assert v["summary_status"] == "unknown" and v["counts"]["applicable_required"] == 0
++    assert v["remaining_work"][0]["work_basis"] == "explicit_user_request"
++    changed = readiness.Selection(requirement_set_revision="another", bindings=req["bindings"])
++    assert (
++        readiness.view(bridge.processes, owner, key, selection=changed).data["summary_status"]
++        == "unknown"
++    )
++    no_work = Review.model_validate(
++        req
++        | dict(
++            requirements=list(reversed(rows)),
++            requested_work=[],
++            expected_revision=1,
++            idempotency_key="reorder",
++        )
++    )
++    readiness.save(bridge.processes, owner, no_work)
++    reordered = readiness.view(bridge.processes, owner, key).data
++    assert (
++        reordered["requirement_set_revision"] == v["requirement_set_revision"]
++        and not reordered["remaining_work"]
++    )
++    conflict = authored_review(bindings, "CONFLICT")
++    saved = readiness.save(bridge.processes, owner, conflict).data
++    old = readiness.view(bridge.processes, owner, saved["record_id"]).data
++    disputed = next(r for r in old["requirements"] if r["assessment_status"] == "conflict")
++    assert {c["assessment_status"] for c in disputed["candidate_assessments"]} == {
++        "satisfied",
++        "needs_work",
++    }
++    resolved = first.model_copy(update=dict(expected_revision=1, idempotency_key="resolved"))
++    readiness.save(bridge.processes, owner, resolved)
++    assert readiness.view(bridge.processes, owner, saved["record_id"], revision=1).data == old
++    if NATIVE:
++        save(
++            Path(NATIVE),
++            "scope-controls.json",
++            dict(
++                optional=v,
++                reordered=reordered,
++                conflict=old,
++                resolved=readiness.view(bridge.processes, owner, saved["record_id"]).data,
++            ),
++        )
+--- a/tests/test_phase_a_benchmark.py
++++ b/tests/test_phase_a_benchmark.py
+@@ -134,7 +134,9 @@
+ ]
+ 
+ 
+-async def review_host(url, token, prompt, workdir, folder, label):
++async def review_host(
++    url, token, prompt, workdir, folder, label, *, tools=HOST_TOOLS, instructions=None
++):
+     import asyncio
+     import shutil
+ 
+@@ -163,9 +165,11 @@
+         "-c",
+         'mcp_servers.coursework.bearer_token_env_var="PHASE_A_FIXTURE_TOKEN"',
+         "-c",
+-        "mcp_servers.coursework.enabled_tools=" + json.dumps(HOST_TOOLS),
++        "mcp_servers.coursework.enabled_tools=" + json.dumps(tools),
+         "-c",
+-        'developer_instructions="Use only the coursework MCP tools for this synthetic packet. Discover the imported materials, check their status, read them with limit five following continuations, and use the independent academic workflow for requirements or planning as applicable. Do not use files, shell, web, apps, or any other tools."',
++        ("developer_instructions=" + json.dumps(instructions))
++        if instructions
++        else 'developer_instructions="Use only the coursework MCP tools for this synthetic packet. Discover the imported materials, check their status, read them with limit five following continuations, and use the independent academic workflow for requirements or planning as applicable. Do not use files, shell, web, apps, or any other tools."',
+         "-o",
+         str((folder / (label + "-answer.txt")).resolve()),
+         "-",
+--- a/scripts/validate_phase_a.py
++++ b/scripts/validate_phase_a.py
+@@ -13,17 +13,29 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("output", type=Path)
+-    output = parser.parse_args().output.resolve()
++    parser.add_argument("--phase", choices=["a", "b"], default="a")
++    options = parser.parse_args()
++    output = options.output.resolve()
+     output.mkdir(exist_ok=True, parents=True)
+-    bundle = Path(__file__).resolve().parents[1] / "benchmarks/academic/phase-a/specs.zip"
+-    if (
+-        hashlib.sha256(bundle.read_bytes()).hexdigest()
+-        != "99350fab359158a14c471a8f8b028badcd5ccc3b4b7e96f7814a51a1a496d899"
+-    ):
+-        raise ValueError("Unexpected Phase A package")
++    packages = {
++        "a": (
++            "phase_a_baseline",
++            "99350fab359158a14c471a8f8b028badcd5ccc3b4b7e96f7814a51a1a496d899",
++        ),
++        "b": (
++            "phase_b_readiness",
++            "1ffd5be0cfd959aae0efa463d5e543230ad2bc2ae95627d9c0f52f24dd3fa5c6",
++        ),
++    }
++    directory, expected = packages[options.phase]
++    bundle = (
++        Path(__file__).resolve().parents[1] / f"benchmarks/academic/phase-{options.phase}/specs.zip"
++    )
++    if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected:
++        raise ValueError(f"Unexpected Phase {options.phase.upper()} package")
+     with tempfile.TemporaryDirectory() as temp, ZipFile(bundle) as archive:
+         archive.extractall(temp)
+-        root = Path(temp) / "phase_a_baseline"
++        root = Path(temp) / directory
+         for relative, report in [
+             ("validate_package.py", "package"),
+             ("fixtures/validate_fixtures.py", "fixture"),
+--- /dev/null
++++ b/scripts/audit_phase_b.py
+@@ -0,0 +1,184 @@
++"""Recompute Phase B transcript, restart, readback and fixture checks from frozen evidence."""
++
++import argparse
++import hashlib
++import json
++from pathlib import Path
++from zipfile import ZipFile
++
++
++def load(path):
++    return json.loads(path.read_text(encoding="utf-8"))
++
++
++def journey(folder):
++    events = [
++        json.loads(line) for line in (folder / "native-events.jsonl").read_text("utf8").splitlines()
++    ]
++    completed = [e["item"] for e in events if e["type"] == "item.completed"]
++    assert all(
++        i["type"] in {"agent_message", "mcp_tool_call", "reasoning", "plan_update"}
++        for i in completed
++    )
++    answer = (folder / "native-answer.txt").read_bytes()
++    digest = hashlib.sha256(answer).hexdigest()
++    assert digest == load(folder / "native-status.json")["final_answer_sha256"]
++    assert [i["text"] for i in completed if i["type"] == "agent_message"][
++        -1
++    ].strip() == answer.decode().strip()
++    tools = []
++    for i in completed:
++        if i["type"] != "mcp_tool_call":
++            continue
++        assert i["server"] == "coursework"
++        body = {}
++        if i.get("result"):
++            text = i["result"]["content"][0].get("text", "")
++            try:
++                body = json.loads(text)
++            except ValueError:
++                pass
++        tools.append((i["tool"], i["arguments"], body, i["id"]))
++    return tools, digest
++
++
++def verify(root, bundle):
++    expected = json.loads(bundle.read("phase_b_readiness/fixtures/expected_readiness.json"))
++    expected = {s["scenario_id"]: s for s in expected["results"]}
++    observed = load(root / "authored-scenarios.json")
++    assessed = 0
++    for key, view in observed.items():
++        oracle = expected[key]
++        assert (
++            view["counts"] == oracle["counts"]
++            and view["summary_status"] == oracle["summary_status"]
++        )
++        assert len(view["remaining_work"]) == oracle["current_work_item_count"]
++        assert len(view["review_followups"]) == oracle["review_followup_count"]
++        actual = {r["requirement_id"]: r["assessment_status"] for r in view["requirements"]}
++        checks = {
++            r["requirement_id"]: r["assessment_status"]
++            if r["version_match"] == "current"
++            else "unknown"
++            for r in oracle["requirement_results"]
++        }
++        assert actual == checks, (key, actual, checks)
++        rows = {r["requirement_id"]: r for r in view["requirements"]}
++        for expected_row in oracle["requirement_results"]:
++            actual_row = rows[expected_row["requirement_id"]]
++            assert actual_row["version_match"] == expected_row["version_match"], key
++            assert actual_row["coverage"] == expected_row["evidence_coverage"], key
++        assessed += len(checks)
++    assert len(observed) == 14
++    results = {}
++    for case in ("baseline", "missing_deck"):
++        p = root / case
++        restart = load(p / "restart.json")
++        assert restart["before_pid"] != restart["after_pid"] and restart["same_database"]
++        records = {}
++        for name in (
++            ("save", "recall", "progress", "revised") if case == "baseline" else ("save", "recall")
++        ):
++            calls, digest = journey(p / name)
++            views = [
++                b["data"]
++                for t, _, b, _ in calls
++                if t == "get_assignment_readiness" and b.get("status") == "ok"
++            ]
++            assert views, (case, name, "no successful readback")
++            target = (
++                "PHB-S04"
++                if case == "missing_deck"
++                else {"revised": "PHB-S03", "progress": "PHB-S09"}.get(name, "PHB-S01")
++            )
++            view = views[-1]
++            assert (
++                view["summary_status"] == expected[target]["summary_status"]
++                and view["counts"] == expected[target]["counts"]
++            ), (case, name, view["counts"])
++            assert len(view["remaining_work"]) == expected[target]["current_work_item_count"]
++            assert len(view["review_followups"]) == expected[target]["review_followup_count"], (
++                case,
++                name,
++            )
++            writes = [
++                b["data"]
++                for t, _, b, _ in calls
++                if t in {"save_assignment_readiness", "record_readiness_progress"}
++                and b.get("status") == "ok"
++            ]
++            if name in {"save", "revised"}:
++                assert writes and writes[-1]["revision"] == view["revision"]
++                inputs = next(
++                    a["review"]
++                    for t, a, b, _ in reversed(calls)
++                    if t == "save_assignment_readiness" and b.get("status") == "ok"
++                )
++                ids = {s["document_id"] for s in inputs["bindings"] if s["document_id"]}
++                reads = {
++                    a["document_id"]
++                    for t, a, b, _ in calls
++                    if t == "read_local_document" and b.get("status") == "ok"
++                }
++                assert reads == ids, (case, name, "read coverage", reads, ids)
++            if name == "progress":
++                assert any(
++                    w["progress_state"] == "student_marked_done" and w["rereview_needed"]
++                    for w in view["remaining_work"]
++                )
++                assert any("effort_summary" in v.get("plan", {}) for v in views)
++            if name == "recall":
++                assert not writes
++                for field in (
++                    "revision",
++                    "assessed_at",
++                    "record_id",
++                    "requirements",
++                    "remaining_work",
++                    "bindings",
++                    "counts",
++                ):
++                    assert records["save"][field] == view[field], (case, field)
++            records[name] = view
++            results[case + "/" + name] = dict(
++                answer_sha256=digest,
++                record_id=view["record_id"],
++                record_revision=view["revision"],
++                assessed_at=view["assessed_at"],
++                summary_status=view["summary_status"],
++                counts=view["counts"],
++                work_items=len(view["remaining_work"]),
++                followups=len(view["review_followups"]),
++                tool_attempts=len(calls),
++                confirmed_writes=writes,
++                tool_outcomes=[
++                    dict(tool=t, status=b.get("status"), event_id=i) for t, _, b, i in calls
++                ],
++                plan_summary=next(
++                    (v["plan"]["effort_summary"] for v in reversed(views) if "plan" in v), None
++                ),
++            )
++        persisted = load(p / "persisted.json")
++        assert persisted["revision"] == list(records.values())[-1]["revision"]
++    return dict(
++        authored_scenarios=len(observed),
++        criterion_status_comparisons=assessed,
++        native_journeys=results,
++        observation_boundary="Actual MCP tool responses in each ephemeral host and its final answer. Internal context assembly is unexposed.",
++    )
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("output", type=Path)
++    args = parser.parse_args()
++    bundle = Path(__file__).resolve().parents[1] / "benchmarks/academic/phase-b/specs.zip"
++    with ZipFile(bundle) as z:
++        report = verify(args.output, z)
++    (args.output / "capture-audit.json").write_text(
++        json.dumps(report, indent=2) + "\n", encoding="utf8"
++    )
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/benchmarks/academic/phase-b/README.md
+@@ -0,0 +1,36 @@
++# Persistent assignment readiness
++
++With academic process features enabled, a supported host can remember a review of an explicitly selected independent assignment. The student sees the stored revision, findings, cited passages and their remaining work when they return.
++
++## Review, save and return
++
++1. Import the brief, draft and supporting files through Materials with independent academic analysis and text sharing enabled. Select the assignment within its course and term. Read each document by its imported ID and byte hash, following continuations. PowerPoint text includes bounded body and speaker-note spans when the parser supplies them.
++2. Use the independent requirements workflow for mechanical checks. The host interprets qualitative criteria. Call `save_assignment_readiness` with a logical ID and role for each selected source, stable requirement IDs, governing passages, assessments, evidence and review extent. Bind each quotation to a logical source, exact part and surface. A deliberately absent artifact has a logical ID with null document ID and hash. For recorded timing, cite the rehearsal and its embedded artifact hash.
++3. Use revision zero for the initial save. Retry an identical request with its original idempotency key. For a changed assessment, use the latest confirmed revision and a new key. The commit receipt identifies the record, revision and journal entry. An explicit rereview preserves earlier revisions within the existing retention limits.
++4. Call `get_assignment_readiness` with the receipt's record ID, or locate the assignment in the ordinary process inventory. An omitted revision retrieves the latest saved snapshot. A revision selects historical evidence. Supplying a selection compares the chosen requirement-set revision and logical artifact versions against the saved snapshot. Unavailable or mismatched evidence limits the affected criteria. The original record remains subject to the existing retention and deletion rules.
++5. Use `record_readiness_progress` for an explicit personal progress declaration, with its work ID, expected record revision and idempotency key. A done declaration alongside an unresolved finding prompts rereview. To propose a session, pass the ordinary planning windows and optional attributed effort overrides to `get_assignment_readiness`. A supplied simulation time uses `plan_as_of`. Actual policy and access checks always use the service clock.
++
++## Projection and storage
++
++The denominator is the set of applicable required criteria. An unresolved conflict takes priority, then supported remaining work, then unknown readiness. Incomplete membership, unknown applicability and an empty inventory prevent a ready result. Optional suggestions appear alongside the assessed scope. Explicitly requested optional or followup tasks can be selected with `requested_work` and an action, gap kind and completion condition.
++
++The encrypted process store persists one assignment snapshot per owner, course, term and logical assignment. Each work identity includes the assignment, requirement-set revision, source-version tuple, criterion ID and gap kind. Import aliases are excluded from the work key. The planner receives the saved work IDs, personal progress, action titles and source citations. Missing deadlines or effort remain unknown. Current source access, selected-version applicability and the time of the assessment are separate observations.
++
++## Benchmark
++
++The supplied archive lives at `benchmarks/academic/phase-b/specs.zip`. Its structured assessments and expected results are evaluator material. In the host tests the user prompt contains the selected case and its source bindings. The host reads the files through MCP, submits its own assessment, and receives the backend projection.
++
++From the repository root with locked dependencies and the trusted local parser installed:
++
++```powershell
++.\.venv\Scripts\python scripts/validate_phase_a.py --phase b .local/phase-b-validation
++.\.venv\Scripts\python -m pytest -q tests/test_phase_b_readiness.py -k 'controls or authored or concurrent'
++$env:BRIDGE_PHASE_B_OUTPUT = Join-Path $PWD '.local/phase-b-replay'
++.\.venv\Scripts\python -m pytest -q tests/test_phase_b_readiness.py
++```
++
++Use a fresh output directory and a signed-in Codex CLI for host runs. Each case uses synthetic SQLite state in the pytest temporary directory. The harness stops the serving process, starts another process against the same database and vault, and opens a fresh host context for recall. Only synthetic prompts, tool results, receipts and final answers belong in published evidence. The Phase A replay uses its existing procedure and an independent output directory.
++
++After the host runs finish, run `python scripts/audit_phase_b.py <output-directory>` with the same Python environment. It compares all fourteen scenario result sets with the independent expectations, verifies the saved and recalled fields after restart, and checks the native answers against the final CLI messages. The report also includes separate semantic adjudication of those answers.
++
++For a rejected save, the public MCP envelope supplies a fixed reason and recovery instruction. Examples include `READINESS_QUOTE_MISMATCH` and `READINESS_LOCATOR_INVALID`. Correct the source binding and retry against the last confirmed record revision. The error response excludes the submitted source text.

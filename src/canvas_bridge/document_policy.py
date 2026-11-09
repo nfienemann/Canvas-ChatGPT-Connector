@@ -6,6 +6,7 @@ new isolation/resource evidence. No original-delivery settings belong here.
 """
 
 SOURCE_BYTES = 10_000_000
+PDF_BATCH_PAGES = 4
 LOCAL_IMPORT_BYTES = 25_000_000
 PPTX_SOURCE_BYTES = 32 * 1024 * 1024
 PPTX_EXPANDED_BYTES = 64 * 1024 * 1024

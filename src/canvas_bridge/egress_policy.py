@@ -191,6 +191,235 @@ class DataEgressPolicyEngine:
         )
         return record.egress if record else None
 
+    def source_reviews(self, institution):
+        governance = self.governance(institution)
+        if governance is not None:
+            return governance.content_reviews
+        if self.bridge.settings.profile != "personal":
+            return []
+        records, error = self.bridge.approval_gateway.store.load()
+        if error:
+            return []
+        record = next(
+            (r for r in records if r.authority == "sharing" and institution in r.institutions), None
+        )
+        return getattr(record, "private_text_reviews", []) if record else []
+
+    def permits_private_course_listing(self, source, transfer):
+        from canvas_bridge.approval_policy import PolicyRequest
+        from canvas_bridge.authorization import request_authorization
+
+        settings = self.bridge.settings
+        context = request_authorization.get()
+        identity = transfer.recipient
+        if (
+            settings.profile != "personal"
+            or not settings.mcp_read_only
+            or settings.host != "127.0.0.1"
+            or not settings.personal_subject
+            or context is None
+            or classify(source)
+            not in {CC.FIRST_PARTY_EDUCATIONAL_RECORD, CC.INSTRUCTOR_OWNED_COURSE_CONTENT}
+            or transfer.channel not in {"structured", "text"}
+            or transfer.amount > 100_000
+            or identity.recipient != "chatgpt"
+            or identity.client_id not in settings.mcp_chatgpt_client_ids
+        ):
+            return False
+        records, error = self.bridge.approval_gateway.store.load()
+        if error:
+            return False
+        record = next(
+            (
+                r
+                for r in records
+                if r.authority == "sharing" and source.institution in r.institutions
+            ),
+            None,
+        )
+        grant = record.private_course_listing if record else None
+        if not grant or (grant.owner, grant.issuer, grant.client_id) != (
+            transfer.principal,
+            identity.issuer,
+            identity.client_id,
+        ):
+            return False
+        listing = (
+            context.tool_name == "list_courses"
+            and source.kind == "course"
+            and transfer.purpose == "metadata"
+            and transfer.channel == "structured"
+            and transfer.minimized
+        )
+        workload = (
+            grant.scope in {"minimized_study_metadata", "reviewed_private_text"}
+            and context.tool_name == "get_workload"
+            and source.kind in {"course", "deadline"}
+            and transfer.purpose == "schedule"
+            and transfer.channel == "structured"
+            and transfer.minimized
+        )
+        reviewed_text = False
+        diagnostics = (
+            grant.allow_permission_diagnostics
+            and context.tool_name == "audit_permission_consistency"
+            and source.kind == "permission_diagnostics"
+            and transfer.purpose == "diagnostics"
+            and transfer.channel == "structured"
+            and transfer.minimized
+        )
+        inventory = (
+            grant.allow_course_material_inventory
+            and context.tool_name == "list_course_files"
+            and source.kind == "material_inventory"
+            and transfer.purpose == "metadata"
+            and transfer.channel == "structured"
+            and transfer.minimized
+        )
+        if (
+            grant.scope == "reviewed_private_text"
+            and context.tool_name
+            in {"read_course_file", "fetch_course_material", "get_assignment_details"}
+            and source.kind in {"file", "page", "syllabus", "assignment_content"}
+            and transfer.purpose in {"document_reading", "study"}
+        ):
+            review = next(
+                (
+                    r
+                    for r in self.source_reviews(source.institution)
+                    if r.source_id == source.source_id and r.version == source.version
+                ),
+                None,
+            )
+            reviewed_text = bool(
+                review
+                and review.classification == classify(source)
+                and transfer.purpose in review.purposes
+                and transfer.channel in review.reviewed_channels
+                and transfer.channel in review.privacy_reviewed_channels
+                and review.privacy_review_reference
+                and review.content_owner_permission_reference
+                and (
+                    source.kind not in {"file", "page"}
+                    or (
+                        review.extracted_text_sha256
+                        and review.extracted_text_sha256 == source.extracted_text_sha256
+                    )
+                )
+                and (
+                    source.kind != "file"
+                    or (review.content_sha256 and review.content_sha256 == source.content_sha256)
+                )
+            )
+        if not (listing or workload or reviewed_text or diagnostics or inventory):
+            return False
+        from canvas_bridge.auth import principal_id
+
+        if grant.owner != principal_id(settings.issuer_url, settings.personal_subject):
+            return False
+        return self.bridge.approval_gateway.evaluate(
+            PolicyRequest(
+                source.institution,
+                "personal",
+                frozenset(
+                    {
+                        source.data_category
+                        or {
+                            "deadline": "assignments",
+                            "assignment_content": "assignments",
+                            "file": "files",
+                            "page": "pages",
+                            "syllabus": "syllabus",
+                        }.get(source.kind, "courses")
+                    }
+                ),
+                "chatgpt",
+                "share",
+                resource=source.authorization_resource,
+            )
+        ).allowed
+
+    def permits_private_course_content(self, source, transfer):
+        from canvas_bridge.approval_policy import PolicyRequest
+        from canvas_bridge.auth import principal_id
+        from canvas_bridge.authorization import request_authorization
+
+        settings = self.bridge.settings
+        context = request_authorization.get()
+        identity = transfer.recipient
+        routes = {
+            "get_file_extraction_status": ("file", "metadata", {"structured"}),
+            "read_course_file": ("file", "document_reading", {"text", "structured"}),
+            "render_course_file_page": ("file", "visual_analysis", {"visual", "structured"}),
+            "render_course_slide": ("file", "visual_analysis", {"visual", "structured"}),
+            "get_assignment_details": ("assignment_content", "study", {"structured"}),
+        }
+        route = routes.get(context.tool_name) if context else None
+        if (
+            settings.profile != "personal"
+            or not settings.mcp_read_only
+            or settings.host != "127.0.0.1"
+            or not settings.personal_subject
+            or not transfer.authorized
+            or not transfer.privacy_filtered
+            or not source.version_consistent
+            or source.owner != transfer.principal
+            or classify(source) in HARD_DENY
+            or identity.recipient != "chatgpt"
+            or identity.client_id not in settings.mcp_chatgpt_client_ids
+            or not route
+            or (source.kind, transfer.purpose) != route[:2]
+            or transfer.channel not in route[2]
+            or not re.fullmatch(r"[a-f0-9]{64}", source.version)
+            or (
+                source.kind == "file"
+                and context.tool_name != "get_file_extraction_status"
+                and not re.fullmatch(r"[a-f0-9]{64}", source.content_sha256 or "")
+            )
+        ):
+            return False
+        records, error = self.bridge.approval_gateway.store.load()
+        if error:
+            return False
+        record = next(
+            (
+                r
+                for r in records
+                if r.authority == "sharing" and source.institution in r.institutions
+            ),
+            None,
+        )
+        parent = record.private_course_listing if record else None
+        grant = parent.course_content if parent else None
+        if (
+            not grant
+            or record.egress is not None
+            or (parent.owner, parent.issuer, parent.client_id)
+            != (transfer.principal, identity.issuer, identity.client_id)
+            or parent.owner != principal_id(settings.issuer_url, settings.personal_subject)
+            or source.authorization_resource not in grant.course_ids
+            or transfer.channel not in grant.channels
+            or not 0 <= transfer.amount <= grant.max_output_bytes
+            or any(
+                r.source_id == source.source_id and r.classification in HARD_DENY
+                for r in getattr(record, "private_text_reviews", [])
+            )
+        ):
+            return False
+        category = "files" if source.kind == "file" else "assignments"
+        if source.data_category != category:
+            return False
+        return self.bridge.approval_gateway.evaluate(
+            PolicyRequest(
+                source.institution,
+                "personal",
+                frozenset({category}),
+                "chatgpt",
+                "share",
+                resource=source.authorization_resource,
+            )
+        ).allowed
+
     def evaluate(self, transfer: Transfer):
         classes = [classify(s) for s in transfer.sources] or [CC.UNKNOWN_OR_UNCLASSIFIED]
 
@@ -203,6 +432,17 @@ class DataEgressPolicyEngine:
             return deny(RD.DENY, "EGRESS_PRIVACY_CHECK_REQUIRED")
         if set(classes) & HARD_DENY:
             return deny(RD.DENY, "EGRESS_RESTRICTED_CONTENT")
+        if self.bridge.settings.egress_mode == "permissive":
+            return deny(RD.ALLOW, "EGRESS_PERMISSIVE_MODE")
+        private_content = [
+            self.permits_private_course_content(s, transfer) for s in transfer.sources
+        ]
+        classes = [
+            CC.OWNER_AUTHORIZED_PRIVATE_COURSE_CONTENT
+            if classification == CC.UNKNOWN_OR_UNCLASSIFIED and permitted
+            else classification
+            for classification, permitted in zip(classes, private_content, strict=False)
+        ] or [CC.UNKNOWN_OR_UNCLASSIFIED]
         if CC.UNKNOWN_OR_UNCLASSIFIED in classes:
             return deny(RD.REQUIRES_AUTHORIZED_REVIEW, "EGRESS_CLASSIFICATION_UNKNOWN")
         if (
@@ -213,6 +453,12 @@ class DataEgressPolicyEngine:
         ):
             return deny(RD.DENY, "EGRESS_UNSUPPORTED_TRANSFER")
         for source, classification in zip(transfer.sources, classes, strict=True):
+            if self.permits_private_course_content(source, transfer):
+                continue
+            if source.kind == "local_study_record":
+                if self.bridge.usefulness.permits_record(source, transfer):
+                    continue
+                return deny(RD.REQUIRES_AUTHORIZED_REVIEW, "EGRESS_REVIEW_REQUIRED")
             if source.kind == "local_document":
                 if self.bridge.independent.permits(source, transfer):
                     continue
@@ -229,6 +475,24 @@ class DataEgressPolicyEngine:
                 return deny(RD.DENY, "EGRESS_UNSUPPORTED_TRANSFER")
             governance = self.governance(source.institution)
             if governance is None:
+                if self.permits_private_course_listing(source, transfer):
+                    continue
+                if source.kind == "file":
+                    review = next(
+                        (
+                            r
+                            for r in self.source_reviews(source.institution)
+                            if r.source_id == source.source_id and r.version == source.version
+                        ),
+                        None,
+                    )
+                    if review and (
+                        not review.extracted_text_sha256
+                        or review.extracted_text_sha256 != source.extracted_text_sha256
+                    ):
+                        return deny(
+                            RD.REQUIRES_AUTHORIZED_REVIEW, "EGRESS_CONTENT_HASH_REVIEW_REQUIRED"
+                        )
                 return deny(RD.REQUIRES_AUTHORIZED_REVIEW, "EGRESS_GOVERNANCE_MISSING")
             synthetic = self.bridge.settings.profile == "synthetic"
             recipient = transfer.recipient
@@ -355,10 +619,41 @@ class DataEgressPolicyEngine:
         cleaned, transfer = prepare_transfer(
             self, result, owner, arguments, tool_name, channel, opaque_bytes
         )
-        decision = self.evaluate(transfer).require()
+        from canvas_bridge.failure_diagnostics import current
+
+        decision = self.evaluate(transfer)
+        attempt = current.get()
+        if attempt and attempt.operation == tool_name:
+            inventory_retry = (
+                tool_name == "list_course_files"
+                and cleaned.status == "retry_later"
+                and attempt.diagnostic is not None
+            )
+            if inventory_retry and decision.allowed:
+                from canvas_bridge.failure_events import record
+
+                record(self)
+            else:
+                attempt.observe_policy(decision)
+        if not decision.allowed:
+            from canvas_bridge.authorization import request_authorization
+
+            context = request_authorization.get()
+            # Separate correlation event: never log source IDs, versions or content.
+            # Warning level survives the personal service's default log settings.
+            if context:
+                logger.warning(
+                    "data_egress_blocked request_id=%s reason_code=%s decision=%s",
+                    context.request_id,
+                    decision.reason_code,
+                    decision.decision,
+                )
+        decision.require()
         # A signed-link field is a transfer in its own right, even in summaries,
         # metadata, errors or an apparently harmless derived record.
         if dangerous_reference(cleaned.model_dump_json()):
+            if attempt:
+                attempt.policy = "deny"
             self.decision(
                 transfer,
                 RD.DENY,
@@ -404,20 +699,29 @@ class DataEgressPolicyEngine:
             "original",
             item.data["byte_size"],
         )
+        from canvas_bridge.failure_diagnostics import current
+
         if bearer and self.bridge.settings.profile != "synthetic":
-            return self.decision(
+            decision = self.decision(
                 transfer,
                 RD.DENY,
                 "EGRESS_BEARER_RECIPIENT_UNVERIFIED",
                 [classify(s) for s in transfer.sources],
-            ).require()
-        return self.evaluate(transfer).require()
+            )
+        else:
+            decision = self.evaluate(transfer)
+        if attempt := current.get():
+            attempt.observe_policy(decision)
+        return decision.require()
 
     def safe_error(self, result):
         from canvas_bridge.egress_errors import safe_error_result
         from canvas_bridge.egress_models import RecipientIdentity
+        from canvas_bridge.failure_diagnostics import describe
+        from canvas_bridge.failure_events import record
 
         clean = safe_error_result(result)
+        describe(clean, "allow")  # Candidate only. Evaluate its full serialized size below.
         transfer = Transfer(
             "system",
             RecipientIdentity("public"),
@@ -433,7 +737,12 @@ class DataEgressPolicyEngine:
             True,
             redacted=True,
         )
-        clean.meta.egress = self.evaluate(transfer).require().public()
+        decision = self.evaluate(transfer)
+        if not decision.allowed:
+            describe(clean, "deny")
+            record(self)
+        clean.meta.egress = decision.require().public()
+        record(self)
         from canvas_bridge.privacy.output import metadata
 
         clean.meta.privacy = metadata(True)

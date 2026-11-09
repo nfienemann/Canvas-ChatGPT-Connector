@@ -59,7 +59,7 @@ incident cause without evidence.
 | Expired/rejected credential | Could be obscured by a later selected-scope error | Local expiry or explicit invalid-token rejection produces `UPSTREAM_AUTH_EXPIRED`; no audit refresh or repeated probe after authentication failure. Bare 401 remains unknown. |
 | Transport failure / 404 | Broad unavailable/permission statuses | Machine-readable transport reason or `RESOURCE_UNAVAILABLE`, retaining uncertainty about visibility versus absence. |
 
-Executed fictional examples, including the complete report envelopes, are in
+Historical synthetic report envelopes, updated with the current recovery action fields, are in
 [permission-consistency-examples.json](permission-consistency-examples.json).
 These were generated with the synthetic provider and an in-memory database;
 temporary fixture encryption material was removed with its temporary directory.

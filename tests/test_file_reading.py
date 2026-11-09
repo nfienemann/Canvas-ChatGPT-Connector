@@ -73,8 +73,8 @@ async def readable(bridge, owner, seeded, monkeypatch):
     }
     bridge.settings.file_reading_enabled = True
 
-    async def fixture_parser(data, kind, settings):
-        return extract(data, kind)
+    async def fixture_parser(data, kind, settings, page_range=None):
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", fixture_parser)
     _, courses = bridge.selected(owner, seeded)
@@ -330,9 +330,9 @@ async def test_T18_deselection_during_parse_cannot_resurrect_text(
 ):
     _, ref = readable
 
-    async def deselect(data, kind, settings):
+    async def deselect(data, kind, settings, page_range=None):
         bridge.select_courses(owner, seeded, [], "UTC")
-        return extract(data, kind)
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", deselect)
     with pytest.raises(DomainError):
@@ -483,3 +483,156 @@ def test_T23_real_worker_timeout_kills_process(tmp_path):
             run(runtime, tmp_path, script=script.name, timeout=0.2)
     finally:
         script.unlink()
+
+
+async def test_progressive_paper_random_access_overlap_and_search(
+    bridge, owner, seeded, readable, monkeypatch
+):
+    from pypdf._page import PageObject
+
+    course, ref = readable
+    bodies = [f"Academic text from original page {n}." for n in range(1, 31)]
+    data = scientific_pdf(bodies)
+    bridge.synthetic.data["file_bodies"]["51"] = data
+    bridge.synthetic.data["files"]["11"][0]["size"] = len(data)
+    visited = []
+    original = PageObject.extract_text
+
+    def observe(page, *args, **kwargs):
+        value = original(page, *args, **kwargs)
+        visited.append(value.strip())
+        return value
+
+    monkeypatch.setattr(PageObject, "extract_text", observe)
+    direct = await read_file(bridge, owner, seeded, ref, page_start=25)
+    assert visited == [bodies[24]]
+    assert direct.data["coverage"] == "partial" and direct.data["page_count"] == 30
+    await read_file(bridge, owner, seeded, ref, page_start=25)
+    assert len(visited) == 1
+    first = await read_file(bridge, owner, seeded, ref, length=11)
+    assert first.data["page_end"] == 4
+    documents = [first.data["text"]]
+    seen = {p["page"] for p in first.data["passages"]}
+    current = first
+    for _ in range(150):
+        continuation = current.data["continuation"]
+        if not continuation:
+            break
+        current = await read_file(bridge, owner, seeded, length=16000, **continuation)
+        documents.append(current.data["text"])
+        seen.update(p["page"] for p in current.data["passages"])
+    assert current.data["continuation"] is None and seen == set(range(1, 31))
+    combined = "".join(documents)
+    assert all(
+        combined.index(a) < combined.index(b) for a, b in zip(bodies[:-1], bodies[1:], strict=True)
+    )
+    assert sorted(visited) == sorted(bodies) and current.data["coverage"] == "text_only"
+
+
+async def test_pdf_timeout_gap_cache_and_continuation(bridge, owner, seeded, readable, monkeypatch):
+    from canvas_bridge.domain import Result
+    from canvas_bridge.egress_errors import safe_error_result
+
+    course, ref = readable
+    data = scientific_pdf([f"Page {n} evidence" for n in range(1, 7)])
+    bridge.synthetic.data["file_bodies"]["51"] = data
+    bridge.synthetic.data["files"]["11"][0]["size"] = len(data)
+    windows = []
+
+    async def stalled(data, kind, settings, window):
+        windows.append(window)
+        if window == (1, 4):
+            return extract(data, kind, (1, 2))
+        if window[0] == 3:
+            raise DomainError(
+                "retry_later",
+                "Stopped",
+                reason_code="DOCUMENT_WORKER_TIMEOUT",
+                processing_stage="worker_execution",
+                details={
+                    "page_start": 3,
+                    "page_end": window[1],
+                    "completed_pages": [],
+                    "timeout_stage": "text_extraction",
+                    "operation_state": "stopped",
+                    "deadline_seconds": 15,
+                },
+            )
+        return extract(data, kind, window)
+
+    monkeypatch.setattr("canvas_bridge.course_files.extract_document", stalled)
+    result = await read_file(bridge, owner, seeded, ref)
+    assert result.data["continuation"]["page_start"] == 3
+    assert result.data["unit_coverage"]["attempted_units"] == 2
+    with pytest.raises(DomainError) as retry:
+        await read_file(bridge, owner, seeded, **result.data["continuation"])
+    public = safe_error_result(Result(status="retry_later", summary="", data=retry.value.data))
+    assert public.data["retry_single_page"] == 3
+    with pytest.raises(DomainError) as skip:
+        await read_file(bridge, owner, seeded, ref, page_start=3)
+    public = safe_error_result(Result(status="retry_later", summary="", data=skip.value.data))
+    assert (
+        public.data["resume_page"] == 4
+        and public.data["visual_fallback_tool"] == "render_course_file_page"
+    )
+    later = await read_file(bridge, owner, seeded, ref, page_start=4, page_end=6)
+    assert later.data["unit_coverage"]["remaining_unattempted"] == 1
+    prior = await read_file(bridge, owner, seeded, ref, page_start=1, page_end=2)
+    assert prior.data["text"] == result.data["text"]
+    assert windows == [(1, 4), (3, 6), (3, 3), (4, 6)]
+    search = await search_files(bridge, owner, seeded, course.id, "evidence")
+    assert search.status == "partial_data"
+    assert {hit["page"] for hit in search.data["results"]} == {1, 2, 4, 5, 6}
+
+
+async def test_pdf_sparse_cache_rechecks_hash_and_permission(bridge, owner, seeded, readable):
+    _, ref = readable
+    page = await read_file(bridge, owner, seeded, ref, page_start=2)
+    original = bridge.synthetic.data["file_bodies"]["51"]
+    changed = original.replace(b"Randomized", b"Controlled")
+    assert original != changed and len(original) == len(changed)
+    bridge.synthetic.data["file_bodies"]["51"] = changed
+    with pytest.raises(DomainError) as error:
+        await read_file(
+            bridge, owner, seeded, ref, page_start=3, expected_hash=page.data["content_hash"]
+        )
+    assert error.value.reason_code == "SOURCE_CHANGED"
+    with bridge.store.transaction() as session:
+        row = session.get(Material, ref)
+        assert [p["page"] for p in row.locators] == [3]
+    bridge.synthetic.data["files"]["11"][0]["hidden_for_user"] = True
+    with pytest.raises(DomainError) as error:
+        await read_file(bridge, owner, seeded, ref, page_start=3)
+    assert error.value.status == "permission_denied"
+    with bridge.store.transaction() as session:
+        assert session.get(Material, ref).locators == []
+
+
+async def test_pdf_cache_text_budget_across_ranges(bridge, owner, seeded, readable, monkeypatch):
+    from canvas_bridge import course_files
+
+    _, ref = readable
+    data = scientific_pdf(["abcde"] * 8)
+    bridge.synthetic.data["file_bodies"]["51"] = data
+    bridge.synthetic.data["files"]["11"][0]["size"] = len(data)
+    monkeypatch.setattr(course_files, "MAX_TEXT", 29)
+    first = await read_file(bridge, owner, seeded, ref)
+    assert first.data["continuation"]["page_start"] == 5
+    end = await read_file(bridge, owner, seeded, **first.data["continuation"])
+    assert end.data["continuation"] is None and end.data["coverage"] == "partial"
+    assert end.data["page_extraction"][0]["state"] == "truncated"
+    with bridge.store.transaction() as session:
+        assert len(session.get(Material, ref).text) == 29
+
+
+async def test_pdf_range_after_identification(bridge, owner, seeded, readable):
+    _, ref = readable
+    for start, end in ((4, 4), (3, 4)):
+        with pytest.raises(DomainError) as error:
+            await read_file(bridge, owner, seeded, ref, page_start=start, page_end=end)
+        assert error.value.data == dict(
+            reason_code="DOCUMENT_RANGE_OUT_OF_BOUNDS", page_start=start, page_end=end, page_count=3
+        )
+    for number in (1, 3):
+        result = await read_file(bridge, owner, seeded, ref, page_start=number)
+        assert [x["page"] for x in result.data["page_extraction"]] == [number]

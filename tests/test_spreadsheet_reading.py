@@ -367,17 +367,20 @@ def test_xlsx_actual_os_sandbox():
 @pytest.mark.contract
 @pytest.mark.skipif(os.name != "nt", reason="MCP through the actual Windows XLSX worker")
 async def test_xlsx_mcp_transport_uses_actual_sandbox(
-    running, token_factory, seeded, spreadsheet, bridge, monkeypatch
+    running, token_factory, seeded, spreadsheet, bridge, monkeypatch, tmp_path
 ):
     from canvas_bridge.parser_sandbox import extract_document
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", extract_document)
-    bridge.settings.parser_root = Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
+    bridge.settings.parser_root = tmp_path / "parser"
     # An unavailable optional PDF OCR installation must not break workbook reads.
     bridge.settings.ocr_root = bridge.settings.parser_root / "missing-ocr-installation"
     _, ref = spreadsheet
     async with httpx.AsyncClient(
-        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")}
+        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")},
+        # Await cold setup and the worker's bounded result, rather than timing
+        # out at HTTPX's five-second default while the OS worker is still active.
+        timeout=httpx.Timeout(120, connect=5),
     ) as http:
         async with streamable_http_client(running + "/mcp", http_client=http) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
@@ -392,5 +395,46 @@ async def test_xlsx_mcp_transport_uses_actual_sandbox(
                 assert not result.isError
                 assert result.structuredContent["status"] == "ok"
                 assert result.structuredContent["data"]["format"] == "xlsx"
+                assert result.structuredContent["data"]["text_truncated"] is True
+                structure = result.structuredContent["data"]["document_model"]["units"][0][
+                    "structure"
+                ]
+                stored = structure["tables"][0]["stored_records"]
+                formula = next(cell for cell in stored if cell.get("cell") == "A2")
+                assert formula["formula"] == "SUM(B1,1)" and formula["cached_value"]["value"] == "1"
                 assert "00123" in result.structuredContent["data"]["text"]
                 assert result.structuredContent["data"]["passages"][0]["cell_references"]
+
+
+async def test_xlsx_consumer_reassembles_record_across_5000_character_windows(
+    bridge, owner, seeded, spreadsheet
+):
+    _, ref = spreadsheet
+    # Match the reported window and total using only generated cell content.
+    value = ("x" * 98 + '"\n') * 115 + "y" * 1914
+    sheet = f'<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>{value}</t></is></c><c r="B1"><f>2+2</f><v>4</v></c></row></sheetData></worksheet>'
+    body = workbook(changes={"xl/worksheets/sheet2.xml": sheet})
+    bridge.synthetic.data["files"]["11"][0].update(size=len(body))
+    bridge.synthetic.data["file_bodies"]["51"] = body
+    args = dict(file_id=ref, page_start=1)
+    chunks = []
+    while args:
+        result = await read_file(bridge, owner, seeded, length=5000, **args)
+        data = result.data
+        assert data["text_truncated"]
+        assert data["offset"] == sum(map(len, chunks))
+        chunks.append(data["text"])
+        args = data["continuation"]
+        assert data["next_offset"] == (args["offset"] if args else None)
+        if len(chunks) == 1:
+            with pytest.raises(json.JSONDecodeError):
+                json.loads(chunks[0].split("\n")[-1])
+    assert data["total_extracted_characters"] == 14037
+    assert list(map(len, chunks)) == [5000, 5000, 4037]
+    header, cells = records({"text": "".join(chunks)})
+    assert header["sheet_index"] == 1
+    assert cells["A1"]["value"] == value
+    assert cells["B1"]["formula"] == "2+2" and cells["B1"]["cached_value"]["value"] == "4"
+    assert (await read_file(bridge, owner, seeded, ref, page_start=2)).data[
+        "text_truncated"
+    ] is False

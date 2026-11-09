@@ -1,0 +1,25 @@
+requirement_id,requirement,slice,acceptance_cases,delivery,verification
+PL-01,A private library MUST belong to a verified Bridge principal and be available with zero LMS connections.,L1,AT-01,specified,not_run
+PL-02,"Every metadata, object, job, cursor, cache and delivery operation MUST enforce owner and current permission, including just before release.",L1,AT-02;AT-22,specified,not_run
+PL-03,"Accepted originals MUST persist across chats, restarts and LMS disconnect until the selected retention event.",L1,AT-01;AT-20;AT-36,specified,not_run
+PL-04,"A device upload MUST work through authenticated settings with byte progress, cancellation, retry and a durable per-file receipt.",L1,AT-03;AT-04;AT-27,specified,not_run
+PL-05,A native host intake MUST use a supported explicit handoff; absence of the capability MUST lead to the browser path.,L2,AT-06;AT-07;AT-34,specified,not_run
+PL-06,"Intake MUST stream into quarantine, reserve quota and publish only after integrity and safety checks.",L1,AT-03;AT-10;AT-11;AT-12,specified,not_run
+PL-07,Idempotency and hash checks MUST prevent duplicate publication and silent consent expansion.,L1,AT-04;AT-05;AT-31,specified,not_run
+PL-08,"Storage, extraction, search, rendering and media playback capabilities MUST be reported separately.","L1, L3",AT-13;AT-14;AT-30;AT-34,specified,not_run
+PL-09,"Private collections, tags and titles MUST support bounded discovery without requiring a course or exposing another owner's metadata.",L1,AT-02;AT-22,specified,not_run
+PL-10,"Reads/search MUST return bounded exact evidence, versions, coverage and continuation; omitted content MUST remain explicit.",L1,AT-14;AT-15,specified,not_run
+PL-11,Original-byte retrieval MUST reauthorize each request and verify the stored checksum; it MUST not depend on successful parsing.,L1,AT-17;AT-19,specified,not_run
+PL-12,"Processing and recipient-specific text, visual, original and audio sharing MUST have distinct enforceable grants.","L1, L3",AT-08;AT-16;AT-35,specified,not_run
+PL-13,"Imported origin and known institutional dependencies MUST survive rename, replacement, export and reimport checks.",L1,AT-23;AT-24,specified,not_run
+PL-14,Existing independent academic tools MUST consume permitted library sources through the shared evidence core.,L1,AT-28,specified,not_run
+PL-15,Replacement MUST create immutable versions and invalidate dependent representations without silently updating citations.,L1,AT-15;AT-29,specified,not_run
+PL-16,"Revocation/deletion MUST stop current and queued access, propagate to derived state and survive restoration.",L1,AT-18;AT-19;AT-20;AT-36,specified,not_run
+PL-17,"Export and backup MUST be owner-scoped, encrypted where applicable, restorable and subject to deletion fences.",L1,AT-20;AT-26;AT-32,specified,not_run
+PL-18,"Enforced storage, item, transfer and processing quotas MUST be atomic across workers and visible to the owner.",L1,AT-10;AT-31;AT-33,specified,not_run
+PL-19,New retention MUST not silently extend existing temporary imports or weaken institutional TTLs.,L1,AT-21;AT-36,specified,not_run
+PL-20,"Original content, filenames, grants and private URLs MUST stay out of routine logs and public analytics.",L1,AT-25,specified,not_run
+PL-21,"Host, policy, parser and storage failures MUST produce actionable distinct states without fabricating success.","L1, L2",AT-04;AT-07;AT-09;AT-12;AT-13;AT-31,specified,not_run
+PL-22,"The UI MUST work with keyboard/screen reader, provide text equivalents and preserve the ChatGPT-first product.","L1, L2",AT-27;AT-34,specified,not_run
+PL-23,"Hosted release MUST pass multi-user isolation, migration, deletion/restore and exact-client acceptance.","L1, L2",AT-02;AT-20;AT-32;AT-33;AT-34,specified,not_run
+PL-24,"Later audio/video and expanded archives MUST have explicit capability gates, bounded processing and synthetic acceptance.",L3,AT-11;AT-12;AT-30,specified,not_run

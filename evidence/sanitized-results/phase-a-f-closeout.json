@@ -1,0 +1,156 @@
+{
+  "scope": "Synthetic signed loopback MCP. The native host selects the current Canvas deadline for an explicitly paired forecast. Calendar and reservation writes excluded.",
+  "structured_phase_a": {
+    "window": "2026-11-05 14:00–15:00 UTC",
+    "origin": "Four explicitly selected assistant estimates; dependencies and zero buffer/break are planning assumptions.",
+    "blocks": [
+      {
+        "work_id": "evidence",
+        "start": "2026-11-05T14:00:00+00:00",
+        "end": "2026-11-05T14:10:00+00:00",
+        "minutes": 10
+      },
+      {
+        "work_id": "limitations",
+        "start": "2026-11-05T14:10:00+00:00",
+        "end": "2026-11-05T14:30:00+00:00",
+        "minutes": 20
+      },
+      {
+        "work_id": "shorten",
+        "start": "2026-11-05T14:30:00+00:00",
+        "end": "2026-11-05T14:45:00+00:00",
+        "minutes": 15
+      },
+      {
+        "work_id": "rehearse",
+        "start": "2026-11-05T14:45:00+00:00",
+        "end": "2026-11-05T15:00:00+00:00",
+        "minutes": 15
+      }
+    ],
+    "effort_summary": {
+      "known_remaining_minutes": 60,
+      "allocated_work_minutes": 60,
+      "total_known_unallocated_minutes": 0,
+      "capacity_blocked_minutes": 0,
+      "dependency_blocked_minutes": 0,
+      "other_unallocated_minutes": 0,
+      "uncredited_block_minutes": 0,
+      "unknown_effort_work_ids": [],
+      "completed_work_ids": [],
+      "receipt_verification_work_ids": [],
+      "receipt_checks": [],
+      "unresolved_requirement_ids": []
+    }
+  },
+  "phase_d": {
+    "initial_source": {
+      "assignment": "45d90437eca6f57aee3f4b307432c05584cbb00d",
+      "content_hash": "29d50b3b9e29bc4f15592aea3e26d25ca4ab350aee2af1b2cb4ab3f15843af6d",
+      "source_updated_at": "2026-11-06T07:18:01Z",
+      "effective_due": "2026-11-06T13:18:01Z"
+    },
+    "earlier_source": {
+      "assignment": "45d90437eca6f57aee3f4b307432c05584cbb00d",
+      "content_hash": "5e5d9ff9e0605c7953c28d7ba37ada485b050e642b382c7ef856672b98a32ef7",
+      "source_updated_at": "2026-11-06T07:18:37Z",
+      "effective_due": "2026-11-06T10:18:01Z"
+    },
+    "initial_plan": {
+      "generation": "8a902cb4b696207e9b00e8c87ae4b8dda14a16c1c7de1430286a60cc3c6f8224",
+      "timezone": "America/New_York",
+      "deadline": "2026-11-06T13:18:01Z",
+      "blocks": [
+        {
+          "block_id": "review",
+          "start": "2026-11-06T11:18:01Z",
+          "end": "2026-11-06T11:48:01Z",
+          "locked": true,
+          "user_edited": false
+        }
+      ],
+      "released_block_ids": [],
+      "unscheduled_minutes": 0.0
+    },
+    "unchanged_after_refusal": true,
+    "refusals": [
+      {
+        "code": "PLAN_PROTECTED_CONFLICT",
+        "release": [
+          "review"
+        ],
+        "as_of": "2026-11-06T07:18:01+00:00"
+      },
+      {
+        "code": "PLAN_PROTECTED_CONFLICT",
+        "release": [
+          "other"
+        ],
+        "as_of": "2026-11-06T07:18:01+00:00"
+      },
+      {
+        "code": "PLAN_PROTECTED_CONFLICT",
+        "release": [
+          "review",
+          "review"
+        ],
+        "as_of": "2026-11-06T07:18:01+00:00"
+      },
+      {
+        "code": "PLAN_PROTECTED_CONFLICT",
+        "release": [
+          "review"
+        ],
+        "as_of": "2026-11-06T11:24:01+00:00"
+      }
+    ],
+    "repaired": {
+      "generation": "ea264580084d3a2f891d5719c8c6ec74e56a5314f85c60daece86116c4168a27",
+      "timezone": "America/New_York",
+      "deadline": "2026-11-06T10:18:01Z",
+      "blocks": [
+        {
+          "block_id": "review",
+          "start": "2026-11-06T08:18:01Z",
+          "end": "2026-11-06T08:48:01Z",
+          "locked": false,
+          "user_edited": false
+        }
+      ],
+      "released_block_ids": [
+        "review"
+      ],
+      "unscheduled_minutes": 0.0
+    },
+    "native_source": {
+      "assignment": "45d90437eca6f57aee3f4b307432c05584cbb00d",
+      "content_hash": "db5b3865007de66b6972a7bdeb60acb87e727bf12278bc0c990e33d12964ef09",
+      "source_updated_at": "2026-11-06T07:19:13Z",
+      "effective_due": "2026-11-06T10:03:01Z"
+    },
+    "native_tools": [
+      "get_assignment_details",
+      "get_study_forecast_plan",
+      "save_study_replan",
+      "get_study_forecast_plan"
+    ],
+    "native_readback": {
+      "generation": "8018424a6cad7207eb8f1f03bc2c8c412fd48dc0f53ce1119b3427d3e17d7582",
+      "timezone": "America/New_York",
+      "deadline": "2026-11-06T10:03:01Z",
+      "blocks": [
+        {
+          "block_id": "review",
+          "start": "2026-11-06T08:18:01Z",
+          "end": "2026-11-06T08:48:01Z",
+          "locked": false,
+          "user_edited": false
+        }
+      ],
+      "released_block_ids": [],
+      "unscheduled_minutes": 0.0
+    },
+    "native_answer": "Saved locally and retrieved generation `8018424a6cad7207eb8f1f03bc2c8c412fd48dc0f53ce1119b3427d3e17d7582` (journal revision 4).\n\n- Source: [assignment 45d90437eca6f57aee3f4b307432c05584cbb00d](https://canvas.synthetic.invalid/courses/11/assignments/1), updated `2026-11-06T07:19:13Z`; content version `db5b3865007de66b6972a7bdeb60acb87e727bf12278bc0c990e33d12964ef09`.\n- Deadline applied: **November 6, 2026, 5:03:01 AM EST** (`10:03:01Z`).\n- Protected-block outcome: `review` retained unchanged, 3:18:01–3:48:01 AM EST; currently unlocked. No blocks released or moved.\n- Remaining effort: **30 minutes**, fully scheduled; **0 unscheduled minutes**.\n\nExisting availability and America/New_York timezone were preserved. No external writes occurred."
+  }
+}

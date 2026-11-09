@@ -1,0 +1,125 @@
+{
+  "version": "usefulness-search-corpus-1",
+  "documents": [
+    {
+      "id": "d01",
+      "course": "biology",
+      "format": "txt",
+      "text": "Vehicle-treated cultures established the comparison."
+    },
+    {
+      "id": "d02",
+      "course": "biology",
+      "format": "md",
+      "text": "Untreated samples established the baseline."
+    },
+    {
+      "id": "d03",
+      "course": "biology",
+      "format": "docx",
+      "text": "Molecules cross the cell membrane along a concentration gradient."
+    },
+    {
+      "id": "d04",
+      "course": "biology",
+      "format": "pptx",
+      "text": "Mitochondria contribute to cellular energy metabolism."
+    },
+    {
+      "id": "d05",
+      "course": "biology",
+      "format": "pdf",
+      "text": "Homeostasis involves a signal that inhibits its own production."
+    },
+    {
+      "id": "d06",
+      "course": "statistics",
+      "format": "txt",
+      "text": "The magnitude of the difference between groups was 4 units."
+    },
+    {
+      "id": "d07",
+      "course": "writing",
+      "format": "md",
+      "text": "Submit by November 8, 2026."
+    },
+    {
+      "id": "d08",
+      "course": "writing",
+      "format": "docx",
+      "text": "The report must include a methods section."
+    },
+    {
+      "id": "d09",
+      "course": "writing",
+      "format": "pptx",
+      "text": "Review a classmate using the provided checklist."
+    },
+    {
+      "id": "d10",
+      "course": "biology",
+      "format": "pdf",
+      "text": "The placebo condition allowed a comparison with treatment."
+    },
+    {
+      "id": "d11",
+      "course": "biology",
+      "format": "txt",
+      "text": "Adenosine triphosphate transfers energy within cells."
+    },
+    {
+      "id": "d12",
+      "course": "biology",
+      "format": "md",
+      "text": "Passive transport occurs without ATP expenditure."
+    },
+    {
+      "id": "d13",
+      "course": "biology",
+      "format": "docx",
+      "text": "Deoxyribonucleic acid carries hereditary information."
+    },
+    {
+      "id": "d14",
+      "course": "biology",
+      "format": "pptx",
+      "text": "Polymerase chain reaction amplifies a selected sequence."
+    },
+    {
+      "id": "d15",
+      "course": "biology",
+      "format": "pdf",
+      "text": "Extracellular matrix supports tissue structure."
+    },
+    {
+      "id": "d16",
+      "course": "computing",
+      "format": "txt",
+      "text": "The central processing unit executes instructions."
+    },
+    {
+      "id": "d17",
+      "course": "computing",
+      "format": "md",
+      "text": "Random access memory stores working data."
+    },
+    {
+      "id": "d18",
+      "course": "computing",
+      "format": "docx",
+      "text": "A worksheet cell contains one stored value."
+    },
+    {
+      "id": "d19",
+      "course": "computing",
+      "format": "pptx",
+      "text": "Control flow determines which branch is evaluated."
+    },
+    {
+      "id": "d20",
+      "course": "biology",
+      "format": "pdf",
+      "text": "Gene expression produces an RNA transcript. Matrix proteins support cells."
+    }
+  ]
+}

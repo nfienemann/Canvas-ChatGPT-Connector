@@ -5,11 +5,14 @@ ChatGPT handles conversation; this service supplies authorized facts, provenance
 coverage and deterministic planning. No model API key, second chatbot, academic
 dashboard or student subscription is required.
 
-**Current status: private personal integration verified.** The owner connected
-their own Rowan account and completed a live coursework read in ChatGPT Pro using
-the installed Canvas Bridge Personal plugin. Public downloads remain synthetic
-desktop previews. Institutional OAuth onboarding, general student distribution and a
-ChatGPT Directory listing are not approved or delivered.
+**Current status: local development with a historical private technical test.**
+An owner-only Rowan account connection and coursework read were previously tested
+in a private instance. This records technical behavior; it does not establish
+current or permanent Rowan approval, endorsement, or permission for other users.
+Any separately granted permission remains limited to its scope and duration and
+requires current verification. Public downloads remain synthetic desktop previews.
+Institutional OAuth onboarding, general student distribution and a ChatGPT
+Directory listing are not approved or delivered.
 
 An operator-only personal testing path is implemented and tested. It
 restricts access to one configured identity and verifies the expected Canvas
@@ -20,6 +23,14 @@ of the [operator guide](docs/operator-guide.md) and the
 covers selected-course assignment reads; it does not establish complete Canvas
 coverage or general availability. Credentials and academic records stay outside
 the repository.
+
+## Personal database upgrades
+
+Run `.\scripts\Database-Upgrade.ps1 -DeploymentRoot '<actual service directory>'`
+from the repository for a read-only check of the installed personal PostgreSQL
+database. Startup never migrates automatically. The explicit backup-and-apply
+workflow preserves the existing key and deletion journal and verifies the schema
+before allowing restart. See the [Windows upgrade and recovery guide](docs/database-upgrade.md).
 
 ## Try the local demonstration
 
@@ -225,3 +236,6 @@ priorities. Stable findings support explicit acknowledgment and user-controlled
 planning preferences. Analysis is on demand; notification preferences do not start
 monitoring. A future delivery adapter still requires explicit opt-in and an approved
 host schedule. Run `python -m pytest tests/test_semester_intelligence.py -q`.
+
+Private-library local completion and deferred hosting/client work are tracked in
+[the release checklist](docs/private-library-release-checklist.md).

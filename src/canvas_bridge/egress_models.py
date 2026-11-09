@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 
@@ -17,6 +17,7 @@ class ContentClassification(StrEnum):
     RESTRICTED_ASSESSMENT = "RESTRICTED_ASSESSMENT"
     CONFIDENTIAL_RESEARCH = "CONFIDENTIAL_RESEARCH"
     UNKNOWN_OR_UNCLASSIFIED = "UNKNOWN_OR_UNCLASSIFIED"
+    OWNER_AUTHORIZED_PRIVATE_COURSE_CONTENT = "OWNER_AUTHORIZED_PRIVATE_COURSE_CONTENT"
 
 
 class ReleaseDecision(StrEnum):
@@ -51,6 +52,31 @@ Purpose = Literal[
 ]
 
 
+class PrivateCourseContentGrant(Model):
+    """Explicit owner-attested private sharing; not independent institutional certification."""
+
+    course_ids: frozenset[Annotated[str, Field(pattern=r"^[a-zA-Z0-9_.:-]{1,100}$")]] = Field(
+        min_length=1, max_length=100
+    )
+    permission_evidence_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    channels: frozenset[Literal["structured", "text", "visual"]] = Field(min_length=1)
+    max_output_bytes: int = Field(default=20_000_000, gt=0, le=20_000_000)
+
+
+class PrivateCourseListing(Model):
+    """Explicit private metadata consent; no assertion about recipient processing terms."""
+
+    owner: str = Field(pattern=r"^[a-f0-9]{64}$")
+    issuer: str = Field(min_length=1, max_length=500)
+    client_id: str = Field(min_length=1, max_length=200)
+    allow_permission_diagnostics: bool = False
+    allow_course_material_inventory: bool = False
+    course_content: PrivateCourseContentGrant | None = None
+    scope: Literal[
+        "minimized_course_listing", "minimized_study_metadata", "reviewed_private_text"
+    ] = "minimized_course_listing"
+
+
 class RecipientPolicy(Model):
     policy_id: str = Field(min_length=1, max_length=100)
     recipient: Literal["chatgpt", "external_ai", "document_processor", "user_download"]
@@ -70,12 +96,24 @@ class RecipientPolicy(Model):
     ]
     max_output_bytes: int = Field(gt=0, le=100_000_000)
 
+    def identity(self):
+        return RecipientIdentity(
+            self.recipient, self.issuer, self.client_id, self.environment, self.workspace
+        )
+
+    def review_digest(self):
+        from canvas_bridge.evidence import fingerprint
+
+        data = self.model_dump(mode="json")
+        return fingerprint({k: sorted(v) if isinstance(v, list) else v for k, v in data.items()})
+
 
 class ContentReview(Model):
     # Exact opaque source and immutable version, not filename or text-pattern matching.
     source_id: str = Field(min_length=1, max_length=100)
     version: str = Field(pattern=r"^[a-f0-9]{64}$")
     content_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    extracted_text_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     classification: ContentClassification
     purposes: frozenset[Purpose] = Field(min_length=1)
     reviewed_channels: frozenset[Channel] = Field(min_length=1)
@@ -132,6 +170,8 @@ class SourceContext:
     content_sha256: str | None = None
     authorization_resource: str | None = None
     data_category: str | None = None
+    extracted_text_sha256: str | None = None
+    version_consistent: bool = True
 
 
 @dataclass(frozen=True)

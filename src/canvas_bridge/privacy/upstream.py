@@ -31,6 +31,7 @@ ASSIGNMENT = fields(
     "has_sub_assignments": None,
     "submission_types": [None],
     "allowed_extensions": [None],
+    "attachments": [fields("id")],
     "submission": SUBMISSION,
     "discussion_topic": fields("id"),
     "rubric": [RUBRIC],
@@ -42,7 +43,7 @@ COURSE = fields(
     "grading_periods": [fields("id title start_date end_date close_date weight is_closed")],
 }
 FILE = fields(
-    "id display_name filename content-type size updated_at created_at modified_at locked_for_user hidden_for_user locked hidden url uuid lock_at unlock_at mime_class"
+    "id folder_id display_name filename content-type size updated_at created_at modified_at locked_for_user hidden_for_user locked hidden published url uuid lock_at unlock_at mime_class"
 )
 PAGE = fields(
     "page_id title url body updated_at created_at published locked_for_user front_page html_url"
@@ -101,6 +102,13 @@ SCHEMAS = {
     | {"assignment": ASSIGNMENT},
     Endpoint.FILE: FILE,
     Endpoint.FILES: FILE,
+    Endpoint.FOLDER_FILES: FILE,
+    Endpoint.FOLDER: fields(
+        "id parent_folder_id context_type context_id locked_for_user hidden_for_user for_submissions"
+    ),
+    Endpoint.FOLDERS: fields(
+        "id parent_folder_id context_type context_id locked_for_user hidden_for_user for_submissions"
+    ),
 }
 # Signed file URLs are transport inputs, never model output. Altering them here
 # would break authentication. They remain bounded and origin-checked by FileDownloader.

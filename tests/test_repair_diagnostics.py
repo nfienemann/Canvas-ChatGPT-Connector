@@ -144,6 +144,7 @@ async def test_unknown_foreign_restricted_ids_are_indistinguishable(
         )
         row.provenance = {**row.provenance, "share_text": False}
     responses = []
+    request_ids = set()
     async with client_session(no_lms_running, token_factory()) as session:
         for selected in [
             {"document_id": "unknown", "expected_hash": "0" * 64},
@@ -160,7 +161,15 @@ async def test_unknown_foreign_restricted_ids_are_indistinguishable(
             ).structuredContent
             assert result["status"] == "permission_denied", result
             assert result["sources"] == []
-            responses.append((result["status"], result["summary"], result["data"]))
+            diagnostic = dict(result["data"]["diagnostic"])
+            ident = diagnostic.pop("request_id")
+            assert ident == result["meta"]["request_id"] and ident not in request_ids
+            request_ids.add(ident)
+            # Correlation is unique per call. All other public error facts must agree.
+            summary = result["summary"].replace(ident, "<request>")
+            responses.append(
+                (result["status"], summary, {**result["data"], "diagnostic": diagnostic})
+            )
     assert all(r == responses[0] for r in responses)
 
 

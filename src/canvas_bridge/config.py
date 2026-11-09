@@ -10,9 +10,32 @@ from canvas_bridge.retention_policy import DOWNLOAD_DEFAULT_SECONDS, DOWNLOAD_MA
 
 
 class Settings(BaseSettings):
+    egress_mode: Literal["strict", "permissive"] = "strict"
+    library_enabled: bool = False
+    library_uploads_enabled: bool = True
+    library_root: Path | None = None
+    library_quota_bytes: int = Field(default=1073741824, ge=1, le=1073741824)
+    library_item_limit: int = Field(default=1000, ge=1, le=1000)
+    library_derived_bytes: int = Field(default=268435456, ge=1, le=268435456)
+    library_deployment_bytes: int = Field(default=10737418240, ge=1, le=10737418240)
+    library_transfer_seconds: int = Field(default=900, ge=1, le=900)
+    library_idle_seconds: int = Field(default=60, ge=1, le=60)
+    library_deployment_derived_bytes: int = Field(default=1073741824, ge=1, le=1073741824)
+    library_export_memory_bytes: int = Field(default=268435456, ge=33554433, le=268435456)
+    library_backup_root: Path | None = None
+    library_backup_bytes: int = Field(default=32212254720, ge=1, le=32212254720)
+    budget_trust_file: Path | None = None
+    personal_development_usage: bool = False
+    personal_development_owner_request_limit: int | None = Field(default=None, ge=1, le=2147483647)
+    personal_development_monthly_requests: int = Field(default=3000, ge=1, le=2147483647)
+    personal_development_max_concurrency: int = Field(default=2, ge=1, le=4)
     process_features_enabled: bool = False
+    usefulness_features_enabled: bool = False
+    conceptual_search_enabled: bool = True
     integrity_policy_reviews_file: Path | None = None
     independent_egress_file: Path | None = None
+    independent_external_egress_file: Path | None = None
+    portability_origin_sqlite: Path | None = None
     independent_retention_hours: int = Field(default=24, ge=1, le=24)
     capability_profile: Literal["offline_research", "institutional_pilot", "public_connected"] = (
         "institutional_pilot"
@@ -87,6 +110,10 @@ class Settings(BaseSettings):
     file_delivery_budget_seconds: float = Field(default=90, gt=0, le=90)
 
     @property
+    def workload_refresh_budget_seconds(self) -> float:
+        return 3 * self.refresh_budget_seconds
+
+    @property
     def browser_callback_url(self) -> str:
         callback = self.resource_url.rstrip("/") + "/settings/callback"
         if not self.browser_require_issuer_parameter:
@@ -96,6 +123,26 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def safe_profile(self):
+        if (
+            self.egress_mode == "permissive"
+            and self.profile != "synthetic"
+            and (
+                self.profile != "personal"
+                or self.host != "127.0.0.1"
+                or not self.personal_subject
+                or not self.mcp_read_only
+            )
+        ):
+            raise ValueError("Permissive egress requires loopback, read-only personal mode.")
+        if self.personal_development_usage and (
+            self.profile != "personal"
+            or self.host != "127.0.0.1"
+            or not self.personal_subject
+            or not self.mcp_read_only
+        ):
+            raise ValueError(
+                "Development usage requires owner-only, loopback, read-only personal mode."
+            )
         if self.profile == "personal" and not self.personal_subject:
             raise ValueError("Personal testing requires one configured identity-provider subject.")
         if self.profile != "synthetic":

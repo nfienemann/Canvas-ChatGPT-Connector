@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from canvas_bridge.calendar_sync import CalendarContext
 from canvas_bridge.integrity.models import Activity
 from canvas_bridge.processes.feasibility import TimeWindow, WorkEstimate
 from canvas_bridge.processes.models import Model, Ref
@@ -105,6 +106,8 @@ class IdentityInput(Model):
 
 class IdentityRequest(Model):
     operation: Literal["identity"] = "identity"
+    associate_local_course: bool = False
+    calendar: CalendarContext | None = None
     left: IdentityInput
     right: IdentityInput
 

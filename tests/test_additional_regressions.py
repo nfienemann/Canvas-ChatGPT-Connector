@@ -527,7 +527,7 @@ async def test_snapshot_scope_migration_preserves_inventory_and_requires_legacy_
         ref = await seed(service, owner)
         snap = await service.refresh(owner, ref)
         original = snap.items
-        with pytest.raises(RuntimeError, match="plaintext"):
+        with pytest.raises(RuntimeError, match="plaintext|durable originals"):
             command.downgrade(config, "4be2ca7831f0")
         with store.transaction() as session:
             session.get(Snapshot, snap.id).workload_scope = {}

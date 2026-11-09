@@ -1,5 +1,7 @@
 """Authenticated import and deletion; no model-callable upload or arbitrary paths."""
 
+import base64
+import hashlib
 import html
 import secrets
 from urllib.parse import unquote, urlsplit
@@ -16,6 +18,12 @@ def register_import_routes(bridge, route, identity, form, page, hidden):
         session = await identity(request)
         nonce = secrets.token_urlsafe(24)
         body = "<p>Import your own permitted study materials here, then use the document ID in ChatGPT. ChatGPT attachments are not automatically transferred to Bridge.</p>"
+        if bridge.settings.library_enabled:
+            body += (
+                '<p><a href="/settings/library">Add files to your durable private library</a></p>'
+            )
+        if bridge.settings.usefulness_features_enabled:
+            body += '<p><a href="/settings/materials">Add course materials and review candidates</a> · <a href="/settings/study">Selected study records</a></p>'
         body += "<p>Imports are encrypted, expire within 24 hours, and can be deleted below. Extraction runs locally in bounded workers. The selected recipient must also be configured by the operator.</p>"
         profile = bridge.independent.profile()
         body += (
@@ -64,7 +72,15 @@ if(r.ok)location.assign('/settings/documents');else out.textContent='Import was 
                 + hidden("csrf", session.csrf)
                 + hidden("document_id", row.id)
             )
-            body += '<label><input type="checkbox" name="confirm" value="delete" required>Delete this import and its stored extraction</label><button class="danger">Delete document</button></form></section>'
+            body += '<label><input type="checkbox" name="confirm" value="delete" required>Delete this import and its stored extraction</label><button class="danger">Delete document</button></form>'
+            if bridge.settings.library_enabled:
+                body += (
+                    '<form method="post" action="/settings/documents/save-library">'
+                    + hidden("csrf", session.csrf)
+                    + hidden("document_id", row.id)
+                )
+                body += '<label><input type="checkbox" name="confirm" value="save" required>Save a separate copy of this still-available import to my private library until I delete it, keeping or narrowing its sharing permissions. The temporary import keeps its original expiry.</label><button>Save to private library</button></form>'
+            body += "</section>"
         response = page("Independent documents", body)
         response.headers["Content-Security-Policy"] += (
             f"; script-src 'nonce-{nonce}'; connect-src 'self'"
@@ -113,3 +129,55 @@ if(r.ok)location.assign('/settings/documents');else out.textContent='Import was 
         request.state.validate_bridge_session()
         bridge.independent.delete(session.owner, str(values.get("document_id", "")))
         return RedirectResponse("/settings/documents", status_code=303)
+
+    if bridge.settings.library_enabled:
+
+        @route("/settings/documents/save-library", ["POST"])
+        async def save_to_library(request):
+            from canvas_bridge.egress_models import RecipientPolicy
+            from canvas_bridge.library.contracts import IntakeRequest
+
+            session = await identity(request, True)
+            values = await form(request, session)
+            if values.get("confirm") != "save":
+                raise DomainError("needs_input", "Select the displayed durable-copy permission.")
+            ident = str(values.get("document_id", ""))
+            old = bridge.independent.require(session.owner, ident)
+            raw = base64.b64decode(old.content["bytes"], validate=True)
+            profile = bridge.independent.profile()
+            channels = []
+            if (
+                profile
+                and old.provenance.get("egress_policy")
+                and RecipientPolicy.model_validate(old.provenance["egress_policy"]) == profile
+                and old.provenance.get("share_text")
+            ):
+                channels = ["metadata", "text"] + (
+                    ["visual"] if old.provenance.get("share_visual") else []
+                )
+            selection = IntakeRequest.model_validate(
+                {
+                    "authorization_action_id": hashlib.sha256(session.csrf.encode()).hexdigest(),
+                    "idempotency_key": "save-legacy-" + ident,
+                    "files": [
+                        {
+                            "selection_id": "legacy",
+                            "file_name": old.content["filename"],
+                            "declared_bytes": len(raw),
+                            "maximum_bytes": len(raw),
+                            "expected_sha256": old.version_hash,
+                        }
+                    ],
+                    "allow_processing": True,
+                    "purpose": "document_reading",
+                    "recipient_grants": [
+                        {"recipient_profile_id": profile.policy_id, "channels": channels}
+                    ]
+                    if channels
+                    else [],
+                }
+            )
+            await bridge.library.save_legacy(
+                session, ident, selection, request.state.validate_bridge_session
+            )
+            return RedirectResponse("/settings/library", status_code=303)

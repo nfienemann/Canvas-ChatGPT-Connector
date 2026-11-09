@@ -129,3 +129,44 @@ def diagnostic_fields(code, capability=None):
             "next_action": "Select a local course label or authorized independent documents. Only an institutional scope needs both connection_id and course_id. A local label grants no authority.",
         }
     return {}
+
+
+def registered_input_error(schema, arguments, attempt):
+    """Recover reviewed constraints from the server schema, never SDK error text."""
+    import jsonschema
+
+    validator = jsonschema.validators.validator_for(schema)(schema)
+    error = next(validator.iter_errors(arguments or {}), None)
+    if error is None:
+        return False
+    path = list(error.absolute_schema_path)
+    fields = [
+        name
+        for key, name in zip(path, path[1:], strict=False)
+        if key == "properties" and isinstance(name, str)
+    ]
+    if error.validator == "required" and isinstance(error.instance, dict):
+        missing = next((key for key in error.validator_value if key not in error.instance), None)
+        if missing:
+            fields.append(missing)
+    # Path components above come only from the frozen schema. Omit arbitrary
+    # dictionary keys and array offsets, even if present in error.absolute_path.
+    attempt.input_field = ".".join(fields[:5]) or None
+    attempt.constraint = (
+        error.validator
+        if error.validator
+        in {
+            "type",
+            "required",
+            "enum",
+            "pattern",
+            "minLength",
+            "maxLength",
+            "minimum",
+            "maximum",
+            "additionalProperties",
+            "anyOf",
+        }
+        else "schema"
+    )
+    return True

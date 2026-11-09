@@ -88,14 +88,19 @@ def preflight(settings, *, store=None):
             inspector = inspect(connection)
             tables = set(inspector.get_table_names())
             result["new_installation"] = not tables
-            result["revision"] = (
-                connection.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            revisions = (
+                list(connection.execute(text("SELECT version_num FROM alembic_version")).scalars())
                 if "alembic_version" in tables
-                else None
+                else []
             )
+            result["revision"] = revisions[0] if len(revisions) == 1 else None
+            if len(revisions) > 1:
+                result["findings"].append("MULTIPLE_DATABASE_REVISIONS")
+            from canvas_bridge.usage.models import metadata as usage_metadata
+
             missing = [
                 name + "." + col.name
-                for name, table in Base.metadata.tables.items()
+                for name, table in {**Base.metadata.tables, **usage_metadata.tables}.items()
                 for col in table.columns
                 if name not in tables
                 or col.name not in {c["name"] for c in inspector.get_columns(name)}
@@ -141,18 +146,39 @@ def preflight(settings, *, store=None):
         if owns_store:
             store.close()
     result["recovery_action"] = (
-        "Stop service and workers; confirm database_target, preserve the existing key and journal, then use deployment-upgrade with an exclusive encrypted backup. Never regenerate lost security material."
+        "Run canvas-bridge database-upgrade --deployment-root <actual service directory> --check; preserve the existing key and journal. PostgreSQL apply requires a verified logical backup and explicit maintenance confirmation."
+        if settings.profile == "personal" and url.get_backend_name() == "postgresql"
+        else "Stop service and workers; confirm database_target, preserve the existing key and journal, then use deployment-upgrade with an exclusive encrypted backup. Never regenerate lost security material."
     )
     return result
 
 
 def require_ready(settings):
+    if (Path.cwd() / ".database-maintenance").exists():
+        raise RuntimeError("CANVAS_BRIDGE_DATABASE_MAINTENANCE: explicit recovery review required.")
     status = preflight(settings)
     if status["service_health"] != "READY":
+        url = make_url(settings.database_url)
+        identity = {
+            "profile": settings.profile,
+            "backend": url.get_backend_name(),
+            "host": url.host,
+            "port": url.port,
+            "database": url.database,
+            "role": url.username,
+            "current_revision": status.get("revision"),
+            "required_revision": status.get("expected_revision"),
+        }
         raise RuntimeError(
-            "Startup preflight blocked: "
+            (
+                "CANVAS_BRIDGE_DATABASE_MIGRATION_REQUIRED: "
+                if "SCHEMA_UPGRADE_REQUIRED" in status["findings"]
+                else "Startup preflight blocked: "
+            )
             + ", ".join(status["findings"])
-            + ". Run canvas-bridge doctor."
+            + ". "
+            + json.dumps(identity)
+            + ". Run canvas-bridge doctor. For personal PostgreSQL run canvas-bridge database-upgrade --deployment-root <service-directory> --check."
         )
     return status
 

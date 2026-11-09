@@ -6,15 +6,26 @@ from sqlalchemy import select
 
 from canvas_bridge.authorization import RESOURCES, digest, log_decision, scope_version
 from canvas_bridge.domain import DomainError, Result, utcnow
+from canvas_bridge.membership import membership_fields, utc_timestamp
+from canvas_bridge.permission_recovery import recovery_actions
 from canvas_bridge.storage import Connection, Course, Tombstone, aware
 
 ACTIONS = {
+    "PROVIDER_NOT_AUTHORIZED": "review_provider_authorization",
+    "BILLING_CONTRACT_UNCONFIGURED": "operator_configuration_required",
+    "UPSTREAM_BUDGET_EXHAUSTED": "use_permitted_cached_or_local_information",
+    "WORKLOAD_POOL_DEFERRED": "defer_or_narrow_retrieval",
+    "OWNER_RATE_LIMITED": "wait_for_request_capacity",
+    "TASK_BUDGET_EXCEEDED": "resume_bounded_task",
+    "UPSTREAM_THROTTLED": "retry_after_upstream_recovery",
+    "GOVERNOR_UNAVAILABLE": "operator_accounting_recovery_required",
     "IDENTIFIER_MAPPING_FAILURE": "investigate_canonical_id_mapping",
     "IDENTIFIER_CONNECTION_MISMATCH": "review_connection_and_course_references",
     "COURSE_NOT_SELECTED": "review_course_selection",
     "SELECTED_SCOPE_MISMATCH": "inspect_scope_mapping",
-    "STALE_SCOPE_SNAPSHOT": "reconcile_scope_snapshots",
+    "STALE_SCOPE_SNAPSHOT": "refresh_course_list_then_retry",
     "CONNECTION_INACTIVE": "reconnect_canvas_account",
+    "UPSTREAM_CREDENTIAL_REJECTED": "reconnect_canvas_account",
     "UPSTREAM_AUTH_EXPIRED": "reconnect_canvas_account",
     "UPSTREAM_AUTH_UNVERIFIED": "reconnect_canvas_account",
     "RESOURCE_PERMISSION_DENIED": "review_resource_permissions",
@@ -24,6 +35,16 @@ ACTIONS = {
     "UNKNOWN_AUTHORIZATION_FAILURE": "inspect_authorization_evidence",
     "NO_SAFE_METADATA_PROBE": "use_explicit_resource_workflow_if_needed",
 }
+
+
+def local_credential_state(conn):
+    return (
+        "unavailable"
+        if not conn.credential
+        else "expired"
+        if (conn.token_expires_at and aware(conn.token_expires_at) <= utcnow())
+        else "present_not_verified"
+    )
 
 
 async def audit_permissions(
@@ -39,12 +60,12 @@ async def audit_permissions(
         if conn is None:
             # Same shape for nonexistent and foreign connections: no existence oracle.
             bridge.authorize(owner, ref, course_id or "", track=False).require()
-        inactive = conn.state != "active" or session.get(Tombstone, ref) is not None
         rows = list(
             session.scalars(
                 select(Course).where(Course.owner == owner, Course.connection_id == ref)
             )
         )
+        scope_evaluated_at = utcnow()
         version = scope_version(conn, rows, bridge.registry.entries.get(conn.institution))
         courses = [course_id] if course_id is not None else [c.id for c in rows if c.selected]
         if len(courses) > min(30, bridge.settings.max_courses):
@@ -52,20 +73,17 @@ async def audit_permissions(
                 "needs_input", "Audit one course or reduce the selected-course scope."
             )
     checks = []
-    credential_state = (
-        "unavailable"
-        if not conn.credential
-        else "expired"
-        if (conn.token_expires_at and aware(conn.token_expires_at) <= utcnow())
-        else "present_not_verified"
-    )
+    credential_state = local_credential_state(conn)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + bridge.settings.refresh_budget_seconds
     probes = 0
     upstream_auth_failure = None
     for target in courses:
         for resource in resources:
-            d = bridge.authorize(owner, ref, target, resource, "metadata", track=False)
+            checked_at = utcnow()
+            d = bridge.authorize(
+                owner, ref, target, resource, "metadata", track=False, evaluated_at=checked_at
+            )
             if d.credential_state in {"expired", "unavailable"}:
                 credential_state = d.credential_state
             classification = (
@@ -85,6 +103,7 @@ async def audit_permissions(
                 "identifier_state": d.identifier_state,
                 "scope_authorized": d.scope_authorized,
                 "resource_capability": d.resource_capability,
+                "scope_evaluated_at": utc_timestamp(checked_at),
                 "authorization_freshness": d.authorization_freshness,
                 "scope_snapshot_version": d.scope_snapshot_version,
                 "upstream_permission": "not_checked",
@@ -134,7 +153,7 @@ async def audit_permissions(
                             else "indeterminate",
                             reason_code=reason,
                         )
-                        if reason == "UPSTREAM_AUTH_EXPIRED":
+                        if reason == "UPSTREAM_CREDENTIAL_REJECTED":
                             credential_state = "expired_or_rejected"
                         if code == 401 or reason == "UPSTREAM_AUTH_EXPIRED":
                             upstream_auth_failure = reason
@@ -147,7 +166,10 @@ async def audit_permissions(
                         http_status=check["upstream_http_status"],
                         reason=check["reason_code"],
                     )
-            check["recommended_action"] = ACTIONS.get(check["reason_code"], "none")
+            check["recommended_action"] = ACTIONS.get(
+                check["reason_code"],
+                "none" if check["result"] == "consistent" else "inspect_authorization_evidence",
+            )
             checks.append(check)
 
     # Never silently retry/re-authorize a changed request. Discard probe conclusions
@@ -167,25 +189,39 @@ async def audit_permissions(
                 select(Course).where(Course.owner == owner, Course.connection_id == ref)
             )
         )
+        inactive = current.state != "active" or session.get(Tombstone, ref) is not None
+        current_evaluated_at = utcnow()
+        final_membership = membership_fields(
+            current, current_evaluated_at, bridge.settings.authorization_lease_seconds
+        )
         after_version = scope_version(
             current, rows, bridge.registry.entries.get(current.institution)
         )
     changed = after_version != version
     if changed:
+        credential_state = local_credential_state(current)
         for check in checks:
             check.update(
                 scope_authorized=False,
                 upstream_permission="unknown",
                 result="inconsistent",
                 reason_code="STALE_SCOPE_SNAPSHOT",
-                recommended_action="reconcile_scope_snapshots",
+                upstream_http_status=None,
+                recommended_action="repeat_permission_audit",
             )
     else:
         for check in checks:
             if not check["course_id"]:
                 continue
+            rechecked_at = utcnow()
             current_decision = bridge.authorize(
-                owner, ref, check["course_id"], check["resource"], "metadata", track=False
+                owner,
+                ref,
+                check["course_id"],
+                check["resource"],
+                "metadata",
+                track=False,
+                evaluated_at=rechecked_at,
             )
             if not current_decision.allowed and check["reason_code"] in {
                 "AUTHORIZED_LOCAL_SCOPE",
@@ -197,9 +233,11 @@ async def audit_permissions(
             }:
                 check.update(
                     scope_authorized=current_decision.scope_authorized,
+                    upstream_http_status=None,
                     upstream_permission="unknown",
                     result="indeterminate",
                     reason_code=current_decision.reason_code,
+                    scope_evaluated_at=utc_timestamp(rechecked_at),
                     authorization_freshness=current_decision.authorization_freshness,
                     recommended_action=ACTIONS.get(
                         current_decision.reason_code, "inspect_authorization_evidence"
@@ -213,12 +251,18 @@ async def audit_permissions(
         reasons.append(
             "UPSTREAM_AUTH_EXPIRED" if credential_state == "expired" else "UPSTREAM_AUTH_UNVERIFIED"
         )
-    mismatch = any(c["result"] == "inconsistent" for c in checks)
+    mismatch = changed or any(c["result"] == "inconsistent" for c in checks)
     unresolved = any(c["result"] in {"indeterminate", "not_checked"} for c in checks)
     restricted = any(c["reason_code"] in ACTIONS for c in checks)
     status = "partial_data" if mismatch or unresolved or restricted else "ok"
     if any(
-        r in {"UPSTREAM_AUTH_EXPIRED", "UPSTREAM_AUTH_UNVERIFIED", "CONNECTION_INACTIVE"}
+        r
+        in {
+            "UPSTREAM_CREDENTIAL_REJECTED",
+            "UPSTREAM_AUTH_EXPIRED",
+            "UPSTREAM_AUTH_UNVERIFIED",
+            "CONNECTION_INACTIVE",
+        }
         for r in reasons
     ):
         status = "reconnect_required"
@@ -239,8 +283,10 @@ async def audit_permissions(
     recommendations = list(
         dict.fromkeys(c["recommended_action"] for c in checks if c["recommended_action"] != "none")
     )
-    if not recommendations and any(r in ACTIONS for r in reasons):
-        recommendations = list(dict.fromkeys(ACTIONS[r] for r in reasons if r in ACTIONS))
+    if changed and not recommendations:
+        recommendations.append("repeat_permission_audit")
+    if status == "reconnect_required":
+        recommendations = list(dict.fromkeys(["reconnect_canvas_account", *recommendations]))
     return Result(
         status=status,
         summary="Permission consistency audit completed with restrictions or unresolved evidence."
@@ -256,10 +302,14 @@ async def audit_permissions(
             else "consistent",
             "scope_snapshot_version": version,
             "current_scope_snapshot_version": after_version,
+            "scope_evaluated_at": utc_timestamp(scope_evaluated_at),
+            "current_scope_evaluated_at": utc_timestamp(current_evaluated_at),
+            **final_membership,
             "correlation_id": digest(owner + "\0" + ref),
             "checks": checks,
             "recommended_action": recommendations[0] if recommendations else "none",
             "recommended_actions": recommendations,
+            "recovery_actions": recovery_actions(recommendations),
             "upstream_checks_requested": include_upstream_checks,
             "upstream_requests": probes,
             "state_modified": False,

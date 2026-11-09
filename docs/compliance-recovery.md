@@ -69,9 +69,22 @@ The operator must configure `BRIDGE_INDEPENDENT_EGRESS_FILE` outside the reposit
 using the strict `RecipientPolicy` schema. It identifies the exact signed application
 issuer, client, environment and workspace, purposes, modalities, classifications,
 retention and downstream processing. It is separate from institutional approval records.
-Only an explicitly configured ChatGPT recipient without training is supported here.
-Changing or removing the policy stops existing imports from sharing until they are
-imported with new consent. No API or MCP argument can supply this policy.
+The primary policy uses the ChatGPT recipient and a client ID configured in
+`BRIDGE_MCP_CHATGPT_CLIENT_IDS`. A second signed client can use independent text
+workflows when the operator supplies `BRIDGE_INDEPENDENT_EXTERNAL_EGRESS_FILE`.
+Use the same strict policy schema with `recipient` set to `external_ai`, a separate
+client ID, and the exact issuer, signed environment and workspace. Both profiles
+must exclude training. Keep these files in operator-controlled storage.
+
+With usefulness features enabled, open the imported document's sharing review
+under Settings / Materials, select the additional recipient and save the exact
+choices. New imports initially use the primary consent. Additional sharing
+covers text, metadata and structured results for the reviewed document, subject
+to the intersection of its source scope and the recipient's purposes, channels,
+classifications and byte limit. The external grant must be reviewed again after
+replacement or a recipient policy change. Uncheck the additional recipient to
+revoke it. Institutional releases, library versions and reviewed study records
+each use their own authorization path.
 
 The browser separately asks permission to share text and PDF page images. Page images
 require the user to review the whole page for private information and content rights;

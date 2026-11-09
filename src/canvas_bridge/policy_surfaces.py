@@ -3,6 +3,7 @@
 from canvas_bridge.approval_policy import CATEGORIES
 from canvas_bridge.domain import DomainError
 from canvas_bridge.integrity.surfaces import TOOLS as INTEGRITY_TOOLS
+from canvas_bridge.library.contracts import TOOLS as LIBRARY_TOOLS
 from canvas_bridge.processes.surfaces import TOOLS as PROCESS_TOOLS
 from canvas_bridge.source_authorization import (
     INDEPENDENT_INTELLIGENCE_TOOLS,
@@ -15,6 +16,9 @@ TOOL_CATEGORIES = {
     "submit_practice_response": {"courses", "files", "pages"},
     "run_academic_workflow": {"courses"},
     "get_semester_overview": CATEGORIES,
+    "get_academic_analytics": {"courses", "assignments", "grades"},
+    "save_academic_analytics": {"courses", "assignments", "grades"},
+    "record_academic_measurement": {"courses", "assignments", "grades"},
     "acknowledge_semester_findings": {"courses", "assignments", "grades"},
     "list_courses": {"courses"},
     "list_course_discussions": {"courses", "discussions"},
@@ -72,10 +76,16 @@ OFFLINE_TOOLS = (
     | INTEGRITY_TOOLS
     | PROCESS_TOOLS
     | INDEPENDENT_INTELLIGENCE_TOOLS
+    | LIBRARY_TOOLS
 )
 
 
 def authorize_tool(bridge, owner, name, arguments):
+    from canvas_bridge.library.contracts import TOOLS as LIBRARY_TOOLS
+
+    if name in LIBRARY_TOOLS:
+        bridge.library.enabled()
+        return
     if name in PROCESS_TOOLS:
         # Each adapter resolves and rechecks exact source identities; no caller
         # source label bypasses institutional approval or independent ownership.

@@ -157,7 +157,10 @@ def main():
         if os.getppid() != parent:
             raise RuntimeError("Launcher exited before isolation.")
         resource.setrlimit(resource.RLIMIT_AS, (memory_mb * 1024 * 1024,) * 2)
-        resource.setrlimit(resource.RLIMIT_CPU, (10, 10))
+        # A distinct soft limit produces SIGXCPU. With equal limits Linux can
+        # send SIGKILL just below the accounting threshold reported by wait4.
+        signal.signal(signal.SIGXCPU, signal.SIG_DFL)
+        resource.setrlimit(resource.RLIMIT_CPU, (9, 10))
         resource.setrlimit(resource.RLIMIT_FSIZE, (2_000_000,) * 2)
         resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))

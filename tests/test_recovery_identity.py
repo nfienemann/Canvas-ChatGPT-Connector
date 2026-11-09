@@ -99,3 +99,32 @@ async def test_authorization_stages_do_not_treat_oauth_as_approval(bridge, owner
     assert result["institution_approval"] == "NOT_ASSESSED"
     assert result["upstream_identity"] == "verified"
     assert not result["link_action_available"]
+
+
+@pytest.mark.parametrize(
+    "error,code,status,label",
+    [
+        ("access_denied", None, 200, "Sign-in declined"),
+        ("private-fixture-must-not-escape", None, 403, "OAUTH_CALLBACK_INCOMPLETE"),
+        ("access_denied", "private-fixture-code", 403, "OAUTH_CALLBACK_INCOMPLETE"),
+        (None, None, 403, "OAUTH_CALLBACK_INCOMPLETE"),
+    ],
+)
+async def test_identity_callback_stops_before_exchange(
+    settings, bridge, identity_exchange, error, code, status, label
+):
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=create_app(settings, bridge)),
+        base_url=settings.resource_url,
+    ) as client:
+        values, callback = await start(client)
+        params = {"state": values["state"][0], "iss": settings.issuer_url}
+        if error:
+            params["error"] = error
+        if code:
+            params["code"] = code
+        response = await client.get(callback, params=params)
+        assert response.status_code == status and label in response.text
+        assert "private-fixture" not in response.text
+        assert not identity_exchange
+        assert (await client.get(callback, params=params)).status_code == 403

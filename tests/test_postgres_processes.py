@@ -18,7 +18,7 @@ pytestmark = pytest.mark.postgres
 def test_process_revocation_racing_unrelated_correction_preserves_both_boundaries(pg_bridge):
     repo = ProcessRepository(pg_bridge.store, clock=lambda: NOW, authorize=lambda *args: None)
     save(repo, record())
-    local = record("independent", sources=(source(id="other-notes"),))
+    local = record("independent", sources=(source("other-notes"),))
     save(repo, local)
     change = repo.propose(
         SCOPE.principal,

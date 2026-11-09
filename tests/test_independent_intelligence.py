@@ -544,6 +544,8 @@ async def test_local_state_storage_error_is_actionable_in_mcp(
         result = (await session.call_tool("get_saved_study_state", {})).structuredContent
     assert result["status"] == "retry_later"
     assert result["data"]["reason_code"] == "LOCAL_STORAGE_UNAVAILABLE"
+    assert result["data"]["diagnostic"]["retry"] == "after_delay"
+    assert result["data"]["diagnostic"]["next_action"] == "wait_for_recovery"
 
 
 async def test_imported_source_text_cannot_grant_privileges(

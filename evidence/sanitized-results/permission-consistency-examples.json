@@ -1,6 +1,6 @@
 {
   "fixture_only": true,
-  "description": "Executed synthetic audit outputs; no production identities, records or credentials.",
+  "description": "Historical synthetic audit examples updated to illustrate the current recovery action contract.",
   "cases": {
     "exact_id_local_only": {
       "schema_version": "1.0",
@@ -43,7 +43,8 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
-        ]
+        ],
+        "recovery_actions": []
       },
       "sources": [],
       "evidence": [],
@@ -101,6 +102,14 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ],
+        "recovery_actions": [
+          {
+            "action_id": "investigate_canonical_id_mapping",
+            "kind": "user",
+            "instruction": "Check the exact course ID returned for this connection. Ask the operator to inspect the mapping if that ID still fails.",
+            "retry_condition": "Retry with the verified ID or after the operator repairs its mapping."
+          }
         ]
       },
       "sources": [],
@@ -157,7 +166,8 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
-        ]
+        ],
+        "recovery_actions": []
       },
       "sources": [],
       "evidence": [],
@@ -215,6 +225,14 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ],
+        "recovery_actions": [
+          {
+            "action_id": "review_resource_permissions",
+            "kind": "user",
+            "instruction": "Check whether the resource is visible in Canvas. Ask the course staff about access if needed.",
+            "retry_condition": "Retry when access to that resource has been confirmed."
+          }
         ]
       },
       "sources": [],
@@ -273,6 +291,14 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ],
+        "recovery_actions": [
+          {
+            "action_id": "inspect_scope_mapping",
+            "kind": "operator",
+            "instruction": "Ask the operator to compare the selected course with its current enrollment and local access mapping.",
+            "retry_condition": "Retry after selection and authorized membership agree."
+          }
         ]
       },
       "sources": [],
@@ -314,12 +340,12 @@
             "upstream_http_status": null,
             "result": "indeterminate",
             "reason_code": "STALE_SCOPE_SNAPSHOT",
-            "recommended_action": "reconcile_scope_snapshots"
+            "recommended_action": "refresh_course_list_then_retry"
           }
         ],
-        "recommended_action": "reconcile_scope_snapshots",
+        "recommended_action": "refresh_course_list_then_retry",
         "recommended_actions": [
-          "reconcile_scope_snapshots"
+          "refresh_course_list_then_retry"
         ],
         "upstream_checks_requested": false,
         "upstream_requests": 0,
@@ -331,6 +357,15 @@
           "Grade and syllabus permission cannot be conclusively probed here without content reads.",
           "No historical advertised scope was retained; compare correlation IDs and scope versions across calls.",
           "Only this account's mappings can distinguish a different owned connection; no foreign-owner lookup or automatic ID repair occurs."
+        ],
+        "recovery_actions": [
+          {
+            "action_id": "refresh_course_list_then_retry",
+            "kind": "tool",
+            "instruction": "Call list_courses with the same connection_id. For a partial or failed listing, follow the listing's guidance.",
+            "retry_condition": "Rerun the original audit once after a complete, successful course listing.",
+            "tool_name": "list_courses"
+          }
         ]
       },
       "sources": [],

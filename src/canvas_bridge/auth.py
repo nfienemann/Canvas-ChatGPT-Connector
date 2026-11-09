@@ -70,14 +70,23 @@ class JWTVerifier(TokenVerifier):
         self.store = store
         self.keys: list[dict] = []
         self.loaded_at = 0.0
+        self.retry_keys_after = 0.0
         self.lock = asyncio.Lock()
 
     def require_current(self, token):
         """Recheck expiry and durable local revocation even during an open stream."""
         from canvas_bridge.storage import PrincipalState, aware
 
-        if not token or not token.expires_at or token.expires_at <= time.time():
-            raise DomainError("permission_denied", "Application session expired.")
+        if not token or not token.expires_at:
+            raise DomainError(
+                "permission_denied",
+                "Application session unavailable.",
+                reason_code="MCP_ACCESS_DENIED",
+            )
+        if token.expires_at <= time.time():
+            raise DomainError(
+                "permission_denied", "Application session expired.", reason_code="MCP_TOKEN_EXPIRED"
+            )
         if self.store is not None:
             owner = principal_id(token.claims["iss"], token.subject)
             with self.store.transaction() as session:
@@ -90,7 +99,11 @@ class JWTVerifier(TokenVerifier):
                         <= aware(principal.tokens_valid_after).timestamp()
                     )
                 ):
-                    raise DomainError("permission_denied", "Application session was revoked.")
+                    raise DomainError(
+                        "permission_denied",
+                        "Application session was revoked.",
+                        reason_code="MCP_SESSION_REVOKED",
+                    )
 
     def bind_request(self):
         from canvas_bridge.authorization import request_authorization
@@ -105,27 +118,40 @@ class JWTVerifier(TokenVerifier):
         async with self.lock:
             if time.monotonic() - self.loaded_at < 300 and self.keys:
                 return self.keys
-            if self.settings.profile == "synthetic" and self.settings.local_jwks_file:
-                content = json.loads(self.settings.local_jwks_file.read_text(encoding="utf-8"))
-            elif self.settings.jwks_url:
-                from urllib.parse import urlsplit
+            if time.monotonic() < self.retry_keys_after:
+                raise OSError("Key source temporarily unavailable.")
+            try:
+                if self.settings.profile == "synthetic" and self.settings.local_jwks_file:
+                    content = json.loads(self.settings.local_jwks_file.read_text(encoding="utf-8"))
+                elif self.settings.jwks_url:
+                    from urllib.parse import urlsplit
 
-                url = self.settings.jwks_url
-                validate_https(url, {f"https://{urlsplit(url).hostname}"})
-                async with public_client() as client:
-                    async with infrastructure_http(client, method="GET", url=url).stream(
-                        "GET", url
-                    ) as response:
-                        response.raise_for_status()
-                        raw = bytearray()
-                        async for chunk in response.aiter_bytes():
-                            raw.extend(chunk)
-                            if len(raw) > 100_000:
-                                raise ValueError("Key document exceeds limit.")
-                        content = json.loads(raw)
-            else:
-                raise ValueError("No configured key source.")
-            self.keys = content["keys"]
+                    url = self.settings.jwks_url
+                    validate_https(url, {f"https://{urlsplit(url).hostname}"})
+                    async with public_client() as client:
+                        async with infrastructure_http(client, method="GET", url=url).stream(
+                            "GET", url
+                        ) as response:
+                            response.raise_for_status()
+                            raw = bytearray()
+                            async for chunk in response.aiter_bytes():
+                                raw.extend(chunk)
+                                if len(raw) > 100_000:
+                                    raise ValueError("Key document exceeds limit.")
+                            content = json.loads(raw)
+                else:
+                    raise ValueError("No configured key source.")
+                keys = content["keys"]
+                if (
+                    not isinstance(keys, list)
+                    or not keys
+                    or not all(isinstance(key, dict) for key in keys)
+                ):
+                    raise ValueError("Invalid key source.")
+                self.keys = keys
+            except (OSError, httpx.HTTPError, ValueError, KeyError, TypeError, DomainError):
+                self.retry_keys_after = time.monotonic() + 5
+                raise OSError("Key source temporarily unavailable.") from None
             self.loaded_at = time.monotonic()
             return self.keys
 
@@ -203,8 +229,8 @@ class JWTVerifier(TokenVerifier):
             )
             try:
                 self.require_current(accepted)
-            except DomainError:
-                return _reject_token("MCP_SESSION_REVOKED")
+            except DomainError as exc:
+                return _reject_token(exc.reason_code)
             return accepted
         except (
             jwt.PyJWTError,

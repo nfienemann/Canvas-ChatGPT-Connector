@@ -1,0 +1,147 @@
+{
+  "package": "Canvas Bridge private media library specifications",
+  "version": "1.0",
+  "date": "2026-10-29",
+  "timezone": "America/New_York",
+  "purpose": "Specification only; no product acceptance implied",
+  "excludes": [
+    "MANIFEST.json"
+  ],
+  "files": [
+    {
+      "path": "00-current-support.md",
+      "bytes": 5811,
+      "sha256": "c772cd69b0cf1b19800b0987f6cd383b328b50356f52f478b7b19e62df6c9d6b"
+    },
+    {
+      "path": "01-product-requirements.md",
+      "bytes": 5804,
+      "sha256": "90e2ea35e2e93c649245cc391a46a82a76243c8973bc2ebf31ef2424d5562c87"
+    },
+    {
+      "path": "02-identity-and-architecture.md",
+      "bytes": 5411,
+      "sha256": "13f196ed8149887d9f230f41c197fb13b494ed54eda9452a8e4d541e651c0bb6"
+    },
+    {
+      "path": "03-upload-and-host-handoff.md",
+      "bytes": 7756,
+      "sha256": "d04632f6c11c86feeb39bda4661c04334af754cd13ad6b6d9e3638aa9f82e707"
+    },
+    {
+      "path": "04-data-and-lifecycle.md",
+      "bytes": 8448,
+      "sha256": "7a1ad9b8eeb46f3f554736b22175c105dfb8f775ab5001244cf9abe9a0d43625"
+    },
+    {
+      "path": "05-api-and-mcp-contracts.md",
+      "bytes": 8127,
+      "sha256": "670694b6c338c1c95d8d8005efcb651a54eb073aed8e004a48b61ba25af09b84"
+    },
+    {
+      "path": "06-formats-and-processing.md",
+      "bytes": 7696,
+      "sha256": "56ce6b662f45b9e985e0bcb65f9a00fd1dde12001fca7e64c7bc925eed64d7d0"
+    },
+    {
+      "path": "07-security-and-operations.md",
+      "bytes": 5254,
+      "sha256": "9c46dbc40960431b7691eb7c85a320c01c2657060c6248f15b38ce315885259e"
+    },
+    {
+      "path": "08-delivery-and-migration.md",
+      "bytes": 6775,
+      "sha256": "e7541595c84ac468d3c94472ba36887ba3213c70bc2c0cd6330a798dedc46c49"
+    },
+    {
+      "path": "09-acceptance.md",
+      "bytes": 8797,
+      "sha256": "f411e77786cfcb01ec8cc1810e8f1cceed6fc35c8d570a5019b6c1b2b53629ea"
+    },
+    {
+      "path": "acceptance.csv",
+      "bytes": 7723,
+      "sha256": "22466b9f2f2d335d4bd896815a25731f031c117de664d6780d743cff2f2dc0fb"
+    },
+    {
+      "path": "contracts/submit-library-files.tool.json",
+      "bytes": 7605,
+      "sha256": "da51e24524daa3ce5bb1b67032647945a85c94befc8fd7f2e0ce47c33bde4488"
+    },
+    {
+      "path": "evidence/installed-capabilities.json",
+      "bytes": 1073,
+      "sha256": "65ef9040f0c2c01876c13f2a411cf386ae0dfe25b540a233e29722a2be2991f8"
+    },
+    {
+      "path": "evidence/source-inventory.json",
+      "bytes": 3305,
+      "sha256": "f6ad9fd5949be073457d30d2f2e21db9a4fdfb97d162ba10eae44e6e98342bd3"
+    },
+    {
+      "path": "examples/fictional-note.txt",
+      "bytes": 142,
+      "sha256": "fdb60e5e47c4ccf3b45884a5d748bd17935dd442fe47dc1f261afc2b1491f5df"
+    },
+    {
+      "path": "examples/intake-receipt.json",
+      "bytes": 792,
+      "sha256": "280f8cd30b8a0d2971253fa4c96ae938217b19e960006900ea8e26e8f13104ed"
+    },
+    {
+      "path": "examples/intake-request.json",
+      "bytes": 784,
+      "sha256": "c8e5429dfa4b1125bbb99900ac71ae3aabceb0aec29b799e17da0c6a59de27b3"
+    },
+    {
+      "path": "examples/library-item.json",
+      "bytes": 993,
+      "sha256": "329ee134d4884564408e70efdc92723062c824ad9a34e759cee219badf28207e"
+    },
+    {
+      "path": "examples/README.md",
+      "bytes": 1179,
+      "sha256": "ca32b9d17e408ddf71d2dfe5c252774edaf718a4346df9230a952085a991f920"
+    },
+    {
+      "path": "examples/submit-library-files.input.json",
+      "bytes": 330,
+      "sha256": "6cef20e38d404127f37ed2c5ca4d28be8ef5dea8a8ccb886b44131a602f7f7e2"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5012,
+      "sha256": "170b2be712afb3fb329773b80456208c8ef34cb90ad67b4b6af3cfe7655c5b01"
+    },
+    {
+      "path": "requirements.csv",
+      "bytes": 3925,
+      "sha256": "50896ac02d87df3a4ad8581727d72e545c49e574adb4cf7398b28a51991b5fe3"
+    },
+    {
+      "path": "schemas/intake-receipt.schema.json",
+      "bytes": 5515,
+      "sha256": "a5b5122ada578d7555d61538c3cda9755290ae0f0796890bb5f2a0e997faa7da"
+    },
+    {
+      "path": "schemas/intake-request.schema.json",
+      "bytes": 3988,
+      "sha256": "9a18afcf356648c776a28052127ce03e1381941b7e1ad1e556c9fe0a4b64781d"
+    },
+    {
+      "path": "schemas/library-item.schema.json",
+      "bytes": 4771,
+      "sha256": "1a12d7ffd9903b5bb9447946fa3d5cb75e9dbdd948c8172a9ed530d79ce4dec2"
+    },
+    {
+      "path": "validate_package.py",
+      "bytes": 6323,
+      "sha256": "13b59d6e813b9fd31f9800eb417d9e06f6e1dc79cc84bcd5108a449ac7582caf"
+    },
+    {
+      "path": "VALIDATION.md",
+      "bytes": 2638,
+      "sha256": "99aeb68c0456d5c2b661cc198ca3066e3e0471cddf09b35b8a22d0afe22c98ad"
+    }
+  ]
+}

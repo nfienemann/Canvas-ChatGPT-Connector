@@ -1,0 +1,130 @@
+{
+  "tested_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+  "branch": "codex/visual-pdf-reading",
+  "source_sha256": "ac5e1d676c4d57715c0775b9e828ec5f863cbdb4e23cdab1fb1d95f9ca2a9875",
+  "receipt_archive": "sanitized-results/verifiable-academic-intelligence-receipts.zip",
+  "contracts": [
+    {
+      "id": "VAI-C01",
+      "concern": "Claim identity and scope",
+      "owners": "academic.evidence_graph.Scope / Entity / Assertion; academic.study_steps.source_steps",
+      "projection": "source_work_steps.steps[].parent_key; requirement_review.rules[].assessment_id; calendar.proposals[].work_id",
+      "mapping_and_gaps": "A portable assignment key is an attributed document identifier. The separate owner-scoped import ID and version remain attached. Unbound event text stays outside assignment schedules.",
+      "evidence_paths": [
+        "O01.json",
+        "O07.json",
+        "operations/calendar-base.json"
+      ]
+    },
+    {
+      "id": "VAI-C02",
+      "concern": "Source grounding",
+      "owners": "academic_rules.citation; independent_intelligence.provenance",
+      "projection": "evidence.{source_id,source_version,document_version,locator,offset,passage,retrieved_at}; source_versions",
+      "mapping_and_gaps": "Independent-import citations previously emitted null source_version while the original SHA-256 was available in document_version. Both now identify the same original bytes. The locator indexes released text after privacy filtering.",
+      "evidence_paths": [
+        "O03.json",
+        "read-SRC008.json"
+      ]
+    },
+    {
+      "id": "VAI-C03",
+      "concern": "Derivation basis",
+      "owners": "academic.evidence_graph.assertion_view; independent_engine.work_items; planning and grade_engine",
+      "projection": "basis; parents; provenance; source_fact; source_provenance; personal_progress; availability_origin",
+      "mapping_and_gaps": "Quotes support attributed observations. Student declarations, estimates and deterministic calculations have separate representations. A declared completion has its own basis and time.",
+      "evidence_paths": [
+        "M05.json",
+        "operations/grounded-base.json"
+      ]
+    },
+    {
+      "id": "VAI-C04",
+      "concern": "Authority and confidence",
+      "owners": "academic.evidence_graph.query / PrecedenceRule; independent_intelligence.provenance",
+      "projection": "status; authority; uncertainty; policy_reference; policy_evidence; original_authority",
+      "mapping_and_gaps": "Document content can report a correction. Policy selection additionally requires trusted scoped configuration and an eligible policy witness. No calibrated numeric probability is emitted.",
+      "evidence_paths": [
+        "M06.json",
+        "junit.xml"
+      ]
+    },
+    {
+      "id": "VAI-C05",
+      "concern": "Field-scoped corrections and conflicts",
+      "owners": "academic_rules.dated_obligations / requirements / instruction_findings; academic.study_steps.reported_plan_conflicts",
+      "projection": "deadline_review.obligations; requirement_review.conflicts; source_work_steps.steps",
+      "mapping_and_gaps": "The baseline lost the expressly disputed overlapping finance ranges, omitted CSV, counted a superseded operations range as mandatory and emitted a superseded schedule mention as current. The final plan carries the finance constraint with the parent, both ranges and the original passage.",
+      "evidence_paths": [
+        "O01.json",
+        "O02.json",
+        "O04.json",
+        "operations/grounded-base.json"
+      ]
+    },
+    {
+      "id": "VAI-C06",
+      "concern": "Coverage and diagnostics",
+      "owners": "independent_intelligence._run; independent.read; evidence graph disclosure",
+      "projection": "coverage[].{extraction_coverage,text_truncated,complete,limitations}; excluded_sources[].{selection,reason_code}",
+      "mapping_and_gaps": "The position links a failed read to the authorized request. An archive lookup, transient read failure and protected unknown ID have different evidence. The natural missing IDs come from the archive inventory, outside the plugin.",
+      "evidence_paths": [
+        "M04-degraded.json",
+        "M04-restored.json",
+        "M07-revoked.json",
+        "package-validation.json"
+      ]
+    },
+    {
+      "id": "VAI-C07",
+      "concern": "Change and replay",
+      "owners": "independent_intelligence.require / resolve_sources; academic.evidence_graph.EvidenceSession / changes",
+      "projection": "source_versions; data.reason_code; previous_assertions; current_assertions; invalidated_assertions",
+      "mapping_and_gaps": "The final release rechecks eligible source versions. A refreshed notice gets a new hash and date. Historical results use two separately authorized observations.",
+      "evidence_paths": [
+        "M03-stale.json",
+        "M03-refreshed.json",
+        "M05.json"
+      ]
+    },
+    {
+      "id": "VAI-C08",
+      "concern": "Completion and submission",
+      "owners": "evidence.reconcile_states; independent_engine.work_items; usefulness.engine.obligations",
+      "projection": "state; conflict; observations; personal_progress; receipt_checks; official_submission",
+      "mapping_and_gaps": "A personal declaration may satisfy a local dependency. Contradictory same-time provider states remain unknown. A blank score, real zero and missing participation evidence remain distinct.",
+      "evidence_paths": [
+        "M05.json",
+        "read-SRC006.json",
+        "operations/grounded-analysis-completed.json"
+      ]
+    },
+    {
+      "id": "VAI-C09",
+      "concern": "Host fidelity",
+      "owners": "app.create_app MCP instructions; authenticated tool results; external host replay",
+      "projection": "MCP instructions; structuredContent.data; host answers; claim evaluations",
+      "mapping_and_gaps": "Host inputs contain only synthetic released source data, observed archive lookups, requests and actual response projections. The package oracle is evaluator-only. Host relay and installed-tool invocation have separate evidence.",
+      "evidence_paths": [
+        "isolated-host/O01/host-input.txt",
+        "isolated-host/O01/host-answer.txt",
+        "isolated-host/M01/host-input.txt",
+        "isolated-host/M01/host-answer.txt",
+        "evaluations.json"
+      ]
+    },
+    {
+      "id": "VAI-C10",
+      "concern": "Authorized reuse",
+      "owners": "independent_intelligence._run / resolve_sources; academic.evidence_graph.EvidenceSession._check",
+      "projection": "source_provenance; source_versions; excluded_sources; purpose and recipient constraints",
+      "mapping_and_gaps": "Graph and adapter guards recheck current access, version, scope and eligibility. A permitted source remains usable when another selection becomes unavailable.",
+      "evidence_paths": [
+        "M06.json",
+        "M07-revoked.json",
+        "M07-control.json",
+        "junit.xml"
+      ]
+    }
+  ]
+}

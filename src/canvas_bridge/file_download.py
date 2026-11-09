@@ -8,7 +8,9 @@ Signed download URLs stay transient and never become sources.
 import asyncio
 import hashlib
 import json
+import math
 import threading
+import time
 from dataclasses import dataclass
 from typing import BinaryIO
 from urllib.parse import urljoin, urlsplit
@@ -19,6 +21,7 @@ from canvas_bridge.document_policy import SOURCE_BYTES
 from canvas_bridge.domain import DomainError
 from canvas_bridge.network import GuardedHTTP, public_client
 from canvas_bridge.policy import Endpoint, source_id, validate_https
+from canvas_bridge.request_limits import retry_after
 
 MAX_FILE_BYTES = SOURCE_BYTES
 _reading_slot = threading.BoundedSemaphore(1)
@@ -64,18 +67,25 @@ def file_version(metadata: dict) -> str | None:
     return hashlib.sha256(json.dumps(fields, sort_keys=True).encode()).hexdigest()
 
 
+def file_access_issue(metadata: dict) -> str | None:
+    if metadata.get("published") is False or any(
+        metadata.get(key) is True
+        for key in ("locked_for_user", "hidden_for_user", "locked", "hidden")
+    ):
+        return "RESOURCE_PERMISSION_DENIED"
+    if metadata.get("locked_for_user") is not False or metadata.get("hidden_for_user") is not False:
+        return "UNKNOWN_AUTHORIZATION_FAILURE"
+    return None
+
+
 def file_visible(metadata: dict) -> bool:
-    # Explicit current-user fields are required. More powerful credentials must
-    # not turn hidden/locked course files into a student capability.
-    return (
-        metadata.get("locked_for_user") is False
-        and metadata.get("hidden_for_user") is False
-        and metadata.get("locked") is not True
-        and metadata.get("hidden") is not True
-    )
+    return file_access_issue(metadata) is None
 
 
 async def file_metadata(client, course: str, file: str) -> dict:
+    from canvas_bridge.inventory_recovery import track_method
+
+    track_method("file")
     course, file = source_id(course), source_id(file)
     metadata = await client.one(Endpoint.FILE, course=course, file=file)
     if str(metadata.get("id", "")) != file:
@@ -84,15 +94,21 @@ async def file_metadata(client, course: str, file: str) -> dict:
             "The course file is unavailable; its reference could not be verified.",
             reason_code="IDENTIFIER_MAPPING_FAILURE",
         )
-    if not file_visible(metadata):
-        denied = any(
-            metadata.get(flag) is True
-            for flag in ("locked_for_user", "hidden_for_user", "locked", "hidden")
+    if issue := file_access_issue(metadata):
+        constraint = (
+            "file_unpublished"
+            if metadata.get("published") is False
+            else "file_hidden"
+            if metadata.get("hidden_for_user") is True or metadata.get("hidden") is True
+            else "file_locked"
+            if issue == "RESOURCE_PERMISSION_DENIED"
+            else "file_visibility_unknown"
         )
         raise DomainError(
             "permission_denied",
             "The course file is currently unavailable.",
-            reason_code="RESOURCE_PERMISSION_DENIED" if denied else "UNKNOWN_AUTHORIZATION_FAILURE",
+            reason_code=issue,
+            details={"retrieval_constraint": constraint},
         )
     return metadata
 
@@ -170,9 +186,27 @@ async def _download_once(
         download_destination(url, client, course, file)
         client.authorize(Endpoint.FILE, {"course": course, "file": file}, "files")
 
-    download_http = GuardedHTTP(download_http, check_download)
+    def download_usage(method, url):
+        from dataclasses import replace
+
+        from canvas_bridge.usage.transport import OPERATIONS
+
+        # Reuse the exact owner/token/task identity of the authorized API client.
+        governor, ctx, _, mode = client.http.usage(
+            "GET", client.url(Endpoint.FILE, course=course, file=file)
+        )
+        return (
+            governor,
+            replace(ctx, operation="canvas.file_download"),
+            OPERATIONS["canvas.file_download"],
+            mode,
+        )
+
+    download_http = GuardedHTTP(download_http, check_download, usage=download_usage)
+    deadline = budget or client.settings.refresh_budget_seconds
+    started = time.monotonic()
     try:
-        async with asyncio.timeout(budget or client.settings.refresh_budget_seconds):
+        async with asyncio.timeout(deadline):
             metadata = (
                 metadata if metadata is not None else await file_metadata(client, course, file)
             )
@@ -221,6 +255,9 @@ async def _download_once(
                 raise DomainError(
                     "unsupported_feature", "No approved course file download is available."
                 )
+            from canvas_bridge.inventory_recovery import track_method
+
+            track_method("file_download")
             seen = set()
             for hop in range(MAX_REDIRECTS + 1):
                 same_origin = download_destination(url, client, course, file)
@@ -253,21 +290,33 @@ async def _download_once(
                             raise DomainError("permission_denied", "Unsafe file redirect.")
                         url = urljoin(url, location)
                         continue
-                    if response.status_code in {401, 403, 404}:
-                        raise DomainError(
-                            "permission_denied", "Course file download is unavailable."
-                        )
                     if response.status_code != 200:
-                        retry = response.headers.get("retry-after", "")
+                        status = response.status_code
+                        details = {"resource_kind": "file", "origin": "file_delivery_provider"}
+                        if status in {401, 403, 404}:
+                            # Signed storage routes can expire independently of Canvas authentication.
+                            raise DomainError(
+                                "permission_denied",
+                                "Course file download is unavailable.",
+                                reason_code="RESOURCE_UNAVAILABLE"
+                                if status == 404
+                                else "RESOURCE_PERMISSION_DENIED",
+                                upstream_http_status=status,
+                                processing_stage="file_download",
+                                details=details,
+                            )
+                        delay = retry_after(response.headers.get("retry-after"))
+                        if delay is not None:
+                            details["retry_after_seconds"] = math.ceil(delay)
                         raise DomainError(
                             "retry_later",
                             "Course file download did not complete.",
-                            reason_code="RATE_LIMITED"
-                            if response.status_code == 429
+                            reason_code="UPSTREAM_THROTTLED"
+                            if status == 429
                             else "UPSTREAM_UNAVAILABLE",
-                            details={"retry_after_seconds": min(int(retry), 3600)}
-                            if retry.isdecimal()
-                            else {},
+                            upstream_http_status=status,
+                            processing_stage="file_download",
+                            details=details,
                         )
                     if response.headers.get("content-encoding", "identity").lower() != "identity":
                         raise DomainError(
@@ -375,7 +424,18 @@ async def _download_once(
                     )
                 finally:
                     await response.aclose()
-    except (httpx.HTTPError, TimeoutError, ValueError) as exc:
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        details = {"elapsed_ms": round((time.monotonic() - started) * 1000)}
+        if not isinstance(exc, httpx.TimeoutException):
+            details["deadline_seconds"] = deadline
+        raise DomainError(
+            "retry_later",
+            "The source download timed out.",
+            reason_code="DOCUMENT_DOWNLOAD_TIMEOUT",
+            processing_stage="file_download",
+            details=details,
+        ) from exc
+    except (httpx.HTTPError, ValueError) as exc:
         raise DomainError("retry_later", "The course file could not be downloaded safely.") from exc
     finally:
         if owned_http:
@@ -421,6 +481,8 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
             reason_code="DOCUMENT_DOWNLOAD_BUSY",
             processing_stage="file_download",
         )
+    started = time.monotonic()
+    budget = None
     try:
         metadata = await file_metadata(client, course, file)
         budget = (
@@ -436,16 +498,21 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
                         course,
                         file,
                         http=http,
-                        metadata=metadata if attempt == 0 else None,
+                        metadata=metadata,
                         budget=budget,
                     )
                 except DomainError as exc:
                     if (
                         attempt
                         or exc.status != "permission_denied"
-                        or exc.message != "Course file download is unavailable."
+                        or exc.details.get("origin") != "file_delivery_provider"
+                        or exc.upstream_http_status not in {401, 403, 404}
                     ):
                         raise
+                    renewed = await file_metadata(client, course, file)
+                    if renewed.get("url") == metadata.get("url"):
+                        raise
+                    metadata = renewed
     except DomainError as exc:
         if exc.processing_stage is None:
             exc.processing_stage = "file_download"
@@ -457,6 +524,10 @@ async def download_file(client, course: str, file: str, *, http=None) -> Downloa
             "retry_later",
             "Course file download exceeded its total retry budget.",
             reason_code="DOCUMENT_DOWNLOAD_TIMEOUT",
+            details={
+                "elapsed_ms": round((time.monotonic() - started) * 1000),
+                "deadline_seconds": budget,
+            },
             processing_stage="file_download",
         ) from exc
     finally:

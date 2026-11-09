@@ -1,5 +1,12 @@
 # Operator guide
 
+## Personal database upgrades
+
+Use the [explicit PostgreSQL upgrade workflow](database-upgrade.md) to inspect
+the actual service configuration, back up, apply and verify migrations. Ordinary
+startup is check-only. Do not run Alembic from a repository working directory
+and assume it selected the installed service database.
+
 ## Course file inventory and download policy
 
 The source build inventories accessible course files and resolves visible module
@@ -233,3 +240,19 @@ For source-aware offline imports, canonical browser login and schema/key/journal
 preflight, follow [Compliance recovery](compliance-recovery.md). Startup now checks
 migration `d914cb092014`; established installations require an explicit backed-up
 upgrade. Do not recreate a lost key or journal to make startup pass.
+
+Private-library local completion and deferred hosting/client work are tracked in
+[the release checklist](private-library-release-checklist.md).
+
+### Concurrent Canvas reads
+
+Course-scoped MCP requests hold a per-owner, per-connection guard through the
+final authorization and content-release checks. Course-list refreshes use the same
+guard, so an incomplete refresh from another chat or operator process cannot
+clear the lease halfway through a guarded read. PostgreSQL session advisory locks
+coordinate processes; synthetic SQLite fixtures use the local async lock. The
+wait is bounded at 60 seconds. `AUTHORIZATION_BUSY` means retry after the active
+request or maintenance finishes; reconnecting is unnecessary. Cancellation or
+process exit releases the lock. Revocation and selection changes remain immediate
+and are still detected by the response fence. This guard does not retain an old
+lease after a failed refresh or change Canvas throttling limits.

@@ -145,6 +145,9 @@ def strip_ephemeral(table, row):
             refresh_lease_until=None,
             entitlement_at=None,
             last_success=None,
+            last_complete_course_list_at=None,
+            last_course_list_attempt_at=None,
+            last_course_list_outcome=None,
             state="disconnected",
             authentication_state="unverified",
             epoch=row["epoch"] + 1,
@@ -155,12 +158,24 @@ def backup(bridge, destination: Path) -> dict:
     if destination.exists():
         raise ValueError("Backup destination already exists.")
     records = {}
+    usage_records = {}
     now = bridge.retention.clock()
     with bridge.store.engine.connect() as connection:
         # A repeatable read prevents a cross-table inconsistent logical snapshot.
         if bridge.store.engine.dialect.name == "postgresql":
             connection = connection.execution_options(isolation_level="REPEATABLE READ")
         with connection.begin():
+            from canvas_bridge.usage.models import lock as usage_lock
+            from canvas_bridge.usage.models import metadata as usage_metadata
+
+            for table in usage_metadata.sorted_tables:
+                if table is not usage_lock:
+                    usage_records[table.name] = [
+                        dict(row) for row in connection.execute(select(table)).mappings()
+                    ]
+                    if table.name == "usage_attempt":
+                        for attempt in usage_records[table.name]:
+                            attempt.update(owner=None, tenant=None, token=None, task=None)
             for table in Base.metadata.sorted_tables:
                 if table.name in {
                     OAuthState.__tablename__,
@@ -197,6 +212,7 @@ def backup(bridge, destination: Path) -> dict:
         "created_at": now.isoformat(),
         "expires_at": (now + BACKUP_LIFETIME).isoformat(),
         "tables": records,
+        "usage_governance": usage_records,
     }
     with destination.open("x", encoding="utf-8") as stream:
         stream.write(bridge.vault.seal(payload, "operator", "backup"))
@@ -249,6 +265,9 @@ def restore(bridge, source: Path, journal: Path) -> dict:
         ):
             excluded.add(row["id"])
     with bridge.store.transaction() as session:
+        # Restored usage is conservatively held until a signed vendor checkpoint;
+        # rolling back an academic backup must never mint fresh API capacity.
+        bridge.usage.restore_history(session, payload.get("usage_governance", {}))
         for table in Base.metadata.sorted_tables:
             if table.name == "deployment_state":
                 continue  # Keep the target's key/history binding, never restore an old one.

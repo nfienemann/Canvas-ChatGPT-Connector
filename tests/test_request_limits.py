@@ -165,7 +165,12 @@ async def test_transport_limits_share_clients_and_hold_stream_until_close(monkey
         httpx.AsyncClient(transport=transports[0]) as a,
         httpx.AsyncClient(transport=transports[1]) as b,
     ):
-        ga, gb = GuardedHTTP(a, lambda *_: None), GuardedHTTP(b, lambda *_: None)
+        # This fixture isolates infrastructure pacing; academic sends now also
+        # require a durable commercial reservation (tested in test_usage_governor).
+        ga, gb = (
+            GuardedHTTP(a, lambda *_: None, infrastructure=True),
+            GuardedHTTP(b, lambda *_: None, infrastructure=True),
+        )
         response = await ga.send(httpx.Request("GET", "https://one.invalid"), stream=True)
         with pytest.raises(DomainError):
             await gb.send(httpx.Request("GET", "https://two.invalid"), stream=True)
@@ -197,7 +202,7 @@ async def test_cancelled_network_releases_admission(monkeypatch):
 
     transport.pool = WaitingPool()
     async with httpx.AsyncClient(transport=transport) as http:
-        guarded = GuardedHTTP(http, lambda *_: None)
+        guarded = GuardedHTTP(http, lambda *_: None, infrastructure=True)
         task = asyncio.create_task(guarded.send(httpx.Request("GET", "https://one.invalid")))
         await entered.wait()
         task.cancel()

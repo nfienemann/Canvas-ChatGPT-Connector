@@ -136,6 +136,19 @@ class SyntheticProvider:
             return httpx.Response(405)
         if path in self.failures:
             return httpx.Response(self.failures[path])
+        if path.startswith("/api/v1/folders/") and path.endswith("/files"):
+            folder = path.split("/")[4]
+            for course, folders in self.data.get("folders", {}).items():
+                if any(str(f["id"]) == folder for f in folders):
+                    return httpx.Response(
+                        200,
+                        json=[
+                            f
+                            for f in self.data.get("files", {}).get(course, [])
+                            if str(f.get("folder_id")) == folder
+                        ],
+                    )
+            return httpx.Response(404)
         if path.startswith("/files/") and path.endswith("/download"):
             body = self.data.get("file_bodies", {}).get(path.split("/")[2])
             return (
@@ -195,6 +208,12 @@ class SyntheticProvider:
                 return httpx.Response(
                     200, json=self.data.get("assignment_groups", {}).get(course, [])
                 )
+            if parts[5] == "folders":
+                folders = self.data.get("folders", {}).get(course, [])
+                if len(parts) == 7:
+                    folder = next((f for f in folders if str(f["id"]) == parts[6]), None)
+                    return httpx.Response(200, json=folder) if folder else httpx.Response(404)
+                return httpx.Response(200, json=folders)
             if parts[5] == "files":
                 items = self.data.get("files", {}).get(course, [])
                 if len(parts) == 6:

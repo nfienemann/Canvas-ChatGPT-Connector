@@ -55,6 +55,7 @@ async def link_personal_token(
         generation = principal.generation
         no_existing_connection(session, owner, institution_id)
     client = CanvasClient(institution, token, bridge.settings)
+    client.bind_usage(bridge, owner)
     from canvas_bridge.linking import link_profile_authorizer
 
     client.authorize = link_profile_authorizer(bridge, owner, institution_id, generation)

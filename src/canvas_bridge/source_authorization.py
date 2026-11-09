@@ -29,7 +29,9 @@ LOCAL_DOCUMENT_TOOLS = frozenset(
     }
 )
 PREFERENCE_TOOLS = frozenset({"get_local_study_preferences", "update_local_study_preferences"})
-INDEPENDENT_INTELLIGENCE_TOOLS = frozenset({"run_independent_academic_workflow"})
+INDEPENDENT_INTELLIGENCE_TOOLS = frozenset(
+    {"run_independent_academic_workflow", "run_local_study_workflow"}
+)
 
 
 class LocalPreferences(Model):
@@ -50,6 +52,36 @@ class LocalPreferences(Model):
 
 
 def operation_contract(name, categories=(), *, write=False):
+    from canvas_bridge.library.contracts import TOOLS as LIBRARY_TOOLS
+
+    if name in LIBRARY_TOOLS:
+        return {
+            "contract_version": "source-operation-1",
+            "categories": ["USER_PROVIDED_CONTENT", "DATA_EXPORT_OR_MODEL_EGRESS"],
+            "authentication": "verified_application_identity",
+            "authorization": [
+                "owned_immutable_version",
+                "current_source_permission",
+                "recipient_and_channel_grant",
+            ],
+            "source_types": ["independent_import"],
+            "data_dependencies": ["exact_library_versions"],
+            "upstream_network": False,
+            "read_only": not write,
+            "offline_supported": True,
+            "data_classification": "inherited_from_authorized_sources; unknown_denied",
+            "egress": "exact_source_recipient_and_modality_check",
+            "academic_integrity": "A"
+            if name
+            in {
+                "get_library_status",
+                "get_library_item",
+                "list_library_items",
+                "prepare_library_download",
+            }
+            else "B; known_assessed_source_requires_activity_decision",
+            "conditional_institutional_dependencies": False,
+        }
     if name in INDEPENDENT_INTELLIGENCE_TOOLS:
         return {
             "contract_version": "source-operation-1",
@@ -145,10 +177,17 @@ def operation_contract(name, categories=(), *, write=False):
         "propose_study_plan",
         "save_study_plan",
         "record_personal_progress",
+        "get_academic_analytics",
+        "save_academic_analytics",
+        "record_academic_measurement",
         "propose_calendar_sync",
         "acknowledge_semester_findings",
     }
-    derived = name == "get_semester_overview" or name.startswith(
+    derived = name in {
+        "get_semester_overview",
+        "get_academic_analytics",
+        "save_academic_analytics",
+    } or name.startswith(
         (
             "propose_",
             "audit_",

@@ -1,0 +1,11 @@
+{
+  "name": "canvas-bridge-audit-png-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "fast-png": "8.0.0",
+    "fflate": "0.8.3",
+    "iobuffer": "6.0.1"
+  }
+}

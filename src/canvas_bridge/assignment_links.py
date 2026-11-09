@@ -18,8 +18,9 @@ FILE_PATH = re.compile(
 
 
 class Anchors(PlainText):
-    def __init__(self):
+    def __init__(self, max_links=MAX_LINKS):
         super().__init__()
+        self.max_links = max_links
         self.links = []
         self.anchor = None
         self.count = 0
@@ -30,7 +31,11 @@ class Anchors(PlainText):
             href = dict(attrs).get("href")
             if href:
                 self.count += 1
-                self.anchor = {"href": href, "label": ""} if len(self.links) < MAX_LINKS else None
+                self.anchor = (
+                    {"href": href, "label": ""}
+                    if self.max_links is None or len(self.links) < self.max_links
+                    else None
+                )
                 if self.anchor is not None:
                     self.links.append(self.anchor)
 
@@ -44,8 +49,8 @@ class Anchors(PlainText):
             self.anchor["label"] = (self.anchor["label"] + data)[:1000]
 
 
-def references(html, origin, canvas_course):
-    parser = Anchors()
+def references(html, origin, canvas_course, *, max_links=MAX_LINKS):
+    parser = Anchors(max_links)
     if isinstance(html, str):
         parser.feed(html[:200_004])
     result = []
@@ -76,7 +81,32 @@ def references(html, origin, canvas_course):
         except ValueError:
             row.update(state="unsafe_reference", url=None)
         result.append(row)
-    return result, parser.count > MAX_LINKS or isinstance(html, str) and len(html) > 200_004
+    return result, (max_links is not None and parser.count > max_links) or isinstance(
+        html, str
+    ) and len(html) > 200_004
+
+
+def inventory_links(assignment, origin, course, *, resumable=False):
+    """IDs are lookup hints until course-qualified file metadata authorizes them."""
+    links, truncated = references(
+        assignment.get("description"), origin, course, max_links=None if resumable else MAX_LINKS
+    )
+    ids = {link["_file_id"] for link in links if link.get("_file_id")}
+    attachments = assignment.get("attachments") or []
+    if not isinstance(attachments, list):
+        return sorted(ids), True
+    for item in attachments[:MAX_LINKS]:
+        if not isinstance(item, dict) or not re.fullmatch(
+            r"[1-9][0-9]{0,19}", str(item.get("id", ""))
+        ):
+            truncated = True
+            continue
+        ids.add(str(item["id"]))
+    if resumable:
+        return sorted(ids), truncated or len(attachments) > MAX_LINKS
+    return sorted(ids)[:MAX_LINKS], truncated or len(attachments) > MAX_LINKS or len(
+        ids
+    ) > MAX_LINKS
 
 
 async def resolve_links(bridge, owner, ref, course, client, html):

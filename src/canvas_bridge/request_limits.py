@@ -31,6 +31,7 @@ class Bucket:
     active: int = 0
     failures: int = 0
     blocked_until: float = 0
+    provider_until: float = 0
     probe: bool = False
     generation: int = 0
 
@@ -71,22 +72,42 @@ class RequestLimits:
                 self.buckets = {
                     k: b
                     for k, b in self.buckets.items()
-                    if b.active or b.blocked_until > now or now - b.updated < 3600
+                    if b.active
+                    or max(b.blocked_until, b.provider_until) > now
+                    or now - b.updated < 3600
                 }
             if len(self.buckets) >= self.max_keys:
                 self.deny()
             bucket = self.buckets[key] = Bucket(self.burst, now)
         bucket.tokens = min(self.burst, bucket.tokens + max(0, now - bucket.updated) * self.rate)
         bucket.updated = now
+        if bucket.provider_until > now:
+            raise DomainError(
+                "retry_later",
+                "Provider cooldown is active.",
+                reason_code="UPSTREAM_THROTTLED",
+                details={
+                    "blocking_scope": "cooldown",
+                    "retry_after_seconds": math.ceil(bucket.provider_until - now),
+                },
+            )
         if (
-            self.active >= self.total
-            or bucket.active >= self.per_key
-            or bucket.tokens < 1
-            or bucket.blocked_until > now
+            bucket.blocked_until > now
             or bucket.probe
             or (bucket.failures >= self.threshold and bucket.active)
         ):
+            raise DomainError(
+                "retry_later",
+                "Provider recovery is pending.",
+                reason_code="UPSTREAM_CIRCUIT_OPEN",
+                details={"retry_after_seconds": math.ceil(bucket.blocked_until - now)}
+                if bucket.blocked_until > now
+                else {},
+            )
+        if self.active >= self.total or bucket.active >= self.per_key:
             self.deny()
+        if bucket.tokens < 1:
+            self.deny(math.ceil((1 - bucket.tokens) / self.rate) if self.rate > 0 else None)
         bucket.tokens -= 1
         bucket.active += 1
         self.active += 1
@@ -94,11 +115,12 @@ class RequestLimits:
         return Lease(self, bucket)
 
     @staticmethod
-    def deny():
+    def deny(delay=None):
         raise DomainError(
             "retry_later",
             "Request capacity is temporarily unavailable. Try again later.",
             reason_code="RATE_LIMITED",
+            details={"retry_after_seconds": delay} if delay is not None else {},
         )
 
 
@@ -113,8 +135,8 @@ class Lease:
         delay = retry_after(headers.get("retry-after"), wall_time=limits.wall_time)
         if status == 429 or status >= 500:
             self.failure()
-            b.blocked_until = max(
-                b.blocked_until,
+            b.provider_until = max(
+                b.provider_until,
                 limits.clock() + (delay if delay is not None else 1 if status == 429 else 0),
             )
         else:
@@ -126,8 +148,8 @@ class Lease:
         except ValueError:
             remaining = math.inf
         if remaining <= 0:
-            b.blocked_until = max(
-                b.blocked_until, limits.clock() + (delay if delay is not None else 1)
+            b.provider_until = max(
+                b.provider_until, limits.clock() + (delay if delay is not None else 1)
             )
 
     def failure(self):
@@ -178,9 +200,16 @@ class AdmissionMiddleware:
         try:
             import asyncio
 
+            start_time = time.monotonic()
             async with asyncio.timeout(self.deadline_seconds):
                 return await self.app(scope, receive, guarded_send)
         except TimeoutError:
+            from canvas_bridge.failure_diagnostics import current
+
+            if attempt := current.get():
+                attempt.protocol_cause = "TRANSPORT_TIMEOUT"
+                attempt.transport_deadline = self.deadline_seconds
+                attempt.transport_elapsed_ms = round((time.monotonic() - start_time) * 1000)
             if started:
                 # An incomplete streaming response must be closed by the server.
                 raise

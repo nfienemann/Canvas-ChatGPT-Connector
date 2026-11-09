@@ -397,6 +397,13 @@ async def overview(bridge, owner, ref, request=None):
         report["outstanding_uncertainties"].append(
             "No previous comparable observation exists; no event is claimed newly created."
         )
+    from canvas_bridge.analytics.capture import capture_findings, finding_sample
+
+    try:
+        sample = finding_sample(report, snapshot)
+    except (ValueError, KeyError, TypeError):
+        sample = None
+        report["limitations"].append("Historical finding measurements could not be prepared.")
     total_findings, total_obligations = len(report["findings"]), len(report["current_obligations"])
     report["findings"] = report["findings"][:60]
     report["current_obligations"] = [
@@ -463,6 +470,8 @@ async def overview(bridge, owner, ref, request=None):
         for i in snapshot.items
         if i["availability_state"] != "inaccessible"
     ]
+    if sample is not None:
+        capture_findings(bridge, owner, ref, conn.epoch, sample, report)
     referenced = set(cited_ids(report))
     return Result(
         status="partial_data",

@@ -1,0 +1,37 @@
+{
+  "environment": "Windows local loopback synthetic demo; webcmd isolated profile/session",
+  "flow": [
+    "visible synthetic sign-in",
+    "review TXT selection and grants",
+    "upload with real isolated safety/extraction workers",
+    "visible published receipt",
+    "download exact original",
+    "rename title",
+    "mobile layout",
+    "revoke sharing and processing",
+    "delete file"
+  ],
+  "original_bytes": 63,
+  "original_sha256": "4621ec392af36668f1ffbd95352a33c014b8107509be04c86d10df76320c7bce",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "horizontal_overflow": false
+  },
+  "observed_processing_state": "ready",
+  "observed_revoked_processing_state": "not_requested",
+  "deletion": {
+    "access": "disabled",
+    "active_store": "purged",
+    "remaining_visible_files": 0
+  },
+  "actual_host_client": false,
+  "model_observed_source_pixels": false,
+  "limitations": [
+    "TXT only through visible browser",
+    "No screen reader acceptance",
+    "Demo loaded before final receipt/search/scanner refinements; final backend verified by tests",
+    "Backup expiry timestamp is not physical backup deletion verification"
+  ],
+  "cleanup": "Agent browser session closed and disposable demo process stopped"
+}

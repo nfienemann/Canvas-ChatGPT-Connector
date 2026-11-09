@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import pytest
 from mcp import types
+from mcp.shared.exceptions import McpError
 
 from canvas_bridge.app import create_app
 from canvas_bridge.domain import DomainError, Result
@@ -333,10 +334,11 @@ async def test_sdk_rejects_forged_envelope_and_changed_catalog(bridge, settings,
     )
     assert response.root.isError and "fixture@" not in response.model_dump_json()
     mcp._tool_manager.get_tool("get_connection_status").description = "fixture@example.invalid"
-    with pytest.raises(DomainError):
+    with pytest.raises(McpError, match="Catalog unavailable") as withheld:
         await mcp._mcp_server.request_handlers[types.ListToolsRequest](
             types.ListToolsRequest(method="tools/list")
         )
+    assert withheld.value.error.code == -32603 and "fixture@" not in str(withheld.value)
 
 
 @pytest.mark.contract

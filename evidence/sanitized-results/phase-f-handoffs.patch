@@ -1,0 +1,3323 @@
+diff --git a/scripts/validate_phase_a.py b/scripts/validate_phase_a.py
+--- a/scripts/validate_phase_a.py
++++ b/scripts/validate_phase_a.py
+@@ -13,11 +13,15 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("output", type=Path)
+-    parser.add_argument("--phase", choices=["a", "b", "c", "d", "e"], default="a")
++    parser.add_argument("--phase", choices=["a", "b", "c", "d", "e", "f"], default="a")
+     options = parser.parse_args()
+     output = options.output.resolve()
+     output.mkdir(exist_ok=True, parents=True)
+     packages = {
++        "f": (
++            "phase_f_handoffs",
++            "817dd2bb1e29ea0df7649531aa03629b110307ffc7243fd57bc28716b115e320",
++        ),
+         "e": (
+             "phase_e_resources",
+             "07395db2215214d78c6f7a657dd625f56f2ae4d481daa45fa8f63f42623a73a0",
+@@ -72,7 +76,9 @@
+                 [
+                     *args,
+                     "--negative-controls",
+-                    "--output" if options.phase == "e" and report == "fixture" else "--report",
++                    "--output"
++                    if options.phase in {"e", "f"} and report == "fixture"
++                    else "--report",
+                     str(output / f"{report}-checks.json"),
+                 ],
+                 check=True,
+diff --git a/src/canvas_bridge/processes/privacy.py b/src/canvas_bridge/processes/privacy.py
+--- a/src/canvas_bridge/processes/privacy.py
++++ b/src/canvas_bridge/processes/privacy.py
+@@ -1,6 +1,14 @@
+ """Reviewed process envelope field vocabulary; text still receives privacy checks."""
+ 
+-FIELDS = frozenset(
++FIELDS = frozenset("""handoff_id packet packet_id packet_revision semantic_basis_id transport_revision storage_principal_ref
++logical_artifact_id criterion_ids assessment artifact_readiness criteria prerequisite_ids identity_basis assignment_ref responsible_actor
++recipient_ids members member_id label responsibility acknowledgment_members acknowledgment_policy required_response requires_process_context
++action_id owner_id expected_output process_context process_link scope_state transfer requested_action downstream_execution transfer_blockers
++action_blockers condition_states blockers presentation_note local_packet_state next_action_state ack_by_member current_ack_state
++responses acknowledged_by recorded_by evidence_ref evidence_basis observation_ids original_semantic_basis_id current_basis changed_axes
++correspondence response_cutoff output_id output_kind output_format exports delivery_state external_transfer payload assignment_id artifact_version
++inventory_complete dependency_versions assessed_at validated_at proof_id observed_at known_at applicability state source_ref saved_at
++attempt_count receipt receipt_ref destination_ref delivery_reports evidence_sources prior_packet_id response_revisions declared_conditions required_inputs input_versions condition_version resource_artifacts restored_fields selected_packet_ack_state selected_packet_ack_by_member selected_packet_applicability exported_output prior_unresolved_outputs recovery_mode export_state current_ack_count acknowledgment_state local_receipt_id""".split()) | frozenset(
+     """plan_id plan_revision effective_time booking_evidence_ref verification fields confirmed_objects capacity_intervals required_quantity available_quantity turnaround_minutes observed_ready_at provider_attempt_count confirmed_reservations confirmed_study_events expected_bases work_episode candidate_rejections resource_usage quantity_minutes future_quantity_minutes supply_id lead_time_results study_blocks study_block_id apply_status handoff_schema_version partial_service served_step_ids unmet_step_ids known_steps_plan blocked_step_ids artifact_id process_source_id current_generation generation current_work_basis inventory operating_calendar_ref calendars windows start_at end_at
+     process process_id process_revision phase_scope_refs source_known_at requirement_version_refs readiness_basis_refs
+     current_constraint_refs resource_allocation_refs reservation_support_refs logical_receipt_refs required_artifact_refs
+diff --git a/src/canvas_bridge/processes/reasons.py b/src/canvas_bridge/processes/reasons.py
+--- a/src/canvas_bridge/processes/reasons.py
++++ b/src/canvas_bridge/processes/reasons.py
+@@ -17,6 +17,17 @@
+ )
+ # Public diagnostics use fixed remedies. Never echo host quotes or document identifiers.
+ READINESS_MESSAGES = {
++    "HANDOFF_EXPORT_WITHHELD":"Review restricted content references in the selected packet before export.",
++    "HANDOFF_RESTORE_CONFLICT":"Select a prior change or review the later edit to the affected field.",
++    "HANDOFF_ADAPTER_UNAVAILABLE":"Use local payload export or record a supplied receipt. This deployment has no configured adapter for that output.",
++    "HANDOFF_OUTPUT_UNAVAILABLE":"Retrieve the original packet and its exact export.",
++    "HANDOFF_DESTINATION_SCOPE":"Use the packet's explicit recipients and a currently authorized destination.",
++    "HANDOFF_OUTPUT_CONFLICT":"The supplied output identity or hash conflicts with its original receipt.",
++    "HANDOFF_PACKET_UNAVAILABLE":"Select a saved handoff and exact packet from this assignment.",
++    "HANDOFF_BASIS_CHANGED":"Retrieve current assignment and packet revisions, then prepare an updated packet.",
++    "HANDOFF_RESPONSE_TIME":"Use the recorded event time for this packet and a knowledge cutoff no later than now.",
++    "HANDOFF_RESPONSE_SCOPE":"Correct the original member and packet observation, or record a separate response.",
++    "HANDOFF_ARTIFACT_SCOPE":"Choose the logical artifact in the selected readiness assignment.",
+     "RESOURCE_STUDY_BINDING_REQUIRED":"Bind this existing Phase D block to the attended phase. Use the study-calendar workflow for its owned event.",
+     "RESOURCE_OBSERVATION_ONLY":"This adapter can report requirements and supplied confirmations. Obtain the booking through the resource owner.",
+     "RESOURCE_DEPENDENCY_PENDING":"Confirm the prerequisite reservation or calendar operation, then retrieve the plan.",
+diff --git a/src/canvas_bridge/processes/surfaces.py b/src/canvas_bridge/processes/surfaces.py
+--- a/src/canvas_bridge/processes/surfaces.py
++++ b/src/canvas_bridge/processes/surfaces.py
+@@ -12,6 +12,9 @@
+         "get_study_forecast_plan",
+         "forecast_remaining_work",
+         "apply_resource_plan_operation",
++        "reconcile_handoff_output",
++        "get_group_handoff",
++        "export_group_handoff",
+         "get_resource_plan",
+         "get_assignment_change",
+         "get_assignment_readiness",
+@@ -24,6 +27,10 @@
+         "record_scoped_effort",
+         "compensate_resource_effects",
+         "check_resource_calendar",
++        "restore_group_handoff",
++        "record_handoff_delivery_receipt",
++        "prepare_group_handoff",
++        "record_handoff_response",
+         "save_resource_plan",
+         "save_study_replan",
+         "check_study_calendar",
+@@ -46,6 +53,10 @@
+         "record_scoped_effort",
+         "compensate_resource_effects",
+         "check_resource_calendar",
++        "restore_group_handoff",
++        "record_handoff_delivery_receipt",
++        "prepare_group_handoff",
++        "record_handoff_response",
+         "save_resource_plan",
+         "save_study_replan",
+         "check_study_calendar",
+diff --git a/src/canvas_bridge/processes/tools.py b/src/canvas_bridge/processes/tools.py
+--- a/src/canvas_bridge/processes/tools.py
++++ b/src/canvas_bridge/processes/tools.py
+@@ -10,6 +10,9 @@
+ from canvas_bridge.processes import (
+     change_service,
+     effort_service,
++    handoff_models,
++    handoff_outputs,
++    handoff_service,
+     readiness,
+     resource_effects,
+     resource_service,
+@@ -20,6 +23,57 @@
+ 
+ 
+ def register_tools(register, bridge):
++    @register(write=True, destructive=True)
++    async def restore_group_handoff(request: handoff_models.Restore) -> Result:
++        """Restore selected responsibility, action or presentation fields changed by an exact packet revision. Conflicting later edits must be resolved; original records and responses remain available."""
++        return await handoff_service.restore(bridge.processes, request_identity().owner, request)
++
++    @register(write=True)
++    async def reconcile_handoff_output(request: handoff_models.OutputOperation) -> Result:
++        """Reconcile an exact exported payload with a configured host file or delivery adapter. Requires resolved destination and current grant. Only explicitly confirmed new actions can create an output. Use reconcile_only for uncertain historical outcomes."""
++        return await handoff_outputs.operate(bridge.processes, request_identity().owner, request)
++
++    @register(write=True)
++    async def record_handoff_delivery_receipt(request: handoff_models.SuppliedReceipt) -> Result:
++        """Record a supplied delivery receipt against its exact exported hash and recipient set. This records a declaration independently of teammate responses."""
++        return await handoff_outputs.observe(bridge.processes, request_identity().owner, request)
++
++    @register(write=True)
++    async def prepare_group_handoff(request: handoff_models.Prepare) -> Result:
++        """Save or reconcile a private group handoff from an existing assignment, logical artifact, explicit member declarations and next action. Use the current journal revision and prior packet ID on replacement. Optionally bind an exact Phase E generation and step. Read back the packet for content and applicability."""
++        return await handoff_service.prepare(bridge.processes, request_identity().owner, request)
++
++    @register()
++    async def get_group_handoff(
++        record_id: Ref,
++        handoff_id: Ref,
++        packet_id: Ref | None = None,
++        as_of: AwareDatetime | None = None,
++        output_id: Ref | None = None,
++    ) -> Result:
++        """Retrieve a saved group handoff, criterion evidence, progress, responsibilities and current or historical response applicability. An as-of cutoff selects only packets, outputs and responses known by that time."""
++        return await handoff_service.view(
++            bridge.processes,
++            request_identity().owner,
++            record_id,
++            handoff_id,
++            packet_id,
++            as_of,
++            output_id,
++        )
++
++    @register(write=True)
++    async def record_handoff_response(request: handoff_models.Response) -> Result:
++        """Record an explicitly supplied response on the exact packet it referenced. Specify the actual responding scoped member and evidence. The authenticated owner is its recorder. Use observation revisions for corrections and retractions."""
++        return await handoff_service.record_response(
++            bridge.processes, request_identity().owner, request
++        )
++
++    @register(write=True)
++    async def export_group_handoff(request: handoff_models.Export) -> Result:
++        """Return the current private packet as JSON or Markdown with an exact UTF-8 payload hash. Retry a lost response with the original request and key. Local export has no external delivery effect."""
++        return await handoff_service.export(bridge.processes, request_identity().owner, request)
++
+     @register(write=True)
+     async def check_resource_calendar(request: resource_effects.CalendarReadback) -> Result:
+         """Use a fresh complete host calendar snapshot to reconcile one resource-study event. After explicit confirmation prepare a conditional host action; find the exact marker before retrying a create."""
+diff --git a/src/canvas_bridge/processes/handoff_models.py b/src/canvas_bridge/processes/handoff_models.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/processes/handoff_models.py
+@@ -0,0 +1,178 @@
++"""Local, explicitly declared group identities and immutable packet operations."""
++
++from typing import Annotated, Literal
++
++from pydantic import Field, model_validator
++
++from canvas_bridge.analytics.effort_history import Instant
++from canvas_bridge.processes import effort_service as effort
++from canvas_bridge.processes import readiness as rd
++from canvas_bridge.processes.models import Model, Ref
++
++MemberId = Annotated[str, Field(min_length=1, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")]
++Text = Annotated[str, Field(min_length=1, max_length=1200)]
++ResponseKind = Literal["received", "accepted_for_next_step", "changes_requested"]
++ConditionScope = Literal["transfer", "requested_action", "downstream_execution"]
++
++
++class Member(Model):
++    member_id: MemberId
++    label: Annotated[str, Field(min_length=1, max_length=100)]
++
++
++class Responsibility(Model):
++    assignment_ref: Ref
++    revision: Ref
++    members: tuple[Member, ...] = Field(max_length=24)
++    responsible_actor: MemberId | None = None
++    recipient_ids: tuple[MemberId, ...] = Field(default=(), max_length=24)
++    identity_basis: Literal["explicit_declaration", "source_assignment", "proposed", "unresolved"]
++    source_ref: Ref
++    evidence: rd.Anchor | None = None
++
++    @model_validator(mode="after")
++    def identities(self):
++        ids = [m.member_id for m in self.members]
++        if len(set(ids)) != len(ids) or len(set(self.recipient_ids)) != len(self.recipient_ids):
++            raise ValueError("Use one entry per scoped member.")
++        if self.identity_basis == "source_assignment" and not self.evidence:
++            raise ValueError("A sourced assignment requires its exact passage.")
++        return self
++
++
++class InputRef(Model):
++    logical_id: Ref
++    expected_hash: rd.Digest | None = None
++
++
++class Action(Model):
++    required_inputs: tuple[InputRef, ...] = Field(default=(), max_length=6)
++    action_id: Ref
++    revision: Ref
++    owner_id: MemberId | None = None
++    description: Text
++    expected_output: Text
++    prerequisite_ids: tuple[Ref, ...] = Field(default=(), max_length=40)
++    requires_process_context: bool = False
++    acknowledgment_policy: Literal["optional", "any", "all"] = "optional"
++    acknowledgment_members: tuple[MemberId, ...] = Field(default=(), max_length=24)
++    required_response: ResponseKind = "accepted_for_next_step"
++    due_at: Instant | None = None
++
++
++class ProcessLink(Model):
++    process_id: Ref
++    generation_id: Ref
++    step_id: Ref
++    # Only these named blockers govern transfer or the requested action.
++    transfer_blockers: tuple[Ref, ...] = Field(default=(), max_length=40)
++    action_blockers: tuple[Ref, ...] = Field(default=(), max_length=40)
++
++
++class Condition(Model):
++    blocker_id: Ref
++    revision: Ref
++    scope: ConditionScope
++    state: Literal["blocked", "unknown", "conditional", "ready"]
++    next_action: Text
++    source_ref: Ref
++    expires_at: Instant | None = None
++    evidence: rd.Anchor | None = None
++
++
++class Prepare(effort.Mutation):
++    conditions: tuple[Condition, ...] = Field(default=(), max_length=24)
++    handoff_id: Ref
++    expected_packet: Ref | None = None
++    work_id: Ref | None = None
++    expected_artifact_hash: rd.Digest | None = None
++    expected_requirement_revision: Ref | None = None
++    expected_episode_id: Ref | None = None
++    artifact_logical_id: Ref
++    criterion_ids: tuple[Ref, ...] = Field(default=(), max_length=40)
++    responsibility: Responsibility
++    action: Action
++    process: ProcessLink | None = None
++    presentation_note: Text | None = None
++
++    @model_validator(mode="after")
++    def scope(self):
++        if len({c.blocker_id for c in self.conditions}) != len(self.conditions):
++            raise ValueError("Duplicate condition identity.")
++        if len({v.logical_id for v in self.action.required_inputs}) != len(
++            self.action.required_inputs
++        ):
++            raise ValueError("Duplicate action input.")
++        if len(set(self.criterion_ids)) != len(self.criterion_ids):
++            raise ValueError("Duplicate requirement scope.")
++        if self.criterion_ids and not set(self.action.prerequisite_ids) <= set(self.criterion_ids):
++            raise ValueError("Action prerequisites must belong to the selected packet scope.")
++        if not set(self.action.acknowledgment_members) <= set(self.responsibility.recipient_ids):
++            raise ValueError("Acknowledgment applies only to named recipients.")
++        if self.process and set(self.process.action_blockers) & set(self.process.transfer_blockers):
++            raise ValueError("Choose one governing scope for each blocker.")
++        return self
++
++
++class Response(effort.Mutation):
++    handoff_id: Ref
++    packet_id: Ref
++    observation_id: Ref
++    expected_observation_revision: int = Field(ge=0)
++    acknowledged_by: MemberId
++    state: ResponseKind
++    evidence_basis: Literal[
++        "supplied_direct_response", "supplied_relayed_response", "supplied_member_declaration"
++    ]
++    evidence_ref: Ref
++    evidence: rd.Anchor | None = None
++    observed_at: Instant
++    retracted: bool = False
++    supersedes: Ref | None = None
++
++    @model_validator(mode="after")
++    def direct_source(self):
++        if self.evidence_basis == "supplied_direct_response" and not self.evidence:
++            raise ValueError(
++                "A supplied direct response requires a bound passage. A relayed declaration can use its supplied reference."
++            )
++        return self
++
++
++class Export(effort.Mutation):
++    handoff_id: Ref
++    packet_id: Ref
++    output_format: Literal["json", "markdown"] = "json"
++
++
++class OutputOperation(effort.Mutation):
++    handoff_id: Ref
++    packet_id: Ref
++    output_id: Ref
++    kind: Literal["downloadable_artifact", "delivery"]
++    destination_ref: Ref
++    recipient_ids: tuple[MemberId, ...] = Field(default=(), max_length=24)
++    confirmed: bool
++    expected_destination_revision: Ref | None = None
++    reconcile_only: bool = False
++
++
++class SuppliedReceipt(effort.Mutation):
++    handoff_id: Ref
++    packet_id: Ref
++    output_id: Ref
++    receipt_ref: Ref
++    destination_ref: Ref
++    recipient_ids: tuple[MemberId, ...] = Field(min_length=1, max_length=24)
++    content_hash: rd.Digest
++    observed_at: Instant
++    evidence: rd.Anchor | None = None
++
++
++class Restore(effort.Mutation):
++    handoff_id: Ref
++    packet_id: Ref
++    expected_packet: Ref
++    fields: tuple[Literal["responsibility", "action", "presentation_note"], ...] = Field(
++        min_length=1, max_length=3
++    )
+diff --git a/src/canvas_bridge/processes/handoff_projection.py b/src/canvas_bridge/processes/handoff_projection.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/processes/handoff_projection.py
+@@ -0,0 +1,429 @@
++"""Project scoped readiness and response applicability from authorized, versioned records."""
++
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes import (
++    effort_service as effort,
++)
++from canvas_bridge.processes import (
++    readiness as rd,
++)
++from canvas_bridge.processes import (
++    resource_service as resources,
++)
++from canvas_bridge.processes.state import failure
++
++
++def assess(record, logical_id, criterion_ids):
++    bindings = {b["logical_id"]: b for b in record.data["bindings"]}
++    artifact = bindings.get(logical_id)
++    if not artifact or artifact["role"] != "artifact":
++        failure("HANDOFF_ARTIFACT_SCOPE")
++    rows = {r["requirement_id"]: r for r in record.data["requirements"]}
++    ids = sorted(criterion_ids or rows)
++    projected = []
++    for ident in ids:
++        r = rows.get(ident)
++        if not r:
++            projected.append(
++                dict(
++                    requirement_id=ident,
++                    criterion=ident,
++                    assessment_status="unknown",
++                    applicability="unknown",
++                    required=True,
++                    evidence=[],
++                    dependency_versions={},
++                    reason="requirement_unavailable",
++                )
++            )
++            continue
++        deps = rd.dependencies(r, [rd.Binding.model_validate(v) for v in bindings.values()])
++        available = all(bindings.get(k, {}).get("document_id") for k in deps)
++        applicable = r["applicability"]
++        state = r["assessment_status"]
++        reason = "current_assessment"
++        if applicable == "not_applicable" and r.get("applicability_basis"):
++            state = "not_applicable"
++        elif (
++            applicable != "applicable"
++            or not available
++            or not artifact.get("document_id")
++            or logical_id not in deps
++            or r["coverage"] != "complete"
++            or record.data.get("pending_change")
++        ):
++            state, reason = "unknown", "unavailable_or_incomplete_evidence"
++        evidence = []
++        if state not in {"unknown", "not_applicable"}:
++            for a in [r["governing"], *r["evidence"]]:
++                b = bindings[a["source"]]
++                evidence.append(
++                    a | dict(document_id=b["document_id"], content_hash=b["content_hash"])
++                )
++        projected.append(
++            dict(
++                requirement_id=ident,
++                criterion=r["criterion"],
++                required=r["required"],
++                applicability=applicable,
++                assessment_status=state,
++                reason=reason,
++                coverage=r["coverage"],
++                evidence=evidence,
++                reviewed_extent=r.get("reviewed_extent", []),
++                assessed_at=r.get("original_assessed_at", record.data["assessed_at"]),
++                validated_at=r.get("carry_forward_validated_at"),
++                proof_id=r.get("carry_forward_proof"),
++                dependency_versions={k: bindings[k]["content_hash"] for k in sorted(deps)},
++                work_id=(r.get("work_item") or {}).get("work_id"),
++                evidence_sources=[
++                    dict(
++                        logical_id=k,
++                        content_hash=bindings[k]["content_hash"],
++                        document_id=bindings[k]["document_id"],
++                    )
++                    for k in sorted(deps)
++                ],
++                next_step=r.get("action") or r.get("followup"),
++            )
++        )
++    complete = (
++        bool(ids)
++        and all(k in rows for k in ids)
++        and (bool(criterion_ids) or record.data["membership_complete"])
++    )
++    status = rd.summarize(projected, complete)["summary_status"]
++    return dict(
++        logical_artifact_id=logical_id,
++        artifact_version=artifact.get("content_hash"),
++        document_id=artifact.get("document_id"),
++        scope_locator="selected_criteria",
++        inventory_complete=complete,
++        artifact_readiness=status,
++        criteria=projected,
++    )
++
++
++def work_context(record, work_id, criterion_ids=()):
++    if not work_id:
++        selected_ids = set(criterion_ids) or {
++            r["requirement_id"] for r in record.data["requirements"]
++        }
++        # C materializes lineage history on first reconciliation. Seed initial
++        # episodes identically so merely recording an alias cannot rotate a handoff.
++        episodes = {
++            k: v["episode_id"]
++            for k, v in record.data.get("work_history", {}).items()
++            if k in selected_ids and v.get("episode_id")
++        }
++        for row in record.data["requirements"]:
++            if row["requirement_id"] in selected_ids and row.get("work_item"):
++                episodes[row["requirement_id"]] = effort.episode(row["work_item"], record.id)
++        return dict(
++            work_lineage_id=record.id,
++            work_episode_id=fingerprint([record.id, "assignment", sorted(episodes.items())]),
++            work_occurrence_id=record.id,
++            personal_progress="unset",
++        )
++    selected = next(
++        (
++            w
++            for w in rd.project(record.data, record.data["requirements"])["remaining_work"]
++            if w["work_id"] == work_id
++        ),
++        None,
++    )
++    if not selected:
++        failure("READINESS_WORK_UNAVAILABLE")
++    return dict(
++        work_lineage_id=selected.get("lineage_id")
++        or fingerprint([record.id, selected["requirement_id"], selected["gap_kind"]]),
++        work_episode_id=effort.episode(selected, record.id),
++        work_occurrence_id=work_id,
++        personal_progress=selected["progress_state"],
++    )
++
++
++def process_context(data, record, work, link):
++    if not link:
++        return dict(scope_state="absent", blockers=[], process_ref=None)
++    history = data.get("resource_generations", [])
++    latest = resources.previous(data, record.id, link["process_id"])
++    g = next(
++        (
++            g
++            for g in history
++            if g["record_id"] == record.id
++            and g["process"]["id"] == link["process_id"]
++            and g["generation_id"] == link["generation_id"]
++        ),
++        None,
++    )
++    context = (
++        next(
++            (
++                h
++                for h in resources.projection(g, history)["handoff"]
++                if h["step_id"] == link["step_id"]
++            ),
++            None,
++        )
++        if g
++        else None
++    )
++    current = bool(
++        g
++        and latest == g
++        and context
++        and g["work_episode_id"] == work["work_episode_id"]
++        and g["work_revision"] == record.revision
++    )
++    blocks = []
++    for b in (context or {}).get("blocker_refs", []):
++        scope = (
++            "transfer"
++            if b["blocker_id"] in link["transfer_blockers"]
++            else "requested_action"
++            if b["blocker_id"] in link["action_blockers"]
++            else "downstream_execution"
++        )
++        blocks.append(
++            b
++            | dict(
++                scope=scope,
++                state=b["state"]
++                if current and b["state"] in {"conditional", "blocked", "ready"}
++                else "unknown",
++            )
++        )
++    known = {b["blocker_id"] for b in blocks} | set(
++        (context or {}).get("resource_allocation_refs", [])
++    )
++    for scope, refs in (
++        ("transfer", link["transfer_blockers"]),
++        ("requested_action", link["action_blockers"]),
++    ):
++        for missing in sorted(set(refs) - known):
++            blocks.append(
++                dict(
++                    blocker_id=missing,
++                    scope=scope,
++                    state="unknown",
++                    source_ref=link["generation_id"],
++                    next_action="Verify the selected blocker on this process step.",
++                )
++            )
++    part = None
++    if context:
++        step = next(s for s in g["process"]["steps"] if s["id"] == link["step_id"])
++        part = fingerprint(
++            [
++                step,
++                [
++                    e
++                    for e in g["process"]["dependencies"]
++                    if link["step_id"] in (e["from_step"], e["to_step"])
++                ],
++                [s for s in g["process"]["supplies"] if s["step_id"] == link["step_id"]],
++                [a for a in g["allocations"] if a["step_id"] == link["step_id"]],
++                context["reservation_support_refs"],
++            ]
++        )
++    return dict(
++        scope_state="current" if current else "unknown",
++        blockers=blocks,
++        process_ref=link["generation_id"],
++        condition_version=part,
++        forecast_id=g["forecast_id"] if g else None,
++        resource_artifacts=(context or {}).get("required_artifact_refs", []),
++        handoff_basis_id=(context or {}).get("handoff_basis_id"),
++        step_id=link["step_id"],
++        logical_receipt_refs=(context or {}).get("logical_receipt_refs", []),
++    )
++
++
++def context_for(data, record, work, link, declared, at):
++    from datetime import datetime
++
++    context = process_context(data, record, work, link)
++    for c in declared:
++        context["blockers"].append(
++            c
++            | dict(
++                basis="supplied_condition",
++                state="unknown"
++                if c["expires_at"] and at >= datetime.fromisoformat(c["expires_at"])
++                else c["state"],
++            )
++        )
++    return context
++
++
++def inputs_for(record, action):
++    available = {b["logical_id"]: b for b in record.data["bindings"]}
++    resolved = []
++    for ref in action.get("required_inputs", []):
++        b = available.get(ref["logical_id"], {})
++        known = bool(
++            b.get("document_id")
++            and (not ref["expected_hash"] or b["content_hash"] == ref["expected_hash"])
++        )
++        resolved.append(
++            dict(
++                logical_id=ref["logical_id"],
++                content_hash=b.get("content_hash"),
++                availability_state="available" if known else "unknown",
++            )
++        )
++    return resolved
++
++
++def condition_states(context, action, link):
++    def aggregate(scope):
++        selected = [b for b in context["blockers"] if b["scope"] == scope]
++        states = [b["state"] for b in selected]
++        if context["scope_state"] != "current" and (
++            any(b.get("basis") != "supplied_condition" for b in selected)
++            or (
++                link
++                and (
++                    (scope == "transfer" and link["transfer_blockers"])
++                    or (scope == "requested_action" and link["action_blockers"])
++                )
++            )
++            or scope == "downstream_execution"
++            and action["requires_process_context"]
++        ):
++            return "unknown"
++        return next(
++            (state for state in ("blocked", "unknown", "conditional") if state in states), "ready"
++        )
++
++    return {k: aggregate(k) for k in ("transfer", "requested_action", "downstream_execution")}
++
++
++def basis(record, assessment, work, role, action, context, link):
++    relevant = [
++        {
++            k: b.get(k)
++            for k in ("blocker_id", "scope", "state", "source_ref", "revision", "expires_at")
++        }
++        for b in context["blockers"]
++        if b["scope"] != "downstream_execution" or action["requires_process_context"]
++    ]
++    states = condition_states(context, action, link)
++    selected = [
++        dict(
++            requirement_id=r["requirement_id"],
++            criterion=r["criterion"],
++            applicability=r["applicability"],
++            required=r["required"],
++            assessment_status=r["assessment_status"],
++            dependencies=r["dependency_versions"],
++            evidence_scope=[
++                {k: a[k] for k in ("source", "part", "surface", "quote")} for a in r["evidence"]
++            ],
++            reviewed_extent=r.get("reviewed_extent", []),
++            coverage=r.get("coverage", "unavailable"),
++        )
++        for r in assessment["criteria"]
++    ]
++    return dict(
++        assignment_id=record.id,
++        work_episode_id=work["work_episode_id"],
++        artifact=dict(
++            logical_artifact_id=assessment["logical_artifact_id"],
++            artifact_version=assessment["artifact_version"],
++            scope_locator=assessment["scope_locator"],
++        ),
++        requirements=selected,
++        inventory_complete=assessment["inventory_complete"],
++        responsibility=dict(
++            assignment_ref=role["assignment_ref"],
++            revision=role["revision"],
++            responsible_actor=role["responsible_actor"],
++            recipient_ids=sorted(role["recipient_ids"]),
++            identity_basis=role["identity_basis"],
++            source_ref=role["source_ref"],
++            member_ids=sorted(m["member_id"] for m in role["members"]),
++        ),
++        action=action,
++        input_versions=inputs_for(record, action),
++        process_step=[link["process_id"], link["step_id"]] if link else None,
++        conditions=sorted(relevant, key=lambda b: b["blocker_id"]),
++        process_input_version=context.get("condition_version")
++        if action["requires_process_context"]
++        else None,
++        governing_conditions=[
++            states["transfer"],
++            states["requested_action"],
++            states["downstream_execution"] if action["requires_process_context"] else "ready",
++        ],
++    )
++
++
++def identity_supported(role):
++    members = {row["member_id"]: row["label"] for row in role["members"]}
++    actors = {role["responsible_actor"], *role["recipient_ids"]}
++    if (
++        role["identity_basis"] not in {"explicit_declaration", "source_assignment"}
++        or not role["recipient_ids"]
++        or not actors <= members.keys()
++    ):
++        return False
++    if role["identity_basis"] == "source_assignment":
++        import re
++
++        quote = (role.get("evidence") or {}).get("quote", "")
++        # A name match only checks the supplied assignment passage. It cannot
++        # resolve a roster, grant access, or identify the authenticated recorder.
++        return all(
++            any(
++                re.search(r"(?<!\w)" + re.escape(label) + r"(?!\w)", quote, re.I)
++                for label in (actor, members[actor])
++            )
++            for actor in actors
++        )
++    return True
++
++
++def next_state(packet, acks):
++    action = packet["action"]
++    role = packet["responsibility"]
++    members = {m["member_id"] for m in role["members"]}
++    if (
++        not identity_supported(role)
++        or role["responsible_actor"] not in members
++        or not role["recipient_ids"]
++        or not set(role["recipient_ids"]) <= members
++        or action["owner_id"] not in members
++    ):
++        return "needs_identity"
++    if not packet.get("current_basis", True):
++        return "requires_rebase"
++    states = condition_states(packet["process_context"], action, packet["process_link"])
++    gates = {states["transfer"], states["requested_action"]}
++    if action["requires_process_context"]:
++        gates.add(states["downstream_execution"])
++    prereqs = {
++        r["requirement_id"]: r["assessment_status"] for r in packet["assessment"]["criteria"]
++    }
++    evidence = {prereqs.get(k, "unknown") for k in action["prerequisite_ids"]}
++    if "blocked" in gates:
++        return "blocked"
++    if "conflict" in evidence:
++        return "conflict"
++    if "needs_work" in evidence:
++        return "needs_work"
++    if any(v["availability_state"] != "available" for v in packet.get("input_versions", [])):
++        return "unknown"
++    if not packet["assessment"]["document_id"] or "unknown" in evidence | gates:
++        return "unknown"
++    if "conditional" in gates:
++        return "conditional"
++    if action["acknowledgment_policy"] != "optional":
++        selected = action["acknowledgment_members"] or role["recipient_ids"]
++        matches = [acks.get(m) == action["required_response"] for m in selected]
++        if not (any(matches) if action["acknowledgment_policy"] == "any" else all(matches)):
++            return "waiting_ack"
++    return "ready"
+diff --git a/src/canvas_bridge/processes/handoff_service.py b/src/canvas_bridge/processes/handoff_service.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/processes/handoff_service.py
+@@ -0,0 +1,721 @@
++"""Versioned artifact handoffs in the existing owner-locked academic process journal."""
++
++import hashlib
++import json
++from datetime import datetime
++
++from canvas_bridge.domain import Result
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes import (
++    effort_service as effort,
++)
++from canvas_bridge.processes import (
++    handoff_projection as hp,
++)
++from canvas_bridge.processes import (
++    readiness as rd,
++)
++from canvas_bridge.processes.requests import ProcessScope
++from canvas_bridge.processes.state import failure
++
++
++def packets(data, record_id, handoff_id):
++    return [
++        p
++        for p in data.get("handoff_packets", [])
++        if p["assignment_id"] == record_id and p["handoff_id"] == handoff_id
++    ]
++
++
++def select(history, packet_id=None):
++    row = next(
++        (p for p in reversed(history) if packet_id is None or p["packet_id"] == packet_id), None
++    )
++    if not row:
++        failure("HANDOFF_PACKET_UNAVAILABLE")
++    return row
++
++
++def verify_anchor(service, owner, record, anchor):
++    if not anchor:
++        return
++    bindings = [rd.Binding.model_validate(b) for b in record.data["bindings"]]
++    docs = tuple(b.document_id for b in bindings if b.document_id)
++    entries = service.load(
++        owner,
++        ProcessScope(document_ids=docs, local_course=record.scope.course, term=record.scope.term),
++    )
++    rd.check_anchor(anchor, rd.bind(entries, bindings), entries)
++
++
++def correspondence(previous, current, record):
++    """Only the committed C comparison can establish equivalence between different bytes."""
++    if previous is None:
++        return "initial", []
++    before, after = previous["semantic_basis"], current["semantic_basis"]
++    if previous["semantic_basis_id"] == current["semantic_basis_id"]:
++        return "current_exact", previous["equivalent_basis_ids"]
++    stable = (
++        "assignment_id",
++        "work_episode_id",
++        "responsibility",
++        "action",
++        "conditions",
++        "governing_conditions",
++        "process_step",
++        "process_input_version",
++        "input_versions",
++        "inventory_complete",
++    )
++    if any(before[k] != after[k] for k in stable):
++        return "material_change", []
++    if (
++        before["artifact"]["logical_artifact_id"] != after["artifact"]["logical_artifact_id"]
++        or before["artifact"]["scope_locator"] != after["artifact"]["scope_locator"]
++    ):
++        return "material_change", []
++    changes = record.data.get("change_report", {})
++    if changes.get("applied_revision") != record.revision or previous[
++        "work_revision"
++    ] > changes.get("base_revision", 0):
++        return "unresolved", []
++    comparisons = {c["logical_id"]: c for c in changes["comparisons"]}
++
++    def equivalent(source, start, end):
++        if start == end:
++            return bool(start)
++        c = comparisons.get(source, {})
++        return bool(
++            c.get("before_hash") == start
++            and c.get("after_hash") == end
++            and c.get("comparison_coverage") == "complete"
++            and c.get("change_class") == "content_equivalent"
++            and c.get("proof_id")
++        )
++
++    if not equivalent(
++        before["artifact"]["logical_artifact_id"],
++        before["artifact"]["artifact_version"],
++        after["artifact"]["artifact_version"],
++    ):
++        return (
++            "unresolved"
++            if any(c.get("comparison_coverage") != "complete" for c in comparisons.values())
++            else "material_change"
++        ), []
++    old = {r["requirement_id"]: r for r in before["requirements"]}
++    proofs = {r["requirement_id"]: r.get("proof_id") for r in current["assessment"]["criteria"]}
++    if set(old) != set(proofs):
++        return "material_change", []
++    for row in after["requirements"]:
++        prior = old[row["requirement_id"]]
++        if {k: v for k, v in row.items() if k != "dependencies"} != {
++            k: v for k, v in prior.items() if k != "dependencies"
++        }:
++            return "material_change", []
++        if (
++            not proofs[row["requirement_id"]]
++            or prior["dependencies"].keys() != row["dependencies"].keys()
++            or not all(
++                equivalent(k, v, row["dependencies"][k]) for k, v in prior["dependencies"].items()
++            )
++        ):
++            return "unresolved", []
++    return "carried_equivalent", sorted(
++        {previous["semantic_basis_id"], *previous["equivalent_basis_ids"]}
++    )
++
++
++def responses(data, packet, cutoff):
++    selected = {}
++    for row in data.get("handoff_responses", []):
++        if (
++            row["assignment_id"] == packet["assignment_id"]
++            and row["handoff_id"] == packet["handoff_id"]
++            and datetime.fromisoformat(row["known_at"]) <= cutoff
++        ):
++            old = selected.get(row["observation_id"])
++            if not old or row["revision"] > old["revision"]:
++                selected[row["observation_id"]] = row
++    reviewed = []
++    for r in selected.values():
++        if r["retracted"]:
++            state = "historical"
++        elif not r["actor_supported"]:
++            state = "unresolved"
++        elif not packet.get("current_basis", True):
++            state = "unresolved"
++        elif r["original_semantic_basis_id"] == packet["semantic_basis_id"]:
++            state = "current_exact"
++        elif r["original_semantic_basis_id"] in packet["equivalent_basis_ids"]:
++            state = "carried_equivalent"
++        elif r["original_semantic_basis_id"] in packet.get("unresolved_basis_ids", []):
++            state = "unresolved"
++        else:
++            state = "historical"
++        reviewed.append(r | dict(applicability=state))
++    members = []
++    for member in packet["responsibility"]["recipient_ids"]:
++        current = [
++            r
++            for r in reviewed
++            if r["acknowledged_by"] == member
++            and r["applicability"] in {"current_exact", "carried_equivalent"}
++        ]
++        superseded = {r["supersedes"] for r in current if r.get("supersedes")}
++        current = [r for r in current if r["observation_id"] not in superseded]
++        states = {r["state"] for r in current}
++        members.append(
++            dict(
++                member_id=member,
++                state="conflict" if len(states) > 1 else next(iter(states), "none"),
++                observation_ids=[r["observation_id"] for r in current],
++            )
++        )
++    states = {m["state"] for m in members}
++    return dict(
++        responses=reviewed,
++        ack_by_member=members,
++        current_ack_state="conflict"
++        if "conflict" in states
++        else "partial"
++        if len(states) > 1
++        else next(iter(states), "none"),
++    )
++
++
++def append_packet(data, now, record, owner, req):
++    history = packets(data, record.id, req.handoff_id)
++    prev = history[-1] if history else None
++    if (prev and prev["packet_id"]) != req.expected_packet:
++        failure("HANDOFF_BASIS_CHANGED")
++    work = hp.work_context(record, req.work_id, req.criterion_ids)
++    role = req.responsibility.model_dump(mode="json")
++    action = req.action.model_dump(mode="json")
++    for k in ("prerequisite_ids", "acknowledgment_members"):
++        action[k] = sorted(action[k])
++    role["recipient_ids"].sort()
++    role["members"].sort(key=lambda m: m["member_id"])
++    link = req.process.model_dump(mode="json") if req.process else None
++    declared = [c.model_dump(mode="json") for c in req.conditions]
++    context = hp.context_for(data, record, work, link, declared, now)
++    assessed = hp.assess(record, req.artifact_logical_id, req.criterion_ids)
++    if (
++        (req.expected_artifact_hash and req.expected_artifact_hash != assessed["artifact_version"])
++        or (
++            req.expected_requirement_revision
++            and req.expected_requirement_revision != record.data["requirement_set_revision"]
++        )
++        or (req.expected_episode_id and req.expected_episode_id != work["work_episode_id"])
++    ):
++        failure("HANDOFF_BASIS_CHANGED")
++    basis = hp.basis(record, assessed, work, role, action, context, link)
++    for existing in history:
++        for axis, key in (("responsibility", "assignment_ref"), ("action", "action_id")):
++            old = existing["semantic_basis"][axis]
++            new = basis[axis]
++            if (old[key], old["revision"]) == (new[key], new["revision"]) and old != new:
++                failure("HANDOFF_BASIS_CHANGED")
++    packet = dict(
++        handoff_id=req.handoff_id,
++        assignment_id=record.id,
++        work_revision=record.revision,
++        work_id=req.work_id,
++        criterion_ids=list(req.criterion_ids),
++        **work,
++        storage_principal_ref=fingerprint(owner),
++        packet_id=fingerprint([record.id, req.handoff_id, req.idempotency_key]),
++        packet_revision=len(history) + 1,
++        transport_revision=len(history) + 1,
++        semantic_basis=basis,
++        semantic_basis_id=fingerprint(basis),
++        saved_at=now.isoformat(),
++        requirement_set_revision=record.data["requirement_set_revision"],
++        responsibility=role,
++        action=action,
++        assessment=assessed,
++        process_link=link,
++        declared_conditions=declared,
++        input_versions=basis["input_versions"],
++        process_context=context,
++        presentation_note=req.presentation_note,
++        local_packet_state="saved",
++    )
++    packet["correspondence"], packet["equivalent_basis_ids"] = correspondence(prev, packet, record)
++    packet["prior_packet_id"] = prev["packet_id"] if prev else None
++    status = packet["correspondence"]
++    packet["unresolved_basis_ids"] = (
++        sorted(
++            {
++                prev["semantic_basis_id"],
++                *prev["equivalent_basis_ids"],
++                *prev.get("unresolved_basis_ids", []),
++            }
++        )
++        if prev and status == "unresolved"
++        else prev.get("unresolved_basis_ids", [])
++        if prev and status in {"current_exact", "carried_equivalent"}
++        else []
++    )
++    packet["changed_axes"] = [k for k in basis if prev and basis[k] != prev["semantic_basis"][k]]
++    all_rows = data.setdefault("handoff_packets", [])
++    if len(all_rows) >= 80:
++        failure("PROCESS_STORAGE_BUDGET")
++    all_rows.append(packet)
++
++    return packet
++
++
++async def prepare(service, owner, req):
++    record, _ = await effort.authorize(service, owner, req.record_id)
++    verify_anchor(service, owner, record, req.responsibility.evidence)
++    for c in req.conditions:
++        verify_anchor(service, owner, record, c.evidence)
++
++    def update(data, now):
++        p = append_packet(data, now, record, owner, req)
++        doc = p["assessment"]["document_id"]
++        if doc:
++            p["assessment"]["filename"] = service.bridge.independent.require(owner, doc).content[
++                "filename"
++            ]
++
++    receipt = effort.mutate(service, owner, record, req, update)
++    return Result(
++        summary="Saved the private handoff packet.",
++        data=receipt
++        | dict(packet_id=fingerprint([record.id, req.handoff_id, req.idempotency_key])),
++    )
++
++
++async def record_response(service, owner, req):
++    record, _ = await effort.authorize(service, owner, req.record_id)
++    verify_anchor(service, owner, record, req.evidence)
++
++    def update(data, now):
++        p = select(packets(data, record.id, req.handoff_id), req.packet_id)
++        if req.observed_at > now or req.observed_at < datetime.fromisoformat(p["saved_at"]):
++            failure("HANDOFF_RESPONSE_TIME")
++        rows = data.setdefault("handoff_responses", [])
++        history = [
++            r for r in rows if (r["assignment_id"], r["handoff_id"]) == (record.id, req.handoff_id)
++        ]
++        versions = [r for r in history if r["observation_id"] == req.observation_id]
++        if len(versions) != req.expected_observation_revision:
++            failure("PROCESS_REVISION_MISMATCH")
++        if versions and (versions[-1]["packet_id"], versions[-1]["acknowledged_by"]) != (
++            req.packet_id,
++            req.acknowledged_by,
++        ):
++            failure("HANDOFF_RESPONSE_SCOPE")
++        if req.supersedes:
++            older = next(
++                (r for r in reversed(history) if r["observation_id"] == req.supersedes), None
++            )
++            if (
++                not older
++                or versions
++                or req.supersedes == req.observation_id
++                or (older["original_semantic_basis_id"], older["acknowledged_by"])
++                != (p["semantic_basis_id"], req.acknowledged_by)
++            ):
++                failure("HANDOFF_RESPONSE_SCOPE")
++        if len(rows) >= 400:
++            failure("PROCESS_STORAGE_BUDGET")
++        rows.append(
++            dict(
++                assignment_id=record.id,
++                handoff_id=req.handoff_id,
++                packet_id=req.packet_id,
++                original_semantic_basis_id=p["semantic_basis_id"],
++                observation_id=req.observation_id,
++                revision=len(versions) + 1,
++                acknowledged_by=req.acknowledged_by,
++                recorded_by=fingerprint(owner),
++                actor_supported=hp.identity_supported(p["responsibility"])
++                and req.acknowledged_by in p["responsibility"]["recipient_ids"],
++                state=req.state,
++                evidence_basis=req.evidence_basis,
++                evidence_ref=req.evidence_ref,
++                evidence=req.evidence.model_dump(mode="json") if req.evidence else None,
++                observed_at=req.observed_at.isoformat(),
++                known_at=now.isoformat(),
++                retracted=req.retracted,
++                supersedes=req.supersedes or (versions[-1]["supersedes"] if versions else None),
++            )
++        )
++
++    return Result(
++        summary="Recorded the supplied response on its original packet.",
++        data=effort.mutate(service, owner, record, req, update),
++    )
++
++
++def render(data, record, p, cutoff, latest, *, historical=False):
++    context = p["process_context"]
++    work = p
++    consistent = not record.data.get("pending_change")
++    if latest and not historical:
++        if p["work_id"] and p["work_id"] not in {
++            w["work_id"]
++            for w in rd.project(record.data, record.data["requirements"])["remaining_work"]
++        }:
++            consistent = False
++        else:
++            work = hp.work_context(record, p["work_id"], p["criterion_ids"])
++            context = hp.context_for(
++                data, record, work, p["process_link"], p.get("declared_conditions", []), cutoff
++            )
++            selected = next(
++                (
++                    b
++                    for b in record.data["bindings"]
++                    if b["logical_id"] == p["assessment"]["logical_artifact_id"]
++                    and b["role"] == "artifact"
++                ),
++                None,
++            )
++            if not selected:
++                consistent = False
++            else:
++                assessment = hp.assess(record, selected["logical_id"], p["criterion_ids"])
++                current = hp.basis(
++                    record,
++                    assessment,
++                    work,
++                    p["responsibility"],
++                    p["action"],
++                    context,
++                    p["process_link"],
++                )
++                consistent = (
++                    consistent
++                    and fingerprint(current) == p["semantic_basis_id"]
++                    and selected["document_id"] == p["assessment"]["document_id"]
++                )
++    packet = p | dict(
++        current_basis=bool(latest and (historical or consistent)),
++        process_context=context,
++        personal_progress=work["personal_progress"],
++    )
++    result = responses(data, packet, cutoff)
++    if not latest:
++        # Preserve how observations bind to this archived subject, independently
++        # of whether anything about a past packet authorizes current work.
++        on_original = responses(data, p | dict(current_basis=True), cutoff)
++        result["selected_packet_ack_state"] = on_original["current_ack_state"]
++        result["selected_packet_ack_by_member"] = on_original["ack_by_member"]
++        original = {r["observation_id"]: r["applicability"] for r in on_original["responses"]}
++        for row in result["responses"]:
++            row["selected_packet_applicability"] = original[row["observation_id"]]
++            if row["selected_packet_applicability"] in {"current_exact", "carried_equivalent"}:
++                row["applicability"] = "historical"
++    action_state = hp.next_state(
++        packet, {r["member_id"]: r["state"] for r in result["ack_by_member"]}
++    )
++    if action_state == "ready":
++        next_step = packet["action"]["description"]
++    elif action_state == "needs_identity":
++        next_step = "Confirm the responsible contributor, intended recipients and action owner."
++    elif action_state == "requires_rebase":
++        next_step = "Prepare an updated packet from the current work and artifact."
++    elif action_state == "waiting_ack":
++        next_step = "Record the required response from the named recipient scope."
++    else:
++        next_step = next(
++            (
++                b["next_action"]
++                for b in packet["process_context"]["blockers"]
++                if b["state"] != "ready"
++                and (
++                    b["scope"] != "downstream_execution"
++                    or packet["action"]["requires_process_context"]
++                )
++            ),
++            None,
++        )
++        next_step = next_step or next(
++            (
++                r["next_step"]
++                for r in packet["assessment"]["criteria"]
++                if r["requirement_id"] in packet["action"]["prerequisite_ids"]
++                and r.get("next_step")
++            ),
++            "Verify the required inputs and current criterion evidence.",
++        )
++    jobs = [
++        j
++        for j in data.get("handoff_outputs", [])
++        if j["packet_id"] == p["packet_id"] and datetime.fromisoformat(j["known_at"]) <= cutoff
++    ]
++    ops = []
++    for o in data.get("handoff_operations", []):
++        if o["packet_id"] != p["packet_id"] or datetime.fromisoformat(o["created_at"]) > cutoff:
++            continue
++        attempts = [a for a in o["attempts"] if datetime.fromisoformat(a["started_at"]) <= cutoff]
++        status = "issued"
++        if (
++            attempts
++            and datetime.fromisoformat(attempts[-1].get("known_at", attempts[-1]["started_at"]))
++            <= cutoff
++        ):
++            status = attempts[-1]["state"]
++        ops.append(
++            dict(
++                operation_id=o["operation_id"],
++                output_kind=o["output_kind"],
++                status=status,
++                destination_ref=o["destination_ref"],
++                receipt=o.get("receipt") if status == "confirmed" else None,
++                attempt_count=len(attempts),
++            )
++        )
++    reported = [
++        r
++        for r in data.get("handoff_delivery_reports", [])
++        if r["packet_id"] == p["packet_id"] and datetime.fromisoformat(r["known_at"]) <= cutoff
++    ]
++    older_ids = {
++        r["packet_id"]
++        for r in packets(data, record.id, p["handoff_id"])
++        if r["packet_revision"] < p["packet_revision"]
++    }
++    outstanding = []
++    for op in data.get("handoff_operations", []):
++        if op["packet_id"] not in older_ids or datetime.fromisoformat(op["created_at"]) > cutoff:
++            continue
++        attempts = [a for a in op["attempts"] if datetime.fromisoformat(a["started_at"]) <= cutoff]
++        if not attempts:
++            continue
++        last = attempts[-1]
++        state = (
++            last["state"]
++            if datetime.fromisoformat(last.get("known_at", last["started_at"])) <= cutoff
++            else "issued"
++        )
++        if state in {"issued", "uncertain"}:
++            outstanding.append(
++                dict(
++                    operation_id=op["operation_id"],
++                    packet_id=op["packet_id"],
++                    output_id=op["output_id"],
++                    output_kind=op["output_kind"],
++                    destination_ref=op["destination_ref"],
++                    recipient_ids=op["recipient_ids"],
++                    status=state,
++                    recovery_mode="lookup_only",
++                )
++            )
++    delivery_states = {o["status"] for o in ops if o["output_kind"] == "delivery"}
++    delivery = (
++        "partially_confirmed"
++        if "confirmed" in delivery_states and len(delivery_states) > 1
++        else next(iter(delivery_states))
++        if len(delivery_states) == 1
++        else "outcome_unknown"
++        if delivery_states
++        else "reported_confirmed"
++        if reported
++        else "not_requested"
++    )
++    return (
++        {k: v for k, v in packet.items() if k not in {"semantic_basis", "equivalent_basis_ids"}}
++        | result
++        | dict(
++            artifact_readiness=p["assessment"]["artifact_readiness"],
++            next_action_state=action_state,
++            next_step=next_step,
++            condition_states=hp.condition_states(
++                packet["process_context"], p["action"], p["process_link"]
++            ),
++            response_cutoff=cutoff.isoformat(),
++            response_revisions=[
++                {
++                    k: r[k]
++                    for k in (
++                        "observation_id",
++                        "revision",
++                        "packet_id",
++                        "state",
++                        "known_at",
++                        "observed_at",
++                        "retracted",
++                    )
++                }
++                for r in data.get("handoff_responses", [])
++                if r["assignment_id"] == p["assignment_id"]
++                and r["handoff_id"] == p["handoff_id"]
++                and datetime.fromisoformat(r["known_at"]) <= cutoff
++            ],
++            exports=[{k: v for k, v in j.items() if k != "payload"} for j in jobs],
++            operations=ops,
++            prior_unresolved_outputs=outstanding,
++            export_state="available" if packet["current_basis"] else "requires_rebase",
++            current_ack_count=sum(
++                m["state"] not in {"none", "conflict"} for m in result["ack_by_member"]
++            ),
++            delivery_reports=reported,
++            delivery_state=delivery,
++            view_mode="as_of_saved_packet" if historical else "current" if latest else "historical",
++        )
++    )
++
++
++async def view(service, owner, record_id, handoff_id, packet_id=None, as_of=None, output_id=None):
++    record, journal = await effort.authorize(service, owner, record_id)
++    now = service.repository.clock()
++    cutoff = as_of or now
++    if cutoff > now:
++        failure("HANDOFF_RESPONSE_TIME")
++    history = [
++        p
++        for p in packets(journal.data if journal else {}, record.id, handoff_id)
++        if datetime.fromisoformat(p["saved_at"]) <= cutoff
++    ]
++    p = select(history, packet_id)
++    result = render(journal.data, record, p, cutoff, p == history[-1], historical=as_of is not None)
++    response = dict(journal_revision=journal.revision, work_revision=record.revision, packet=result)
++    if output_id:
++        output = next(
++            (
++                o
++                for o in journal.data.get("handoff_outputs", [])
++                if o["packet_id"] == p["packet_id"]
++                and o["output_id"] == output_id
++                and datetime.fromisoformat(o["known_at"]) <= cutoff
++            ),
++            None,
++        )
++        if not output:
++            failure("HANDOFF_OUTPUT_UNAVAILABLE")
++        response["exported_output"] = output
++    return Result(
++        summary="Retrieved the version-bound local handoff.",
++        data=response,
++        sources=service.citations(owner, journal.sources),
++    )
++
++
++async def export(service, owner, req):
++    record, _ = await effort.authorize(service, owner, req.record_id)
++    output_id = fingerprint([record.id, req.packet_id, "export", req.idempotency_key])
++
++    def update(data, now):
++        history = packets(data, record.id, req.handoff_id)
++        packet = select(history, req.packet_id)
++        result = render(data, record, packet, now, packet == history[-1])
++        if not result["current_basis"]:
++            failure("HANDOFF_BASIS_CHANGED")
++        # Export only this packet's shared scope. The private journal also contains personal forecasts.
++        shared = {
++            k: result[k]
++            for k in (
++                "handoff_id",
++                "packet_id",
++                "packet_revision",
++                "assignment_id",
++                "work_lineage_id",
++                "work_occurrence_id",
++                "work_episode_id",
++                "requirement_set_revision",
++                "semantic_basis_id",
++                "transport_revision",
++                "responsibility",
++                "action",
++                "assessment",
++                "input_versions",
++                "condition_states",
++                "process_context",
++                "next_action_state",
++                "next_step",
++                "current_ack_state",
++                "ack_by_member",
++                "delivery_state",
++                "presentation_note",
++            )
++        }
++        from canvas_bridge.privacy.output import filter_output
++
++        shared, _, _, hidden = filter_output(shared)
++        if hidden:
++            failure("HANDOFF_EXPORT_WITHHELD")
++        payload = json.dumps(shared, ensure_ascii=False, sort_keys=True, indent=2)
++        if req.output_format == "markdown":
++            from canvas_bridge.processes.handoff_export import markdown
++
++            payload = markdown(shared)
++        outputs = data.setdefault("handoff_outputs", [])
++        if len(outputs) >= 80:
++            failure("PROCESS_STORAGE_BUDGET")
++        outputs.append(
++            dict(
++                output_id=output_id,
++                packet_id=packet["packet_id"],
++                known_at=now.isoformat(),
++                output_kind="payload",
++                output_format=req.output_format,
++                content_hash=hashlib.sha256(payload.encode()).hexdigest(),
++                payload=payload,
++                external_transfer=False,
++            )
++        )
++
++    receipt = effort.mutate(service, owner, record, req, update)
++    _, journal = await effort.authorize(service, owner, record.id)
++    output = next(o for o in journal.data["handoff_outputs"] if o["output_id"] == output_id)
++    return Result(
++        summary="Exported the exact local packet payload.",
++        data=receipt | output,
++        sources=service.citations(owner, journal.sources),
++    )
++
++
++async def restore(service, owner, req):
++    from canvas_bridge.processes.handoff_models import Prepare
++
++    record, journal = await effort.authorize(service, owner, req.record_id)
++    history = packets(journal.data if journal else {}, record.id, req.handoff_id)
++    target = select(history, req.packet_id)
++    index = history.index(target)
++    if not index:
++        failure("HANDOFF_RESTORE_CONFLICT")
++    before = history[index - 1]
++    if "responsibility" in req.fields and before["responsibility"]["evidence"]:
++        verify_anchor(
++            service, owner, record, rd.Anchor.model_validate(before["responsibility"]["evidence"])
++        )
++
++    def update(data, now):
++        current = select(packets(data, record.id, req.handoff_id))
++        if (
++            current["packet_id"] != req.expected_packet
++            or current["work_episode_id"] != target["work_episode_id"]
++        ):
++            failure("HANDOFF_BASIS_CHANGED")
++        if any(current[k] != target[k] for k in req.fields):
++            failure("HANDOFF_RESTORE_CONFLICT")
++        args = {
++            k: current[k]
++            for k in ("work_id", "criterion_ids", "responsibility", "action", "presentation_note")
++        }
++        args.update({k: before[k] for k in req.fields})
++        prepared = Prepare(
++            record_id=record.id,
++            handoff_id=req.handoff_id,
++            work_revision=req.work_revision,
++            journal_revision=req.journal_revision,
++            idempotency_key=req.idempotency_key,
++            expected_packet=current["packet_id"],
++            artifact_logical_id=current["assessment"]["logical_artifact_id"],
++            process=current["process_link"],
++            conditions=current.get("declared_conditions", []),
++            **args,
++        )
++        packet = append_packet(data, now, record, owner, prepared)
++        packet["compensates"] = target["packet_id"]
++        packet["restored_fields"] = list(req.fields)
++
++    return Result(
++        summary="Saved the scoped restoration as a new packet revision.",
++        data=effort.mutate(service, owner, record, req, update),
++    )
+diff --git a/src/canvas_bridge/processes/handoff_outputs.py b/src/canvas_bridge/processes/handoff_outputs.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/processes/handoff_outputs.py
+@@ -0,0 +1,253 @@
++"""Optional exact-output adapter boundary. The default connector is local-only."""
++
++from datetime import datetime
++from typing import Literal, Protocol
++
++from pydantic import Field
++
++from canvas_bridge.domain import Result
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes import effort_service as effort
++from canvas_bridge.processes import handoff_service as handoff
++from canvas_bridge.processes.models import Model, Ref
++from canvas_bridge.processes.readiness import Digest
++from canvas_bridge.processes.state import failure
++
++
++class Receipt(Model):
++    operation_id: Ref
++    content_hash: Digest
++    destination_ref: Ref
++    recipient_ids: tuple[Ref, ...] = Field(max_length=24)
++    object_id: Ref
++    revision: Ref
++    locator: Ref | None = None
++
++
++class Adapter(Protocol):
++    """A deployment must resolve actual destinations and verify exact-source recipient grants."""
++
++    async def authorize(self, owner, kind, destination, recipients, sources) -> bool: ...
++    async def lookup(self, owner, operation_id) -> Receipt | None: ...
++    async def create_if_absent(self, owner, operation, payload) -> Receipt: ...
++
++
++class Finish(effort.Mutation):
++    operation_id: Ref
++    state: Literal["confirmed", "uncertain", "conflict"]
++    receipt: Receipt | None
++    reconciled_existing: bool
++    attempt_id: Ref
++
++
++def exported(data, packet_id, output_id):
++    row = next(
++        (
++            r
++            for r in data.get("handoff_outputs", [])
++            if (r["output_id"], r["packet_id"]) == (output_id, packet_id)
++        ),
++        None,
++    )
++    if not row:
++        failure("HANDOFF_OUTPUT_UNAVAILABLE")
++    return row
++
++
++def find(data, opid):
++    return next((o for o in data.get("handoff_operations", []) if o["operation_id"] == opid), None)
++
++
++async def operate(service, owner, req):
++    record, journal = await effort.authorize(service, owner, req.record_id)
++    history = handoff.packets(journal.data if journal else {}, record.id, req.handoff_id)
++    p = handoff.select(history, req.packet_id)
++    recipients = tuple(sorted(req.recipient_ids))
++    if (
++        req.kind == "delivery"
++        and (list(recipients) != p["responsibility"]["recipient_ids"] or not recipients)
++    ) or (req.kind == "downloadable_artifact" and recipients):
++        failure("HANDOFF_DESTINATION_SCOPE")
++    output = exported(journal.data, p["packet_id"], req.output_id)
++    opid = fingerprint(
++        [record.id, p["packet_id"], req.output_id, req.kind, req.destination_ref, recipients]
++    )
++    adapter = getattr(service, "handoff_output_adapter", None)
++    if adapter is None:
++        failure("HANDOFF_ADAPTER_UNAVAILABLE")
++    if not await adapter.authorize(
++        owner, req.kind, req.destination_ref, recipients, journal.sources
++    ):
++        failure("HANDOFF_DESTINATION_SCOPE")
++
++    def begin(data, now):
++        current = handoff.select(handoff.packets(data, record.id, req.handoff_id))
++        old = find(data, opid)
++        if old and req.expected_destination_revision != old.get("expected_destination_revision"):
++            failure("HANDOFF_OUTPUT_CONFLICT")
++        if old and old["status"] == "confirmed":
++            return
++        if req.reconcile_only and not old:
++            failure("HANDOFF_OUTPUT_UNAVAILABLE")
++        if not req.reconcile_only:
++            view = handoff.render(data, record, p, now, current["packet_id"] == p["packet_id"])
++            if not req.confirmed:
++                failure("PROCESS_CONFIRMATION_REQUIRED")
++            if not view["current_basis"]:
++                failure("HANDOFF_BASIS_CHANGED")
++            if req.kind == "delivery" and (
++                view["next_action_state"] == "needs_identity"
++                or view["condition_states"]["transfer"] != "ready"
++            ):
++                failure("HANDOFF_DESTINATION_SCOPE")
++        if not old:
++            ops = data.setdefault("handoff_operations", [])
++            if len(ops) >= 100:
++                failure("PROCESS_STORAGE_BUDGET")
++            old = dict(
++                operation_id=opid,
++                packet_id=p["packet_id"],
++                output_id=req.output_id,
++                output_kind=req.kind,
++                expected_destination_revision=req.expected_destination_revision,
++                semantic_basis_id=p["semantic_basis_id"],
++                packet_revision=p["packet_revision"],
++                expected_work_revision=record.revision,
++                destination_ref=req.destination_ref,
++                recipient_ids=list(recipients),
++                content_hash=output["content_hash"],
++                attempts=[],
++                created_at=now.isoformat(),
++            )
++            ops.append(old)
++        if old.get("status") == "conflict":
++            failure("HANDOFF_OUTPUT_CONFLICT")
++        if len(old["attempts"]) >= 20:
++            failure("PROCESS_STORAGE_BUDGET")
++        old.update(status="issued", updated_at=now.isoformat())
++        old["attempts"].append(
++            dict(
++                attempt_id=fingerprint([opid, req.idempotency_key]),
++                started_at=now.isoformat(),
++                state="issued",
++            )
++        )
++
++    intent = effort.mutate(service, owner, record, req, begin)
++    record, journal = await effort.authorize(service, owner, req.record_id)
++    op = find(journal.data, opid)
++    if op["status"] == "confirmed":
++        return Result(
++            summary="Retrieved confirmed output receipt.",
++            data=dict(
++                operation_id=opid,
++                status="confirmed",
++                receipt=op["receipt"],
++                journal_revision=journal.revision,
++            ),
++            sources=service.citations(owner, journal.sources),
++        )
++    receipt = None
++    recovered = False
++    state = "uncertain"
++    try:
++        receipt = await adapter.lookup(owner, opid)
++        recovered = receipt is not None
++        if receipt is None and not req.reconcile_only:
++            if intent["revision"] != journal.revision or req.work_revision != record.revision:
++                failure("HANDOFF_BASIS_CHANGED")
++            if not await adapter.authorize(
++                owner, req.kind, req.destination_ref, recipients, journal.sources
++            ):
++                failure("HANDOFF_DESTINATION_SCOPE")
++            receipt = await adapter.create_if_absent(owner, op, output["payload"])
++        if receipt is not None:
++            receipt = Receipt.model_validate(receipt)
++            state = (
++                "confirmed"
++                if (
++                    receipt.operation_id,
++                    receipt.content_hash,
++                    receipt.destination_ref,
++                    sorted(receipt.recipient_ids),
++                )
++                == (opid, output["content_hash"], req.destination_ref, list(recipients))
++                and (req.kind != "downloadable_artifact" or receipt.locator)
++                else "conflict"
++            )
++    except (TimeoutError, ConnectionError):
++        pass
++    final = Finish(
++        record_id=record.id,
++        work_revision=record.revision,
++        journal_revision=journal.revision,
++        idempotency_key=fingerprint([req.idempotency_key, "finish", state]),
++        operation_id=opid,
++        state=state,
++        receipt=receipt,
++        reconciled_existing=recovered,
++        attempt_id=fingerprint([opid, req.idempotency_key]),
++    )
++
++    def finish(data, now):
++        stored = find(data, opid)
++        if stored["status"] == "confirmed":
++            return
++        attempt = next(a for a in stored["attempts"] if a["attempt_id"] == final.attempt_id)
++        attempt.update(state=state, reconciled_existing=recovered, known_at=now.isoformat())
++        stored.update(status=state, updated_at=now.isoformat())
++        if state == "confirmed":
++            stored["receipt"] = receipt.model_dump(mode="json")
++
++    result = effort.mutate(service, owner, record, final, finish)
++    return Result(
++        summary="Recorded the exact output operation outcome.",
++        data=result
++        | dict(
++            operation_id=opid,
++            status=state,
++            receipt=receipt.model_dump(mode="json") if state == "confirmed" else None,
++        ),
++        sources=service.citations(owner, journal.sources),
++    )
++
++
++async def observe(service, owner, req):
++    record, _ = await effort.authorize(service, owner, req.record_id)
++    handoff.verify_anchor(service, owner, record, req.evidence)
++
++    def save(data, now):
++        p = handoff.select(handoff.packets(data, record.id, req.handoff_id), req.packet_id)
++        output = exported(data, p["packet_id"], req.output_id)
++        if (
++            req.content_hash != output["content_hash"]
++            or sorted(req.recipient_ids) != p["responsibility"]["recipient_ids"]
++        ):
++            failure("HANDOFF_DESTINATION_SCOPE")
++        if req.observed_at > now or req.observed_at < datetime.fromisoformat(output["known_at"]):
++            failure("HANDOFF_RESPONSE_TIME")
++        reports = data.setdefault("handoff_delivery_reports", [])
++        r = dict(
++            packet_id=p["packet_id"],
++            output_id=req.output_id,
++            receipt_ref=req.receipt_ref,
++            destination_ref=req.destination_ref,
++            recipient_ids=sorted(req.recipient_ids),
++            content_hash=req.content_hash,
++            observed_at=req.observed_at.isoformat(),
++            evidence_basis="supplied_receipt",
++            recorded_by=fingerprint(owner),
++        )
++        prior = next((row for row in reports if row["receipt_ref"] == req.receipt_ref), None)
++        if prior:
++            if any(prior[k] != v for k, v in r.items()):
++                failure("HANDOFF_OUTPUT_CONFLICT")
++        else:
++            if len(reports) >= 100:
++                failure("PROCESS_STORAGE_BUDGET")
++            reports.append(r | dict(known_at=now.isoformat()))
++
++    return Result(
++        summary="Recorded the supplied delivery evidence.",
++        data=effort.mutate(service, owner, record, req, save),
++    )
+diff --git a/src/canvas_bridge/processes/handoff_export.py b/src/canvas_bridge/processes/handoff_export.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/processes/handoff_export.py
+@@ -0,0 +1,68 @@
++"""A portable human-readable projection of the already privacy-reviewed packet."""
++
++import re
++from html import escape
++
++
++def text(value):
++    if value is None:
++        return "Unspecified"
++    value = escape(" ".join(str(value).split()), quote=False)
++    return re.sub(r"([\\`*_{}\[\]()#+!|~])", r"\\\1", value)
++
++
++def markdown(shared):
++    role = shared["responsibility"]
++    members = {m["member_id"]: m["label"] for m in role["members"]}
++    action = shared["action"]
++    report = shared["assessment"]
++
++    def person(key):
++        return text(members.get(key, key))
++
++    lines = [
++        "# Artifact handoff",
++        "",
++        f"**Next action** — {text(shared['next_step'])}",
++        "",
++        f"{person(action['owner_id'])} owns the requested action. Expected output: {text(action['expected_output'])}.",
++        f"Contributor: {person(role['responsible_actor'])}. Intended recipients: {', '.join(person(k) for k in role['recipient_ids']) or 'Unresolved'}.",
++        "",
++        "## Artifact and evidence",
++        "",
++        f"{text(report.get('filename') or report['logical_artifact_id'])} · {text(report['artifact_readiness'])}",
++        f"Document ID: {text(report.get('document_id'))}. Content version: {text(report.get('artifact_version'))}.",
++        "",
++    ]
++    for row in report["criteria"]:
++        lines.append(
++            f"- **{text(row['requirement_id'])}** · {text(row['assessment_status'])} — {text(row['criterion'])}"
++        )
++        for evidence in row.get("evidence", []):
++            if evidence["source"] == report["logical_artifact_id"]:
++                lines.append(
++                    f"  - Part {evidence['part']} ({text(evidence['surface'])}): {text(evidence['quote'])}"
++                )
++        if row.get("next_step") and row["assessment_status"] != "satisfied":
++            lines.append(f"  - Follow-up: {text(row['next_step'])}")
++    lines.extend(
++        [
++            "",
++            "## Conditions and responses",
++            "",
++            f"Requested action: {text(shared['next_action_state'])}. Delivery: {text(shared['delivery_state'])}.",
++        ]
++    )
++    for b in shared["process_context"]["blockers"]:
++        lines.append(f"- {text(b['scope'])} · {text(b['state'])} — {text(b['next_action'])}")
++    for member in shared["ack_by_member"]:
++        lines.append(f"- {person(member['member_id'])}: {text(member['state'])}")
++    if shared.get("presentation_note"):
++        lines.extend(["", text(shared["presentation_note"])])
++    lines.extend(
++        [
++            "",
++            f"Packet {text(shared['packet_id'])}, revision {shared['packet_revision']}. Semantic basis {text(shared['semantic_basis_id'])}.",
++        ]
++    )
++    return "\n".join(lines) + "\n"
+diff --git a/tests/test_phase_f_handoffs.py b/tests/test_phase_f_handoffs.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_phase_f_handoffs.py
+@@ -0,0 +1,1441 @@
++"""Phase F on imported synthetic coursework, signed MCP, and the owned state journal."""
++
++import hashlib
++import json
++import os
++from copy import deepcopy
++from datetime import UTC, datetime
++from pathlib import Path
++from zipfile import ZipFile
++
++import pytest
++
++from canvas_bridge.processes import handoff_models as hm
++from canvas_bridge.processes import handoff_service as hs
++from canvas_bridge.processes import readiness as rd
++from tests.test_independent_intelligence import independent_recipient as independent_recipient
++from tests.test_recovery_independence import parsed_locally as parsed_locally
++
++ARCHIVE = Path(__file__).resolve().parents[1] / "benchmarks/academic/phase-f/specs.zip"
++
++
++def content(name):
++    with ZipFile(ARCHIVE) as archive:
++        return archive.read("phase_f_handoffs/" + name)
++
++
++def capture(name, data):
++    if directory := os.environ.get("BRIDGE_PHASE_F_OUTPUT"):
++        p = Path(directory)
++        p.mkdir(exist_ok=True, parents=True)
++        (p / (name + ".json")).write_text(json.dumps(data, indent=2), "utf8")
++
++
++def anchor(source, quote):
++    return dict(source=source, part=1, surface="text", quote=quote)
++
++
++async def documents(bridge, owner, version):
++    refs = []
++    for name, role in [("requirements_and_roles", "brief"), (version, "artifact")]:
++        raw = content("fixtures/model_inputs/" + name + ".md")
++        doc = await bridge.independent.ingest(
++            owner,
++            raw,
++            name + ".md",
++            "text/markdown",
++            course="Studio",
++            own_material=True,
++            share_text=True,
++            allow_academic_analysis=True,
++        )
++        refs.append(
++            dict(
++                logical_id=role,
++                role=role,
++                document_id=doc,
++                content_hash=hashlib.sha256(raw).hexdigest(),
++            )
++        )
++    return refs
++
++
++def review(bindings, version):
++    brief = content("fixtures/model_inputs/requirements_and_roles.md").decode().splitlines()
++    draft = content("fixtures/model_inputs/" + version + ".md").decode().splitlines()
++    criteria = []
++    for i, key in enumerate(["R1", "R2"]):
++        missing = i == 1 and version == "handoff_draft"
++        criteria.append(
++            dict(
++                requirement_id=key,
++                criterion=brief[2 + i],
++                governing=anchor("brief", brief[2 + i]),
++                applicability_basis="Brief lists criterion",
++                assessment_status="needs_work" if missing else "satisfied",
++                rationale="Current artifact passage",
++                evidence=[anchor("artifact", draft[2 + i * 2])],
++                coverage="complete",
++                gap_kind="table" if missing else None,
++                action="Add the comparison table" if missing else None,
++                completion_condition="A bounded table is present" if missing else None,
++            )
++        )
++    return rd.Review(
++        assignment_id="prototype",
++        course="Studio",
++        term="fall",
++        expected_revision=0,
++        idempotency_key="readiness",
++        membership_complete=True,
++        review_scope="Selected prototype",
++        bindings=bindings,
++        requirements=criteria,
++    )
++
++
++def request(record):
++    return dict(
++        handoff_id="studio-review",
++        record_id=record,
++        work_revision=1,
++        journal_revision=0,
++        idempotency_key="packet-1",
++        artifact_logical_id="artifact",
++        responsibility=dict(
++            assignment_ref="roles",
++            revision="1",
++            members=[dict(member_id=k, label="Member " + k) for k in ("A", "B", "C")],
++            responsible_actor="A",
++            recipient_ids=["B"],
++            identity_basis="source_assignment",
++            source_ref="roles/1",
++            evidence=anchor(
++                "brief",
++                content("fixtures/model_inputs/requirements_and_roles.md").decode().splitlines()[5],
++            ),
++        ),
++        action=dict(
++            action_id="REVIEW-1",
++            revision="1",
++            owner_id="B",
++            description="Review the written prototype summary",
++            expected_output="Feedback on the written summary",
++            prerequisite_ids=["R1"],
++        ),
++    )
++
++
++async def seed(bridge, owner, version="handoff_v1"):
++    bridge.settings.process_features_enabled = True
++    bindings = await documents(bridge, owner, version)
++    rec = rd.save(bridge.processes, owner, review(bindings, version)).data["record_id"]
++    return request(rec)
++
++
++async def test_signed_lifecycle(
++    bridge, settings, owner, token_factory, parsed_locally, independent_recipient
++):
++    from contextlib import asynccontextmanager
++
++    from canvas_bridge.storage import IndependentResource
++    from tests.test_mcp_contract import running
++    from tests.test_permission_consistency_contract import client_session
++
++    req = await seed(bridge, owner)
++    record = req["record_id"]
++    transcript = []
++    async with (
++        asynccontextmanager(running.__wrapped__)(bridge, settings, None) as url,
++        client_session(url, token_factory()) as session,
++    ):
++
++        async def call(name, args, success=True):
++            result = (await session.call_tool(name, args)).structuredContent
++            transcript.append(dict(tool=name, arguments=args, result=result))
++            assert result and (result["status"] == "ok") == success, (
++                name,
++                result and result["summary"],
++                result and result["data"],
++            )
++            return result["data"]
++
++        async def read(**extra):
++            return await call(
++                "get_group_handoff", dict(record_id=record, handoff_id="studio-review", **extra)
++            )
++
++        capture(
++            "schemas",
++            [
++                t.model_dump(mode="json", exclude_none=True)
++                for t in (await session.list_tools()).tools
++                if "handoff" in t.name
++            ],
++        )
++        first = await call("prepare_group_handoff", dict(request=req))
++        assert first == await call("prepare_group_handoff", dict(request=req))
++        p = (await read())["packet"]
++        assert p["artifact_readiness"] == "ready" and p["next_action_state"] == "ready"
++        assert len(p["assessment"]["criteria"]) == 2 and p["current_ack_state"] == "none"
++        base = dict(
++            record_id=record,
++            work_revision=1,
++            handoff_id=req["handoff_id"],
++            packet_id=p["packet_id"],
++        )
++        export = base | dict(journal_revision=1, idempotency_key="payload", output_format="json")
++        out = await call("export_group_handoff", dict(request=export))
++        assert hashlib.sha256(out["payload"].encode()).hexdigest() == out["content_hash"]
++        assert json.loads(out["payload"])["semantic_basis_id"] == p["semantic_basis_id"]
++        assert out == await call("export_group_handoff", dict(request=export))
++        declared = base | dict(
++            output_id=out["output_id"],
++            content_hash=out["content_hash"],
++            recipient_ids=["B"],
++            destination_ref="declared-channel",
++            receipt_ref="supplied-1",
++            observed_at=datetime.now(UTC).isoformat(),
++            journal_revision=2,
++            idempotency_key="reported",
++        )
++        await call("record_handoff_delivery_receipt", dict(request=declared))
++        packet = (await read())["packet"]
++        assert (
++            packet["delivery_state"] == "reported_confirmed"
++            and packet["current_ack_state"] == "none"
++        )
++        response = base | dict(
++            journal_revision=3,
++            idempotency_key="reply",
++            observation_id="reply-B",
++            expected_observation_revision=0,
++            acknowledged_by="B",
++            state="accepted_for_next_step",
++            evidence_basis="supplied_relayed_response",
++            evidence_ref="synthetic-message",
++            observed_at=datetime.now(UTC).isoformat(),
++        )
++        receipt = await call("record_handoff_response", dict(request=response))
++        assert receipt == await call("record_handoff_response", dict(request=response))
++        packet = (await read())["packet"]
++        assert packet["current_ack_state"] == "accepted_for_next_step"
++        assert packet["responses"][0]["recorded_by"] != packet["responses"][0]["acknowledged_by"]
++        note = req | dict(
++            journal_revision=4,
++            idempotency_key="note",
++            expected_packet=p["packet_id"],
++            presentation_note="Use the saved file.",
++        )
++        await call("prepare_group_handoff", dict(request=note))
++        alias = (await read())["packet"]
++        assert (
++            alias["semantic_basis_id"] == p["semantic_basis_id"]
++            and alias["current_ack_state"] == "accepted_for_next_step"
++        )
++        change = deepcopy(note)
++        change.update(
++            journal_revision=5, idempotency_key="reassign", expected_packet=alias["packet_id"]
++        )
++        change["responsibility"].update(
++            responsible_actor="C",
++            revision="2",
++            identity_basis="explicit_declaration",
++            evidence=None,
++            source_ref="student-reassignment",
++        )
++        await call("prepare_group_handoff", dict(request=change))
++        changed = (await read())["packet"]
++        assert (
++            changed["current_ack_state"] == "none"
++            and changed["responses"][0]["applicability"] == "historical"
++        )
++        late = response | dict(
++            observation_id="late-B", journal_revision=6, idempotency_key="late", state="received"
++        )
++        await call("record_handoff_response", dict(request=late))
++        stale = await call(
++            "prepare_group_handoff", dict(request=change | dict(idempotency_key="stale")), False
++        )
++        assert stale["reason_code"] == "PROCESS_REVISION_MISMATCH"
++        correct = response | dict(
++            journal_revision=7,
++            idempotency_key="correction",
++            expected_observation_revision=1,
++            retracted=True,
++        )
++        await call("record_handoff_response", dict(request=correct))
++        await call(
++            "restore_group_handoff",
++            dict(
++                request=base
++                | dict(
++                    journal_revision=8,
++                    idempotency_key="restore",
++                    packet_id=changed["packet_id"],
++                    expected_packet=changed["packet_id"],
++                    fields=["responsibility"],
++                )
++            ),
++        )
++        restored = (await read())["packet"]
++        assert (
++            restored["responsibility"]["responsible_actor"] == "A"
++            and restored["current_ack_state"] == "received"
++            and restored["presentation_note"] == "Use the saved file."
++        )
++        archived = (await read(packet_id=p["packet_id"]))["packet"]
++        assert (
++            archived["selected_packet_ack_state"] == "received"
++            and archived["view_mode"] == "historical"
++        )
++        earlier = (await read(as_of=packet["response_cutoff"]))["packet"]
++        assert earlier["current_ack_state"] == "accepted_for_next_step"
++        capture("packet-example", packet)
++        with bridge.store.transaction() as db:
++            doc = db.get(IndependentResource, p["assessment"]["document_id"])
++            doc.provenance = doc.provenance | dict(share_text=False)
++        await call("get_group_handoff", dict(record_id=record, handoff_id=req["handoff_id"]), False)
++        capture("signed-lifecycle", transcript)
++
++
++class FixtureOutput:
++    """Persistent local test adapter. No network sends or external destinations."""
++
++    def __init__(self, folder):
++        import sqlite3
++
++        self.folder = Path(folder)
++        self.folder.mkdir(exist_ok=True, parents=True)
++        self.db = self.folder / "effects.db"
++        with sqlite3.connect(self.db) as db:
++            db.execute(
++                "CREATE TABLE IF NOT EXISTS effects(owner TEXT,id TEXT,receipt TEXT,PRIMARY KEY(owner,id))"
++            )
++
++    async def authorize(self, owner, kind, destination, recipients, sources):
++        return bool(sources) and (
++            (kind == "downloadable_artifact" and destination == "fixture-files" and not recipients)
++            or (
++                kind == "delivery"
++                and destination == "fixture-inbox"
++                and tuple(recipients) == ("B",)
++            )
++        )
++
++    async def lookup(self, owner, operation_id):
++        import sqlite3
++
++        from canvas_bridge.processes.handoff_outputs import Receipt
++
++        with sqlite3.connect(self.db) as db:
++            r = db.execute(
++                "SELECT receipt FROM effects WHERE owner=? AND id=?", (owner, operation_id)
++            ).fetchone()
++        return Receipt.model_validate_json(r[0]) if r else None
++
++    async def create_if_absent(self, owner, op, payload):
++        import sqlite3
++
++        from canvas_bridge.processes.handoff_outputs import Receipt
++
++        assert hashlib.sha256(payload.encode()).hexdigest() == op["content_hash"]
++        key = op["operation_id"]
++        with sqlite3.connect(self.db) as db:
++            db.execute("BEGIN IMMEDIATE")
++            r = db.execute(
++                "SELECT receipt FROM effects WHERE owner=? AND id=?", (owner, key)
++            ).fetchone()
++            if r:
++                return Receipt.model_validate_json(r[0])
++            path = self.folder / key
++            path.write_bytes(payload.encode())
++            receipt = Receipt(
++                operation_id=key,
++                content_hash=hashlib.sha256(path.read_bytes()).hexdigest(),
++                destination_ref=op["destination_ref"],
++                recipient_ids=op["recipient_ids"],
++                object_id=key,
++                revision="1",
++                locator="fixture-output/" + key,
++            )
++            db.execute("INSERT INTO effects VALUES(?,?,?)", (owner, key, receipt.model_dump_json()))
++        raise TimeoutError("Response lost after the synthetic effect committed")
++
++
++def served_handoffs(raw, sock):
++    import contextlib
++
++    import uvicorn
++
++    from canvas_bridge.app import create_app
++    from canvas_bridge.config import Settings
++    from tests.conftest import bridge as create_bridge
++
++    settings = Settings.model_validate_json(raw)
++    with contextlib.contextmanager(create_bridge.__wrapped__)(settings) as bridge:
++        bridge.processes.handoff_output_adapter = FixtureOutput(
++            Path(settings.database_url.removeprefix("sqlite:///")).parent / "outputs"
++        )
++        uvicorn.Server(
++            uvicorn.Config(create_app(settings, bridge), log_level="error", access_log=False)
++        ).run(sockets=[sock])
++
++
++@pytest.mark.skipif(not os.getenv("BRIDGE_PHASE_F_HOST"), reason="Opt-in native synthetic host")
++async def test_native_handoff(
++    settings, owner, token_factory, tmp_path, parsed_locally, independent_recipient, monkeypatch
++):
++    import asyncio
++    import contextlib
++
++    from tests import test_phase_b_readiness as host
++    from tests.conftest import bridge as create_bridge
++    from tests.test_permission_consistency_contract import client_session
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "state.db")
++    settings.process_features_enabled = settings.file_reading_enabled = True
++    monkeypatch.setattr(host, "serve", served_handoffs)
++    folder = Path(os.environ["BRIDGE_PHASE_F_HOST"])
++    await asyncio.to_thread(folder.mkdir, parents=True, exist_ok=True)
++    work = tmp_path / "host"
++    work.mkdir()
++    with contextlib.contextmanager(create_bridge.__wrapped__)(settings) as bridge:
++        req = await seed(bridge, owner)
++    base = dict(record_id=req["record_id"], handoff_id=req["handoff_id"])
++    state = None
++    for i, name in enumerate(
++        ("prepare_handoff", "record_response", "reconcile_handoff", "retrieve_and_recover")
++    ):
++        context = base.copy()
++        if i == 0:
++            context["save_request"] = req
++        if i == 1:
++            context["response_request"] = base | dict(
++                work_revision=1,
++                journal_revision=state["journal_revision"],
++                idempotency_key="relayed",
++                observation_id="B-response",
++                expected_observation_revision=0,
++                packet_id=state["packet"]["packet_id"],
++                acknowledged_by="B",
++                state="accepted_for_next_step",
++                evidence_basis="supplied_relayed_response",
++                evidence_ref="message-B-1",
++                observed_at=datetime.now(UTC).isoformat(),
++            )
++            context["supplied_message"] = (
++                "Member B: I accept this version for the written-summary review."
++            )
++        if i == 2:
++            update = deepcopy(req)
++            update.update(
++                expected_packet=state["packet"]["packet_id"],
++                journal_revision=state["journal_revision"],
++                idempotency_key="reassignment",
++            )
++            update["responsibility"].update(
++                responsible_actor="C",
++                revision="2",
++                source_ref="updated-project-declaration",
++                identity_basis="explicit_declaration",
++                evidence=None,
++            )
++            context["save_request"] = update
++        if i == 3:
++            async with (
++                host.running(settings) as setup_pid,
++                client_session(settings.resource_url, token_factory()) as session,
++            ):
++
++                async def invoke(tool, args):
++                    r = (await session.call_tool(tool, args)).structuredContent
++                    assert r["status"] == "ok", r["summary"]
++                    return r["data"]
++
++                state = await invoke("get_group_handoff", base)
++                subject = base | dict(packet_id=state["packet"]["packet_id"], work_revision=1)
++                exported = await invoke(
++                    "export_group_handoff",
++                    dict(
++                        request=subject
++                        | dict(
++                            output_format="markdown",
++                            idempotency_key="payload",
++                            journal_revision=state["journal_revision"],
++                        )
++                    ),
++                )
++                job = subject | dict(
++                    kind="downloadable_artifact",
++                    output_id=exported["output_id"],
++                    destination_ref="fixture-files",
++                    confirmed=True,
++                    recipient_ids=[],
++                    idempotency_key="attempt",
++                    journal_revision=exported["revision"],
++                )
++                lost = await invoke("reconcile_handoff_output", dict(request=job))
++                assert lost["status"] == "uncertain"
++                context["recovery_request"] = job | dict(
++                    confirmed=False,
++                    reconcile_only=True,
++                    idempotency_key="lookup",
++                    journal_revision=lost["revision"],
++                )
++                (folder / "before-restart.json").write_text(
++                    json.dumps(
++                        dict(
++                            pid=setup_pid,
++                            output_hash=exported["content_hash"],
++                            operation_id=lost["operation_id"],
++                            status=lost["status"],
++                        ),
++                        indent=2,
++                    ),
++                    "utf8",
++                )
++        async with host.running(settings) as pid:
++            prompt = (
++                content("prompts/" + name + ".md").decode()
++                + "\nSelected synthetic context: "
++                + json.dumps(context)
++            )
++            answer = await host.review_host(
++                settings.resource_url,
++                token_factory(),
++                prompt,
++                work,
++                folder,
++                name,
++                tools=[
++                    "prepare_group_handoff",
++                    "record_handoff_response",
++                    "get_group_handoff",
++                    "reconcile_handoff_output",
++                ],
++                instructions="Use only these coursework MCP tools. No filesystem, shell, web, external services or other tools. Use the supplied exact request for this task and read the saved packet afterward. All member identities are explicitly declared. Keep content readiness, response provenance and delivery separate. Reconcile only the supplied interrupted downloadable fixture output; never deliver a message.",
++            )
++            assert answer
++            async with client_session(settings.resource_url, token_factory()) as session:
++                state = (await session.call_tool("get_group_handoff", base)).structuredContent[
++                    "data"
++                ]
++            (folder / (name + "-readback.json")).write_text(
++                json.dumps(dict(pid=pid, state=state), indent=2), "utf8"
++            )
++            p = state["packet"]
++            assert p["artifact_readiness"] == "ready" and p["next_action_state"] == "ready"
++            if i == 1:
++                assert p["current_ack_state"] == "accepted_for_next_step"
++            if i >= 2:
++                assert (
++                    p["responses"][0]["applicability"] == "historical"
++                    and p["responsibility"]["responsible_actor"] == "C"
++                )
++            if i == 3:
++                assert (
++                    p["operations"][0]["status"] == "confirmed"
++                    and p["delivery_state"] == "not_requested"
++                )
++                effect = p["operations"][0]["receipt"]
++                actual = (tmp_path / "outputs" / effect["object_id"]).read_bytes()
++                assert hashlib.sha256(actual).hexdigest() == effect["content_hash"]
++                (folder / "handoff-example.md").write_bytes(actual)
++
++
++async def test_roadmap_changed_assignment(bridge, owner, parsed_locally, independent_recipient):
++    from canvas_bridge.processes import (
++        change_service as change,
++    )
++    from canvas_bridge.processes import (
++        effort_service as effort,
++    )
++    from canvas_bridge.processes import (
++        resource_service as resource,
++    )
++    from canvas_bridge.processes import (
++        study_plan as study,
++    )
++    from tests.test_phase_c_reconciliation import authored_rows, target_packet
++    from tests.test_phase_c_reconciliation import fixture as case
++    from tests.test_phase_e_resources import seed as phase_e_seed
++
++    service = bridge.processes
++    plan = await phase_e_seed(bridge, owner)
++    rid = plan["record_id"]
++    f = (await study.view(service, owner, rid)).data["forecasts"][-1]
++    baseline = rd.view(service, owner, rid).data
++    scenario = case("scenarios")["scenarios"][13]
++
++    async def prepare_layers(plan, f, journal_rev, existing_resource, existing_packet):
++        windows = plan["schedule"]["student_windows"]
++        # One continuous Phase D parent reservation; E partitions that same forecast.
++        req = study.SavePlan(
++            record_id=rid,
++            work_revision=f["work_revision"],
++            journal_revision=journal_rev,
++            idempotency_key="study-" + f["forecast_id"],
++            demands=[dict(forecast_id=f["forecast_id"])],
++            constraints=dict(
++                as_of=plan["schedule"]["planning_boundary"],
++                availability_coverage="complete",
++                availability=[dict(start=windows[0]["start_at"], end=windows[-1]["end_at"])],
++            ),
++        )
++        await study.save(service, owner, req)
++        d = (await study.view(service, owner, rid)).data["plan"]
++        plan.update(
++            journal_revision=journal_rev + 1,
++            study_generation=d["generation_id"],
++            study_blocks=[
++                dict(
++                    block_id=d["selected_blocks"][0]["block_id"], step_id="prepare", phase="active"
++                )
++            ],
++            expected_generation=existing_resource,
++        )
++        plan["process"]["steps"][1]["resource_requirement"]["booking_required"] = True
++        await resource.save(service, owner, resource.Save.model_validate(plan))
++        e = (await resource.view(service, owner, rid, "TYPED")).data["generation"]
++        current = rd.view(service, owner, rid).data
++        selected = next(w for w in current["remaining_work"] if w["work_id"] == f["work_id"])
++        info = request(rid)
++        info["responsibility"].update(
++            identity_basis="explicit_declaration", evidence=None, source_ref="project-declaration"
++        )
++        info["action"].update(
++            prerequisite_ids=[],
++            description="Review the current revision evidence",
++            expected_output="Review comments",
++            revision="studio",
++        )
++        info.update(
++            work_revision=f["work_revision"],
++            journal_revision=journal_rev + 2,
++            work_id=f["work_id"],
++            criterion_ids=[selected["requirement_id"]],
++            expected_packet=existing_packet,
++            process=dict(process_id="TYPED", step_id="run", generation_id=e["generation_id"]),
++            idempotency_key="handoff-" + f["forecast_id"],
++        )
++        await hs.prepare(service, owner, hm.Prepare.model_validate(info))
++        packet = (await hs.view(service, owner, rid, info["handoff_id"])).data
++        assert packet["packet"]["process_context"]["forecast_id"] == f["forecast_id"]
++        assert e["study_generation"] == d["generation_id"]
++        assert "conditional" == packet["packet"]["condition_states"]["downstream_execution"]
++        assert packet["packet"]["next_action_state"] == "ready"
++        return dict(
++            plan=d,
++            resource=e,
++            packet=packet["packet"],
++            journal=packet["journal_revision"],
++            request=info,
++        )
++
++    old = await prepare_layers(plan, f, 1, None, None)
++    old_packet = old["packet"]
++    await hs.record_response(
++        service,
++        owner,
++        hm.Response(
++            record_id=rid,
++            work_revision=1,
++            handoff_id="studio-review",
++            packet_id=old_packet["packet_id"],
++            journal_revision=old["journal"],
++            idempotency_key="old-response",
++            observation_id="reviewer",
++            expected_observation_revision=0,
++            acknowledged_by="B",
++            state="received",
++            evidence_basis="supplied_relayed_response",
++            evidence_ref="message",
++            observed_at=datetime.now(UTC),
++        ),
++    )
++    target = await target_packet(bridge, owner, scenario)
++    staged = (
++        await change.observe(
++            service,
++            owner,
++            change.Observation(
++                record_id=rid, expected_revision=1, target=target, idempotency_key="changed"
++            ),
++        )
++    ).data
++    applied = (
++        await change.apply_change(
++            service,
++            owner,
++            change.Reassessment(
++                record_id=rid,
++                expected_revision=staged["revision"],
++                change_id=staged["change_id"],
++                idempotency_key="reconcile",
++                assessments=authored_rows(scenario, target),
++                inventory_complete=True,
++                material_changes=["PA-R02"],
++            ),
++        )
++    ).data
++    current = rd.view(service, owner, rid).data["remaining_work"][0]
++    rev = old["journal"] + 1
++    f2 = (
++        await effort.issue(
++            service,
++            owner,
++            effort.ForecastRequest(
++                record_id=rid,
++                work_revision=applied["revision"],
++                journal_revision=rev,
++                idempotency_key="reopened",
++                work_id=current["work_id"],
++                scope_id="prototype",
++                task_family="studio",
++                scope_kind="remaining_episode",
++                baseline=dict(low=65, high=65),
++            ),
++        )
++    ).data["forecast"]
++    updated = deepcopy(plan)
++    updated.update(
++        forecast_id=f2["forecast_id"],
++        work_revision=applied["revision"],
++        idempotency_key="resource-update",
++    )
++    updated["process"]["revision"] = "2"
++    updated["process"]["active_demand_mapping"]["parent_forecast_ref"] = f2["forecast_id"]
++    for s in updated["process"]["steps"]:
++        s.update(episode_id=f2["episode_id"], work_lineage_id=f2.get("lineage_id") or f2["work_id"])
++    new = await prepare_layers(
++        updated, f2, rev + 1, old["resource"]["generation_id"], old_packet["packet_id"]
++    )
++    assert (
++        new["packet"]["current_ack_state"] == "none"
++        and new["packet"]["responses"][0]["applicability"] == "historical"
++    )
++    assert new["packet"]["work_episode_id"] != old_packet["work_episode_id"]
++    assert (
++        new["packet"]["assessment"]["artifact_version"]
++        != old_packet["assessment"]["artifact_version"]
++    )
++    capture(
++        "roadmap",
++        dict(
++            source_capture=baseline["selected_bindings"],
++            assignment_id=rid,
++            old=old,
++            reconciliation=applied,
++            old_forecast=f,
++            current_forecast=f2,
++            current=new,
++        ),
++    )
++
++
++async def test_c_equivalence_and_material_change(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    from canvas_bridge.processes import change_service as cs
++
++    req = await seed(bridge, owner)
++    service = bridge.processes
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    rid = req["record_id"]
++    original = (await hs.view(service, owner, rid, req["handoff_id"])).data["packet"]
++    response = hm.Response(
++        record_id=rid,
++        work_revision=1,
++        handoff_id=req["handoff_id"],
++        packet_id=original["packet_id"],
++        journal_revision=1,
++        idempotency_key="ack",
++        observation_id="reply",
++        expected_observation_revision=0,
++        acknowledged_by="B",
++        state="received",
++        evidence_basis="supplied_relayed_response",
++        evidence_ref="observed",
++        observed_at=datetime.now(UTC),
++    )
++    await hs.record_response(service, owner, response)
++    packets = [original]
++    receipts = []
++    revision = 1
++    for i, file in enumerate(("handoff_v1", "handoff_v2")):
++        raw = content("fixtures/model_inputs/" + file + ".md")
++        if i == 0:
++            raw = b"\n" + raw
++        ident = await bridge.independent.ingest(
++            owner,
++            raw,
++            file + "-updated.md",
++            "text/markdown",
++            course="Studio",
++            own_material=True,
++            share_text=True,
++            allow_academic_analysis=True,
++        )
++        dbrecord = rd.snapshot(service.repository, owner, rid)
++        bindings = [
++            b
++            if b["role"] != "artifact"
++            else b | dict(document_id=ident, content_hash=hashlib.sha256(raw).hexdigest())
++            for b in dbrecord.data["bindings"]
++        ]
++        staged = (
++            await cs.observe(
++                service,
++                owner,
++                cs.Observation(
++                    record_id=rid,
++                    expected_revision=revision,
++                    target=bindings,
++                    idempotency_key="observe" + str(i),
++                ),
++            )
++        ).data
++        update = (
++            await cs.apply_change(
++                service,
++                owner,
++                cs.Reassessment(
++                    record_id=rid,
++                    expected_revision=staged["revision"],
++                    change_id=staged["change_id"],
++                    idempotency_key="change" + str(i),
++                    assessments=review(bindings, file).requirements if i else (),
++                    inventory_complete=True,
++                ),
++            )
++        ).data
++        revision = update["revision"]
++        await hs.prepare(
++            service,
++            owner,
++            hm.Prepare.model_validate(
++                req
++                | dict(
++                    work_revision=revision,
++                    journal_revision=2 + i,
++                    idempotency_key="packet" + str(i),
++                    expected_packet=packets[-1]["packet_id"],
++                )
++            ),
++        )
++        next_packet = (await hs.view(service, owner, rid, req["handoff_id"])).data["packet"]
++        packets.append(next_packet)
++        receipts.append(update)
++        assert next_packet["artifact_readiness"] == "ready"
++        if not i:
++            assert next_packet["responses"][0]["applicability"] == "carried_equivalent"
++            assert (
++                next_packet["assessment"]["criteria"][0]["assessed_at"]
++                == original["assessment"]["criteria"][0]["assessed_at"]
++            )
++        else:
++            assert next_packet["responses"][0]["applicability"] == "historical"
++    capture("correspondence", dict(packets=packets, receipts=receipts))
++
++
++@pytest.mark.parametrize(
++    "case",
++    [
++        "draft-review",
++        "draft-integrate",
++        "ambiguous-role",
++        "missing-artifact",
++        "partial-coverage",
++        "incomplete-inventory",
++        "selected-scope",
++        "progress-is-separate",
++        "wrong-version",
++        "missing-requirement",
++        "foreign-episode",
++    ],
++)
++async def test_grounded_packet_cases(case, bridge, owner, parsed_locally, independent_recipient):
++    from canvas_bridge.domain import DomainError
++
++    version = (
++        "handoff_draft"
++        if case in {"draft-review", "draft-integrate", "progress-is-separate"}
++        else "handoff_v1"
++    )
++    bridge.settings.process_features_enabled = True
++    service = bridge.processes
++    docs = await documents(bridge, owner, version)
++    raw = review(docs, version).model_dump(mode="json")
++    if case == "partial-coverage":
++        raw["requirements"][1]["coverage"] = "partial"
++    if case in {"incomplete-inventory", "selected-scope"}:
++        raw["membership_complete"] = False
++    if case == "missing-artifact":
++        raw["bindings"][1].update(document_id=None, content_hash=None)
++        for r in raw["requirements"]:
++            r.update(assessment_status="unknown", evidence=[], coverage="unavailable")
++    rid = rd.save(service, owner, rd.Review.model_validate(raw)).data["record_id"]
++    req = request(rid)
++    if case == "progress-is-separate":
++        work = rd.view(service, owner, rid).data["remaining_work"][0]
++        rd.update_progress(
++            service,
++            owner,
++            rd.Progress(
++                record_id=rid,
++                expected_revision=1,
++                idempotency_key="done",
++                work_id=work["work_id"],
++                progress_state="student_marked_done",
++            ),
++        )
++        req.update(work_revision=2, work_id=work["work_id"])
++    if case == "wrong-version":
++        req["expected_artifact_hash"] = "0" * 64
++    if case == "foreign-episode":
++        req["expected_episode_id"] = "another-assignment-episode"
++    if case == "ambiguous-role":
++        req["responsibility"].update(identity_basis="proposed", responsible_actor=None)
++    if case == "draft-integrate":
++        req["action"]["prerequisite_ids"] = ["R1", "R2"]
++    if case == "missing-requirement":
++        req["action"]["prerequisite_ids"] = ["R3"]
++    if case == "selected-scope":
++        req["criterion_ids"] = ["R1"]
++    if case in {"wrong-version", "foreign-episode"}:
++        with pytest.raises(DomainError) as exc:
++            await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++        assert exc.value.reason_code == "HANDOFF_BASIS_CHANGED"
++        capture(case, dict(status="requires_rebase", reason=exc.value.reason_code))
++        return
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    p = (await hs.view(service, owner, rid, req["handoff_id"])).data["packet"]
++    expected = {
++        "draft-review": ("needs_work", "ready"),
++        "draft-integrate": ("needs_work", "needs_work"),
++        "ambiguous-role": ("ready", "needs_identity"),
++        "missing-artifact": ("unknown", "unknown"),
++        "partial-coverage": ("unknown", "ready"),
++        "incomplete-inventory": ("unknown", "ready"),
++        "selected-scope": ("ready", "ready"),
++        "progress-is-separate": ("needs_work", "ready"),
++        "missing-requirement": ("ready", "unknown"),
++    }
++    assert (p["artifact_readiness"], p["next_action_state"]) == expected[case]
++    if case == "progress-is-separate":
++        assert p["personal_progress"] == "student_marked_done"
++    capture(case, p)
++
++
++async def test_response_populations(bridge, owner, parsed_locally, independent_recipient):
++    service = bridge.processes
++    req = await seed(bridge, owner)
++    req["responsibility"].update(
++        recipient_ids=["B", "C"], identity_basis="explicit_declaration", evidence=None
++    )
++    req["action"].update(acknowledgment_policy="all", required_response="accepted_for_next_step")
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    base = dict(record_id=req["record_id"], work_revision=1, handoff_id=req["handoff_id"])
++
++    async def read():
++        return (await hs.view(service, owner, req["record_id"], req["handoff_id"])).data
++
++    state = await read()
++    assert state["packet"]["next_action_state"] == "waiting_ack"
++    states = []
++
++    async def observe(actor, kind, ident, supersedes=None):
++        before = await read()
++        q = hm.Response(
++            **base,
++            packet_id=before["packet"]["packet_id"],
++            journal_revision=before["journal_revision"],
++            idempotency_key=ident,
++            observation_id=ident,
++            expected_observation_revision=0,
++            acknowledged_by=actor,
++            state=kind,
++            evidence_basis="supplied_relayed_response",
++            evidence_ref=ident,
++            observed_at=datetime.now(UTC),
++            supersedes=supersedes,
++        )
++        receipt = await hs.record_response(service, owner, q)
++        assert (await hs.record_response(service, owner, q)).data == receipt.data
++        result = (await read())["packet"]
++        states.append(result)
++        return result
++
++    wrong = await observe("A", "received", "nonrecipient")
++    assert (
++        wrong["responses"][0]["applicability"] == "unresolved"
++        and wrong["current_ack_state"] == "none"
++    )
++    one = await observe("B", "accepted_for_next_step", "accept-B")
++    assert one["current_ack_state"] == "partial" and one["next_action_state"] == "waiting_ack"
++    both = await observe("C", "accepted_for_next_step", "accept-C")
++    assert (
++        both["current_ack_state"] == "accepted_for_next_step"
++        and both["next_action_state"] == "ready"
++    )
++    conflict = await observe("B", "changes_requested", "contradiction")
++    assert conflict["current_ack_state"] == "conflict" and conflict["artifact_readiness"] == "ready"
++    resolved = await observe("B", "accepted_for_next_step", "updated", "contradiction")
++    assert resolved["next_action_state"] == "ready"
++    capture("member-responses", states)
++
++
++async def test_delivery_recovery_and_later_edit(
++    bridge, owner, tmp_path, parsed_locally, independent_recipient
++):
++    import sqlite3
++
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.processes import handoff_outputs as ops
++
++    service = bridge.processes
++    req = await seed(bridge, owner)
++    rid = req["record_id"]
++    saved = await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    subject = dict(
++        record_id=rid,
++        handoff_id=req["handoff_id"],
++        work_revision=1,
++        packet_id=saved.data["packet_id"],
++    )
++    output = (
++        await hs.export(
++            service, owner, hm.Export(**subject, journal_revision=1, idempotency_key="json")
++        )
++    ).data
++    op = hm.OutputOperation(
++        **subject,
++        journal_revision=2,
++        idempotency_key="send-fixture",
++        destination_ref="fixture-inbox",
++        kind="delivery",
++        recipient_ids=["B"],
++        output_id=output["output_id"],
++        confirmed=True,
++    )
++    with pytest.raises(DomainError) as exc:
++        await ops.operate(service, owner, op)
++    assert exc.value.reason_code == "HANDOFF_ADAPTER_UNAVAILABLE"
++    service.handoff_output_adapter = FixtureOutput(tmp_path / "fixture")
++    denied = op.model_copy(update=dict(recipient_ids=["A"]))
++    with pytest.raises(DomainError):
++        await ops.operate(service, owner, denied)
++    lost = (await ops.operate(service, owner, op)).data
++    assert lost["status"] == "uncertain"
++    change = deepcopy(req)
++    change.update(
++        expected_packet=saved.data["packet_id"],
++        idempotency_key="update",
++        journal_revision=lost["revision"],
++        presentation_note="Keep my later note",
++    )
++    await hs.prepare(service, owner, hm.Prepare.model_validate(change))
++    current = (await hs.view(service, owner, rid, req["handoff_id"])).data
++    assert current["packet"]["delivery_state"] == "not_requested"
++    with pytest.raises(DomainError):
++        await ops.operate(
++            service,
++            owner,
++            op.model_copy(
++                update=dict(
++                    journal_revision=current["journal_revision"], idempotency_key="obsolete"
++                )
++            ),
++        )
++    recovered = (
++        await ops.operate(
++            service,
++            owner,
++            op.model_copy(
++                update=dict(
++                    journal_revision=current["journal_revision"],
++                    idempotency_key="reconcile",
++                    confirmed=False,
++                    reconcile_only=True,
++                )
++            ),
++        )
++    ).data
++    assert recovered["status"] == "confirmed"
++    old = (await hs.view(service, owner, rid, req["handoff_id"], saved.data["packet_id"])).data[
++        "packet"
++    ]
++    assert old["delivery_state"] == "confirmed" and old["current_ack_state"] == "none"
++    with sqlite3.connect(service.handoff_output_adapter.db) as db:
++        assert db.execute("select count(*) from effects").fetchone()[0] == 1
++    capture(
++        "delivery-recovery",
++        dict(initial=lost, recovered=recovered, historical=old, current=current["packet"]),
++    )
++
++
++async def test_action_scoped_conditions_and_inputs(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    from canvas_bridge.domain import DomainError
++
++    service = bridge.processes
++    req = await seed(bridge, owner)
++    req["conditions"] = [
++        dict(
++            blocker_id="station",
++            state="blocked",
++            scope="downstream_execution",
++            next_action="Wait for equipment release",
++            source_ref="lab-availability",
++            revision="1",
++        )
++    ]
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++
++    async def read():
++        return (await hs.view(service, owner, req["record_id"], req["handoff_id"])).data
++
++    p = (await read())["packet"]
++    assert (
++        p["next_action_state"] == "ready"
++        and p["condition_states"]["downstream_execution"] == "blocked"
++    )
++    await hs.record_response(
++        service,
++        owner,
++        hm.Response(
++            record_id=req["record_id"],
++            work_revision=1,
++            handoff_id=req["handoff_id"],
++            packet_id=p["packet_id"],
++            journal_revision=1,
++            idempotency_key="ack",
++            observation_id="r",
++            expected_observation_revision=0,
++            acknowledged_by="B",
++            state="received",
++            evidence_ref="member-note",
++            evidence_basis="supplied_relayed_response",
++            observed_at=datetime.now(UTC),
++        ),
++    )
++    req["conditions"][0].update(revision="2", state="conditional")
++    req.update(journal_revision=2, idempotency_key="irrelevant", expected_packet=p["packet_id"])
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    independent = (await read())["packet"]
++    assert (
++        independent["current_ack_state"] == "received"
++        and independent["semantic_basis_id"] == p["semantic_basis_id"]
++    )
++    req["conditions"][0].update(scope="transfer", revision="3", state="blocked")
++    req.update(
++        journal_revision=3, idempotency_key="relevant", expected_packet=independent["packet_id"]
++    )
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    transfer = (await read())["packet"]
++    assert (
++        transfer["next_action_state"] == "blocked"
++        and transfer["next_step"] == "Wait for equipment release"
++        and transfer["responses"][0]["applicability"] == "historical"
++    )
++    req.update(
++        conditions=[],
++        journal_revision=4,
++        idempotency_key="missing",
++        expected_packet=transfer["packet_id"],
++    )
++    req["action"].update(revision="2", required_inputs=[dict(logical_id="unavailable-input")])
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    missing = (await read())["packet"]
++    assert missing["next_action_state"] == "unknown" and missing["artifact_readiness"] == "ready"
++    old_note = hm.Restore(
++        record_id=req["record_id"],
++        work_revision=1,
++        journal_revision=5,
++        handoff_id=req["handoff_id"],
++        idempotency_key="stale-restore",
++        packet_id=independent["packet_id"],
++        expected_packet=missing["packet_id"],
++        fields=["action"],
++    )
++    with pytest.raises(DomainError) as exc:
++        await hs.restore(service, owner, old_note)
++    assert exc.value.reason_code == "HANDOFF_RESTORE_CONFLICT"
++    capture("scoped-conditions", dict(independent=independent, blocked=transfer, missing=missing))
++
++
++def test_partial_correspondence_keeps_original_observation_unresolved():
++    # Independent control over a genuine C transition: an incomplete dependency
++    # comparison must never carry the original response to a new artifact.
++    original = dict(
++        assignment_id="assignment",
++        work_episode_id="episode",
++        responsibility={"responsible_actor": "A"},
++        action={"action_id": "review"},
++        conditions=[],
++        governing_conditions=["ready"],
++        process_step=None,
++        process_input_version=None,
++        input_versions=[],
++        inventory_complete=True,
++        artifact=dict(logical_artifact_id="artifact", artifact_version="old", scope_locator="body"),
++        requirements=[dict(requirement_id="R1", dependencies={"artifact": "old"})],
++    )
++    revised = deepcopy(original)
++    revised["artifact"]["artifact_version"] = "new"
++    revised["requirements"][0]["dependencies"]["artifact"] = "new"
++    from types import SimpleNamespace
++
++    record = SimpleNamespace(
++        revision=3,
++        data=dict(
++            change_report=dict(
++                base_revision=2,
++                applied_revision=3,
++                comparisons=[
++                    dict(
++                        logical_id="artifact",
++                        before_hash="old",
++                        after_hash="new",
++                        change_class="content_equivalent",
++                        comparison_coverage="partial",
++                        proof_id="insufficient",
++                    )
++                ],
++            )
++        ),
++    )
++    previous = dict(
++        semantic_basis=original,
++        semantic_basis_id="before",
++        equivalent_basis_ids=[],
++        work_revision=1,
++    )
++    current = dict(
++        semantic_basis=revised,
++        semantic_basis_id="after",
++        assessment=dict(criteria=[dict(requirement_id="R1", proof_id=None)]),
++    )
++    verdict = hs.correspondence(previous, current, record)
++    assert verdict == ("unresolved", [])
++    capture("incomplete-proof", dict(correspondence=verdict[0], accepted_proofs=verdict[1]))
++
++
++async def test_resource_condition_reconciliation(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    from canvas_bridge.processes import resource_service as e
++    from tests.test_phase_e_resources import seed as seed_e
++
++    req = await seed_e(bridge, owner)
++    service = bridge.processes
++    rid = req["record_id"]
++    req["process"]["steps"][1]["resource_requirement"]["booking_required"] = True
++    await e.save(service, owner, e.Save.model_validate(req))
++    g = (await e.view(service, owner, rid, "TYPED")).data["generation"]
++    f = request(rid)
++    f["responsibility"].update(
++        identity_basis="explicit_declaration", source_ref="role-declaration", evidence=None
++    )
++    f.update(
++        work_id=g["work_id"],
++        process=dict(process_id="TYPED", generation_id=g["generation_id"], step_id="run"),
++        journal_revision=2,
++    )
++    f["action"].update(requires_process_context=True, prerequisite_ids=[])
++    await hs.prepare(service, owner, hm.Prepare.model_validate(f))
++
++    async def read():
++        return (await hs.view(service, owner, rid, f["handoff_id"])).data["packet"]
++
++    old = await read()
++    assert old["next_action_state"] == "conditional"
++    await hs.record_response(
++        service,
++        owner,
++        hm.Response(
++            record_id=rid,
++            work_revision=1,
++            journal_revision=3,
++            handoff_id=f["handoff_id"],
++            packet_id=old["packet_id"],
++            idempotency_key="response",
++            observation_id="B",
++            expected_observation_revision=0,
++            acknowledged_by="B",
++            state="received",
++            evidence_basis="supplied_relayed_response",
++            evidence_ref="note",
++            observed_at=datetime.now(UTC),
++        ),
++    )
++    updated = deepcopy(req)
++    updated.update(
++        expected_generation=g["generation_id"],
++        trigger="access_change",
++        journal_revision=4,
++        idempotency_key="access",
++    )
++    alloc = g["allocations"][0]
++    updated["inventory"]["resources"][0].update(
++        revision="2",
++        reservations=[
++            dict(
++                id="booking",
++                revision="1",
++                owner_step_id="run",
++                status="confirmed",
++                quantity=1,
++                unit="station",
++                source_ref="fixture-confirmation",
++                start_at=alloc["start_at"],
++                end_at=alloc["end_at"],
++            )
++        ],
++    )
++    await e.save(service, owner, e.Save.model_validate(updated))
++    g2 = (await e.view(service, owner, rid, "TYPED")).data["generation"]
++    stale = await read()
++    assert (
++        stale["next_action_state"] == "requires_rebase"
++        and stale["process_context"]["scope_state"] == "unknown"
++    )
++    f.update(expected_packet=old["packet_id"], journal_revision=5, idempotency_key="new-process")
++    f["process"]["generation_id"] = g2["generation_id"]
++    await hs.prepare(service, owner, hm.Prepare.model_validate(f))
++    current = await read()
++    assert (
++        current["next_action_state"] == "ready"
++        and current["responses"][0]["applicability"] == "historical"
++    )
++    capture("changed-process", dict(old=old, stale=stale, current=current))
++
++
++async def test_alias_import_and_payload_readback(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    from canvas_bridge.processes import change_service as change
++
++    service = bridge.processes
++    req = await seed(bridge, owner, "handoff_draft")
++    rid = req["record_id"]
++    await hs.prepare(service, owner, hm.Prepare.model_validate(req))
++    p = (await hs.view(service, owner, rid, req["handoff_id"])).data["packet"]
++    await hs.record_response(
++        service,
++        owner,
++        hm.Response(
++            record_id=rid,
++            work_revision=1,
++            handoff_id=req["handoff_id"],
++            packet_id=p["packet_id"],
++            journal_revision=1,
++            idempotency_key="ack",
++            observation_id="reply",
++            expected_observation_revision=0,
++            acknowledged_by="B",
++            state="received",
++            evidence_basis="supplied_relayed_response",
++            evidence_ref="declared",
++            observed_at=datetime.now(UTC),
++        ),
++    )
++    raw = content("fixtures/model_inputs/handoff_draft.md")
++    alias = await bridge.independent.ingest(
++        owner,
++        raw,
++        "alternate-name.md",
++        "text/markdown",
++        course="Studio",
++        own_material=True,
++        share_text=True,
++        allow_academic_analysis=True,
++    )
++    target = [
++        b | dict(document_id=alias) if b["role"] == "artifact" else b
++        for b in rd.snapshot(service.repository, owner, rid).data["bindings"]
++    ]
++    staged = (
++        await change.observe(
++            service,
++            owner,
++            change.Observation(
++                record_id=rid, expected_revision=1, target=target, idempotency_key="alias"
++            ),
++        )
++    ).data
++    applied = (
++        await change.apply_change(
++            service,
++            owner,
++            change.Reassessment(
++                record_id=rid,
++                expected_revision=staged["revision"],
++                change_id=staged["change_id"],
++                idempotency_key="apply",
++                inventory_complete=True,
++            ),
++        )
++    ).data
++    await hs.prepare(
++        service,
++        owner,
++        hm.Prepare.model_validate(
++            req
++            | dict(
++                journal_revision=2,
++                work_revision=applied["revision"],
++                expected_packet=p["packet_id"],
++                idempotency_key="alias-packet",
++            )
++        ),
++    )
++    current = (await hs.view(service, owner, rid, req["handoff_id"])).data["packet"]
++    assert (
++        current["semantic_basis_id"] == p["semantic_basis_id"]
++        and current["responses"][0]["applicability"] == "current_exact"
++    )
++    exported = (
++        await hs.export(
++            service,
++            owner,
++            hm.Export(
++                record_id=rid,
++                work_revision=applied["revision"],
++                journal_revision=3,
++                idempotency_key="alias-export",
++                packet_id=current["packet_id"],
++                handoff_id=req["handoff_id"],
++                output_format="markdown",
++            ),
++        )
++    ).data
++    fetched = (
++        await hs.view(
++            service,
++            owner,
++            rid,
++            req["handoff_id"],
++            packet_id=current["packet_id"],
++            output_id=exported["output_id"],
++        )
++    ).data["exported_output"]
++    assert (
++        fetched["payload"] == exported["payload"]
++        and hashlib.sha256(fetched["payload"].encode()).hexdigest() == exported["content_hash"]
++    )
++    assert (
++        "## Artifact and evidence" in fetched["payload"]
++        and "Evidence appendix" in fetched["payload"]
++    )
++    capture(
++        "alias",
++        dict(
++            before=p["packet_id"],
++            after=current,
++            applied=applied,
++            output_hash=fetched["content_hash"],
++        ),
++    )
+diff --git a/benchmarks/academic/phase-f/README.md b/benchmarks/academic/phase-f/README.md
+new file mode 100644
+--- /dev/null
++++ b/benchmarks/academic/phase-f/README.md
+@@ -0,0 +1,21 @@
++# Phase F artifact-grounded group handoffs
++
++Enable the academic process feature and select a saved readiness assignment. Group identities are explicit local declarations scoped to that assignment. Each operation rechecks the private owner's source and planning permissions.
++
++1. Use `prepare_group_handoff` with the current assignment and journal revisions, logical artifact ID, explicit contributor and recipients, next-action owner, expected output and criterion prerequisites. Provide a source passage for a sourced responsibility assignment. Optionally pin the artifact hash, requirement revision and work episode, or bind an existing Phase E generation and step. A handoff review can proceed on an available draft even when other assignment criteria need work.
++2. Read `get_group_handoff` to inspect the actual file identity, version, parts, evidence, gaps, process conditions and personal progress. Reassigning or changing the requested action requires a new responsibility or action revision. Reconcile against the expected prior packet ID. Presentation-only changes preserve the semantic basis.
++3. Use `record_handoff_response` for a supplied observation about an exact packet. Name the responding member, event time, evidence basis and reference. The service records the authenticated recorder and knowledge time. Corrections and retractions retain the original event history. Only an explicitly requested acknowledgment prerequisite can gate the next action.
++4. `export_group_handoff` saves the selected packet as an exact UTF-8 JSON or Markdown payload. Retrieve it again by packet and output ID. `record_handoff_delivery_receipt` records a supplied receipt independently of acceptance. A deployment with a destination-authorizing adapter can use `reconcile_handoff_output` for confirmed file creation or delivery. After an uncertain outcome, look up the same operation identity before retry. The default connector exports locally.
++5. `restore_group_handoff` compensates selected responsibility, action or note changes. It requires the current packet and refuses to overwrite a conflicting later edit. Historical packet IDs and as-of response cutoffs are available on the read tool.
++
++## Replay
++
++```powershell
++.venv/Scripts/python scripts/validate_phase_a.py .local/phase-f-validation --phase f
++$env:BRIDGE_PHASE_F_OUTPUT = '.local/phase-f-results'
++.venv/Scripts/python -m pytest -q tests/test_phase_f_handoffs.py
++$env:BRIDGE_PHASE_F_HOST = '.local/phase-f-host-replay'
++.venv/Scripts/python -m pytest -q tests/test_phase_f_handoffs.py::test_native_handoff
++```
++
++The opt-in host run needs the Codex CLI. It uses signed synthetic MCP sessions and restarted SQLite-backed servers. The fixture adapter writes a private local file, loses its response and recovers its receipt after a process restart. Its delivery destination is a SQLite fixture inbox. The tests use no real teammate addresses or external messaging provider.

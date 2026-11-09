@@ -24,7 +24,11 @@ TOOLS = frozenset(
 HISTORY = frozenset({"get_integrity_acknowledgments", "revoke_integrity_acknowledgment"})
 LEARNING_TOOLS = frozenset(
     {
+        "read_library_item",
+        "search_library",
+        "render_library_item",
         "run_independent_academic_workflow",
+        "run_local_study_workflow",
         "read_course_file",
         "search_course_files",
         "fetch_course_material",
@@ -55,6 +59,10 @@ PLANNING_TOOLS = frozenset(
 )
 ADMIN_TOOLS = frozenset(
     {
+        "get_library_status",
+        "get_library_item",
+        "list_library_items",
+        "prepare_library_download",
         "get_connection_status",
         "audit_permission_consistency",
         "list_courses",
@@ -83,6 +91,9 @@ ADMIN_TOOLS = frozenset(
         "update_study_preferences",
         "record_personal_progress",
         "get_semester_overview",
+        "get_academic_analytics",
+        "save_academic_analytics",
+        "record_academic_measurement",
         "acknowledge_semester_findings",
         "prepare_course_file_download",
         "get_course_file_download_payload",
@@ -130,6 +141,8 @@ async def before_tool(bridge, owner, name, arguments):
     if name not in LEARNING_TOOLS | {"get_assignment_details", "review_assignment_requirements"}:
         return
     args = plain_arguments(arguments)
+    if name in {"read_library_item", "render_library_item"} and args.get("version_id"):
+        args["document_id"] = "lib_" + args["version_id"]
     if args.get("document_id"):
         doc = args["document_id"]
         # Inherit registered course/assessment context for this exact source. An
@@ -142,6 +155,15 @@ async def before_tool(bridge, owner, name, arguments):
         scopes = scopes or [Scope(document_ids=[doc])]
     elif args.get("connection_id"):
         ref = args["connection_id"]
+        # Integrity discovery runs before readers, so it must renew membership
+        # itself rather than fail on a lease invalidated by an earlier refresh.
+        access = await bridge.refresh_course_access(owner, ref)
+        if access.status != "ok":
+            raise DomainError(
+                "retry_later",
+                "Course authorization refresh is incomplete; try again when retrieval is available.",
+                reason_code=access.data.get("reason_code") or "STALE_SCOPE_SNAPSHOT",
+            )
         courses = {args["course_id"]} if args.get("course_id") else set()
         ids = {args[k] for k in ("file_id", "material_id", "work_id") if args.get(k)}
         ids.update((args.get("request") or {}).get("material_ids", []))

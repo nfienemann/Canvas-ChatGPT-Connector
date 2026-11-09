@@ -385,7 +385,7 @@ async def test_inventory_branch_timeout_keeps_valid_files(
     result = await list_files(bridge, owner, seeded, course.id)
     assert len(result.data["files"]) == 1
     assert result.status == "partial_data"
-    failure = next(iter(result.data["inventory_reason_codes"].values()))
+    failure = result.data["inventory_reason_codes"][branch.name.lower()]
     assert failure["reason_code"] == "INVENTORY_BRANCH_TIMEOUT"
     assert result.data["files"][0]["inventory_freshness"] == "fresh"
     assert result.data["inventory_status"]["completeness"] == "partial"
@@ -424,11 +424,31 @@ async def test_retained_references_propagate_coverage_and_require_fresh_access(
     )
     with pytest.raises(DomainError):
         await read_file(bridge, owner, seeded, file_id)
+    # A metadata outage withholds all content but cannot establish a file-level denial.
     with bridge.store.transaction() as session:
-        assert not session.get(Material, file_id).text
+        assert session.get(Material, file_id).text
     search = await search_files(bridge, owner, seeded, course.id, "Exam", include_unread=True)
     assert search.status == "partial_data" and not search.data["results"]
     assert not search.data["text_coverage_complete_in_bounded_inventory"]
+
+    monkeypatch.setattr(CanvasClient, "one", original)
+    recovered = await read_file(bridge, owner, seeded, file_id)
+    assert "Exam 1" in recovered.data["text"]
+
+    async def denied(client, endpoint, **ids):
+        if endpoint == Endpoint.FILE:
+            raise DomainError(
+                "permission_denied",
+                "Synthetic file denial",
+                reason_code="RESOURCE_PERMISSION_DENIED",
+            )
+        return await original(client, endpoint, **ids)
+
+    monkeypatch.setattr(CanvasClient, "one", denied)
+    with pytest.raises(DomainError, match="Synthetic file denial"):
+        await read_file(bridge, owner, seeded, file_id)
+    with bridge.store.transaction() as session:
+        assert not session.get(Material, file_id).text
 
 
 async def test_workload_continuation_keeps_status_time_and_sort_order(

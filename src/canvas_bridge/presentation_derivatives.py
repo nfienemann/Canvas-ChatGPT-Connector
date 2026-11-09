@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 
 from canvas_bridge.document_policy import PPTX_MEMBERS, PPTX_SOURCE_BYTES
+from canvas_bridge.document_ranges import validate_document_range
 from canvas_bridge.domain import DomainError
 from canvas_bridge.presentation_render_worker import CONVERTER, MAX_PDF
 from canvas_bridge.retention_policy import DERIVATIVE_SECONDS
@@ -20,6 +21,9 @@ from canvas_bridge.retention_policy import DERIVATIVE_SECONDS
 def validate_derivative(result, source, pdf, selected_slide=1):
     if not result.get("ok"):
         reason = result.get("reason")
+        if reason == "document_range_out_of_bounds":
+            validate_document_range(selected_slide, selected_slide, result.get("page_count"))
+            raise ValueError("Inconsistent worker range")
         codes = {
             "page_limit_or_range": "INVALID_SLIDE",
             "render_timeout": "PPTX_CONVERSION_TIMEOUT",

@@ -140,6 +140,18 @@ def build_bundle():
     ]
     args += [
         "--add-data",
+        f"{ROOT / 'src/canvas_bridge/usefulness/imports.js'}:canvas_bridge/usefulness",
+    ]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/library/upload.js'}:canvas_bridge/library",
+    ]
+    args += [
+        "--add-data",
+        f"{ROOT / 'src/canvas_bridge/library_safety_worker.py'}:canvas_bridge",
+    ]
+    args += [
+        "--add-data",
         f"{ROOT / 'src/canvas_bridge/assets/page-reader-NOTICES.txt'}:canvas_bridge/assets",
     ]
     for file in sorted((ROOT / "migrations").rglob("*")):

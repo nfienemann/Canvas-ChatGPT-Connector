@@ -18,7 +18,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from pydantic import AwareDatetime, Field, ValidationError, model_validator
 
 from canvas_bridge.domain import DomainError, Model, opaque_id, utcnow
-from canvas_bridge.egress_models import EgressGovernance
+from canvas_bridge.egress_models import ContentReview, EgressGovernance, PrivateCourseListing
 
 Authority = Literal["provider", "institution", "sharing"]
 Category = Literal[
@@ -88,11 +88,17 @@ class ApprovalRecord(Model):
     conditions: Conditions = Field(default_factory=Conditions)
     # A broad sharing grant alone never classifies content or approves an AI environment.
     egress: EgressGovernance | None = None
+    private_course_listing: PrivateCourseListing | None = None
+    private_text_reviews: list[ContentReview] = Field(default_factory=list, max_length=2000)
 
     @model_validator(mode="after")
     def bounded(self):
         if self.expires_at <= self.effective_at or "*" in self.institutions:
             raise ValueError("Approvals require bounded dates and explicit institutions.")
+        if len({(r.source_id, r.version) for r in self.private_text_reviews}) != len(
+            self.private_text_reviews
+        ):
+            raise ValueError("Conflicting private source reviews.")
         return self
 
 
@@ -191,6 +197,19 @@ class ApprovalStore:
                 if hashlib.sha256(evidence).hexdigest() != record.evidence_sha256:
                     raise ValueError("Evidence mismatch")
                 SealedEvidence.model_validate_json(evidence)
+                private_content = (
+                    record.private_course_listing.course_content
+                    if record.private_course_listing
+                    else None
+                )
+                if private_content:
+                    digest = private_content.permission_evidence_sha256
+                    private_evidence = read_bounded(
+                        s.approval_evidence_root / (digest + ".sealed"), 16_000_000
+                    )
+                    if hashlib.sha256(private_evidence).hexdigest() != digest:
+                        raise ValueError("Private sharing evidence mismatch")
+                    SealedEvidence.model_validate_json(private_evidence)
                 ids.add(record.record_id)
                 boundaries.update(record_boundaries)
                 records.append(record)

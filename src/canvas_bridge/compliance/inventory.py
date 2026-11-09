@@ -43,12 +43,15 @@ def git(root, *args):
     executable = shutil.which("git")
     if not executable:
         raise EvidenceError("REPOSITORY_METADATA_UNAVAILABLE")
-    result = subprocess.run(  # noqa: S603
-        [executable, "--no-optional-locks", "-C", str(root), *args],
-        capture_output=True,
-        timeout=20,
-        check=False,  # noqa: S607
-    )
+    try:
+        result = subprocess.run(  # noqa: S603
+            [executable, "--no-optional-locks", "-C", str(root), *args],
+            capture_output=True,
+            timeout=20,
+            check=False,  # noqa: S607
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        raise EvidenceError("REPOSITORY_METADATA_UNAVAILABLE") from exc
     if result.returncode:
         raise EvidenceError("REPOSITORY_METADATA_UNAVAILABLE")
     return result.stdout.decode("utf-8")

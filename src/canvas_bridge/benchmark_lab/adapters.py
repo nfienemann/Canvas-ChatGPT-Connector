@@ -120,6 +120,7 @@ async def execute(task, sources, root, clock):
             else [
                 {
                     "id": "exam",
+                    "course_id": selected[0]["course_id"],
                     "title": "Exam 1",
                     "effective_due": payload["due"],
                     "source": receipt(selected[0]),
@@ -286,8 +287,9 @@ async def execute(task, sources, root, clock):
         raw = extract(path.read_bytes(), parameters["format"])
         answer = {
             "parts": len(raw["pages"]),
-            "visual_reading_claimed": raw.get("coverage")
-            not in {"text_only", "partial_text", "scanned_or_empty"},
+            # This adapter executes text extraction only. A new or partial
+            # coverage label cannot become evidence of pixel interpretation.
+            "visual_reading_claimed": False,
         }
         uncertainty.append("pixels_require_visual_review")
     elif driver == "interpretive":

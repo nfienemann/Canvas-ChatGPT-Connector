@@ -1,0 +1,581 @@
+{
+  "$defs": {
+    "Allocation": {
+      "additionalProperties": false,
+      "properties": {
+        "pool_mode": {
+          "default": "borrow_unused_nonreserve",
+          "enum": [
+            "strict_pools",
+            "borrow_unused_nonreserve",
+            "priority_weighted_fair_queue"
+          ],
+          "title": "Pool Mode",
+          "type": "string"
+        },
+        "interactive_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "55",
+          "title": "Interactive Pct"
+        },
+        "scheduled_sync_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "25",
+          "title": "Scheduled Sync Pct"
+        },
+        "exploratory_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "10",
+          "title": "Exploratory Pct"
+        },
+        "reserve_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "10",
+          "title": "Reserve Pct"
+        },
+        "lender_floor_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "10",
+          "title": "Lender Floor Pct"
+        },
+        "reserve_eligible_operations": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]{1,80}$",
+            "type": "string"
+          },
+          "title": "Reserve Eligible Operations",
+          "type": "array"
+        }
+      },
+      "title": "Allocation",
+      "type": "object"
+    },
+    "Billing": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "default": "unconfigured",
+          "enum": [
+            "unconfigured",
+            "configured",
+            "reconciled",
+            "local_development"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "default": "commercial_transaction",
+          "enum": [
+            "commercial_transaction",
+            "local_request"
+          ],
+          "title": "Unit",
+          "type": "string"
+        },
+        "monthly_allowance": {
+          "anyOf": [
+            {
+              "maximum": 1000000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monthly Allowance"
+        },
+        "signed_allowance": {
+          "anyOf": [
+            {
+              "maximum": 1000000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signed Allowance"
+        },
+        "charge_model": {
+          "default": "pending_contract_definition",
+          "enum": [
+            "pending_contract_definition",
+            "per_request",
+            "endpoint_weighted",
+            "external_counter"
+          ],
+          "title": "Charge Model",
+          "type": "string"
+        },
+        "default_units": {
+          "default": 1,
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Default Units",
+          "type": "integer"
+        },
+        "operation_units": {
+          "patternProperties": {
+            "^[A-Za-z0-9_.-]{1,80}$": {
+              "maximum": 1000000000000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "title": "Operation Units",
+          "type": "object"
+        },
+        "failed_requests": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "charged",
+            "verified_nonbillable"
+          ],
+          "title": "Failed Requests",
+          "type": "string"
+        },
+        "pagination": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "per_attempt"
+          ],
+          "title": "Pagination",
+          "type": "string"
+        },
+        "retries": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "per_attempt"
+          ],
+          "title": "Retries",
+          "type": "string"
+        },
+        "redirects": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "per_attempt"
+          ],
+          "title": "Redirects",
+          "type": "string"
+        },
+        "file_downloads": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "per_attempt"
+          ],
+          "title": "File Downloads",
+          "type": "string"
+        },
+        "oauth": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "per_attempt"
+          ],
+          "title": "Oauth",
+          "type": "string"
+        },
+        "external_usage": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "exclusive",
+            "shared"
+          ],
+          "title": "External Usage",
+          "type": "string"
+        },
+        "external_usage_buffer_units": {
+          "default": 0,
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "External Usage Buffer Units",
+          "type": "integer"
+        },
+        "cycle_timezone": {
+          "default": "UTC",
+          "maxLength": 80,
+          "title": "Cycle Timezone",
+          "type": "string"
+        },
+        "cycle_day": {
+          "default": 1,
+          "maximum": 31,
+          "minimum": 1,
+          "title": "Cycle Day",
+          "type": "integer"
+        },
+        "safety_margin_pct": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": "5",
+          "title": "Safety Margin Pct"
+        },
+        "paid_overages": {
+          "const": "disabled",
+          "default": "disabled",
+          "title": "Paid Overages",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Sha256"
+        },
+        "reporting_delay_days": {
+          "default": 30,
+          "maximum": 366,
+          "minimum": 0,
+          "title": "Reporting Delay Days",
+          "type": "integer"
+        }
+      },
+      "title": "Billing",
+      "type": "object"
+    },
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "per_owner_minute_attempts": {
+          "default": 12,
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Per Owner Minute Attempts",
+          "type": "integer"
+        },
+        "per_owner_hour_attempts": {
+          "default": 120,
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Per Owner Hour Attempts",
+          "type": "integer"
+        },
+        "per_owner_daily_attempts": {
+          "default": 300,
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Per Owner Daily Attempts",
+          "type": "integer"
+        },
+        "per_tenant_daily_units": {
+          "anyOf": [
+            {
+              "maximum": 1000000000000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Per Tenant Daily Units"
+        },
+        "max_attempts_per_task": {
+          "default": 40,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Attempts Per Task",
+          "type": "integer"
+        },
+        "max_units_per_task": {
+          "default": 100,
+          "maximum": 1000000000000,
+          "minimum": 0,
+          "title": "Max Units Per Task",
+          "type": "integer"
+        },
+        "max_bytes_per_task": {
+          "default": 134217728,
+          "maximum": 536870912,
+          "minimum": 1000,
+          "title": "Max Bytes Per Task",
+          "type": "integer"
+        },
+        "max_download_attempts_per_task": {
+          "default": 6,
+          "maximum": 40,
+          "minimum": 1,
+          "title": "Max Download Attempts Per Task",
+          "type": "integer"
+        },
+        "task_seconds": {
+          "default": 120,
+          "maximum": 600,
+          "minimum": 1,
+          "title": "Task Seconds",
+          "type": "integer"
+        },
+        "max_concurrency_per_token": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Max Concurrency Per Token",
+          "type": "integer"
+        },
+        "max_concurrency_per_owner": {
+          "default": 2,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Concurrency Per Owner",
+          "type": "integer"
+        },
+        "max_concurrency_per_tenant": {
+          "default": 10,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Concurrency Per Tenant",
+          "type": "integer"
+        },
+        "max_global_concurrency": {
+          "default": 20,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Max Global Concurrency",
+          "type": "integer"
+        },
+        "interactive_slots": {
+          "default": 2,
+          "maximum": 99,
+          "minimum": 0,
+          "title": "Interactive Slots",
+          "type": "integer"
+        },
+        "retries_per_attempt": {
+          "default": 2,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Retries Per Attempt",
+          "type": "integer"
+        },
+        "min_interval_seconds": {
+          "default": 0.1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Min Interval Seconds",
+          "type": "number"
+        },
+        "circuit_failures": {
+          "default": 5,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Circuit Failures",
+          "type": "integer"
+        },
+        "circuit_seconds": {
+          "default": 30,
+          "maximum": 3600,
+          "minimum": 1,
+          "title": "Circuit Seconds",
+          "type": "integer"
+        },
+        "reservation_seconds": {
+          "default": 180,
+          "maximum": 600,
+          "minimum": 120,
+          "title": "Reservation Seconds",
+          "type": "integer"
+        },
+        "cache_ttl_seconds": {
+          "default": 0,
+          "maximum": 60,
+          "minimum": 0,
+          "title": "Cache Ttl Seconds",
+          "type": "integer"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "provider": {
+      "default": "canvas",
+      "pattern": "^[A-Za-z0-9_.-]{1,80}$",
+      "title": "Provider",
+      "type": "string"
+    },
+    "contract_id": {
+      "default": "unconfigured",
+      "pattern": "^[A-Za-z0-9_.-]{1,80}$",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "version": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "mode": {
+      "default": "production_approved",
+      "enum": [
+        "offline_synthetic",
+        "authorized_mock_provider",
+        "production_approved",
+        "personal_development"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "effective_at": {
+      "format": "date-time",
+      "title": "Effective At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "billing": {
+      "$ref": "#/$defs/Billing"
+    },
+    "allocation": {
+      "$ref": "#/$defs/Allocation"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "kill_switch": {
+      "default": false,
+      "title": "Kill Switch",
+      "type": "boolean"
+    },
+    "usage_thresholds_pct": {
+      "default": [
+        "50",
+        "70",
+        "85",
+        "95"
+      ],
+      "items": {
+        "anyOf": [
+          {
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "title": "Usage Thresholds Pct",
+      "type": "array"
+    },
+    "pause_exploratory_pct": {
+      "anyOf": [
+        {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "70",
+      "title": "Pause Exploratory Pct"
+    },
+    "pause_sync_pct": {
+      "anyOf": [
+        {
+          "maximum": 100.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "85",
+      "title": "Pause Sync Pct"
+    }
+  },
+  "required": [
+    "effective_at",
+    "expires_at"
+  ],
+  "title": "PartnerBudgetContract",
+  "type": "object"
+}

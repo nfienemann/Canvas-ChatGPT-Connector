@@ -2,7 +2,10 @@
 
 Canvas Bridge is a student-directed, Canvas-read-only MCP service under local
 development. Rowan is a candidate mentioned in the specification, not a supported
-or approved institution. There has been no institutional application or outreach.
+or approved institution in the public support registry. Historical private testing
+does not establish current or permanent Rowan approval or endorsement. Any
+separate authorization must be verified for its current scope and duration before
+use; this repository does not attest to its existence or validity.
 
 Before a pilot, approve the institution registry entry, canonical HTTPS origin,
 student OAuth developer key, enabled scopes, exact callback and privacy

@@ -1,0 +1,32 @@
+{
+  "scope": "Follow-up audit runtime only; earlier full Windows receipts do not include these new JS files",
+  "test_passed": 49,
+  "test_failed": 0,
+  "node_vulnerabilities": 0,
+  "dependencies": {
+    "node_modules/fast-png": {
+      "version": "8.0.0",
+      "license": "MIT"
+    },
+    "node_modules/fflate": {
+      "version": "0.8.3",
+      "license": "MIT"
+    },
+    "node_modules/iobuffer": {
+      "version": "6.0.1",
+      "license": "MIT"
+    }
+  },
+  "source_hashes": {
+    ".github/workflows/ci.yml": "837133d9cea065aae064e4abd1718de0f63b2c540591e9c57a619c859bf47ec5",
+    "scripts/course_file_audit_png.mjs": "5ef0b0d41cf7957f4fae077385d2d5c316eff3c7774158bd46bce43c97ef786d",
+    "scripts/audit-png-runtime/index.mjs": "311e55314560bd72af3283e2bd7f6583d498f8f5200ed61f0b5e3e17abc9612d",
+    "scripts/audit-png-runtime/package.json": "26cdb890276259e14a35ccefe9ff326ab5c64bac6a7cc669ff4f17a9204ffece",
+    "scripts/audit-png-runtime/package-lock.json": "f8af41b088b90f987e0f033f873b8666ab798a45a6203190682806d27a0076af",
+    "tests/course_file_audit.test.mjs": "13718a108011e3af906b96f53a872761e4fe5efb167e101daa86bb3797000b17",
+    "tests/course_file_audit_png.test.mjs": "e3aba64dd865aa279843baed1ed9138f997390e63f0b5176f1949a07640f0fad"
+  },
+  "advisory_remediated": "GHSA-px8p-9vwx-vf98",
+  "advisory_reachability": "unzipSync is not invoked by PNG path; no exploitability claim",
+  "ci": "Installs locked runtime, audits it, runs both Node suites and generates separate runtime SBOM"
+}

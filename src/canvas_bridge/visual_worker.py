@@ -13,6 +13,12 @@ RENDERER = "canvas-bridge-pdf-image-v2-lossless-filters"
 MAX_PNG = 1_300_000
 
 
+class PageOutOfRange(ValueError):
+    def __init__(self, count):
+        super().__init__("page_limit_or_range")
+        self.count = count
+
+
 def png_rgb(bitmap):
     """Lossless RGB row filtering; no resizing, quantization or color changes."""
     from PIL import Image
@@ -37,8 +43,10 @@ def render(data, page=1, rotation=0, ocr=False, max_edge=2400):
     # No forms, JavaScript, document actions, attachments or external content APIs.
     with pdfium.PdfDocument(data) as document:
         count = len(document)
-        if not 1 <= count <= 200 or page > count:
+        if not 1 <= count <= 200:
             raise ValueError("page_limit_or_range")
+        if page > count:
+            raise PageOutOfRange(count)
         with closing(document[page - 1]) as pdf_page:
             width, height = pdf_page.get_size()
             if not all(math.isfinite(n) and 1 <= n <= 20_000 for n in (width, height)):
@@ -61,6 +69,23 @@ def render(data, page=1, rotation=0, ocr=False, max_edge=2400):
                     from ocr_worker import recognize
 
                     recognition = recognize(bitmap)
+                    # OCR text/word boxes can contain a document or annotation author's
+                    # name, including an author declared on another page.
+                    from privacy_text import document_privacy
+                    from worker import PdfReader, pdf_privacy_metadata
+
+                    metadata = pdf_privacy_metadata(PdfReader(io.BytesIO(data), strict=False))
+                    inspected = document_privacy(
+                        {"metadata": metadata, "pages": [{"page": page, **recognition}]}
+                    )
+                    safe = inspected["pages"][0]
+                    recognition = {
+                        **recognition,
+                        "text": safe["text"],
+                        "words": []
+                        if inspected["privacy"]["page_content_filtered"]
+                        else safe["words"],
+                    }
                     png = b""
                 else:
                     png = png_rgb(bitmap)
@@ -117,6 +142,8 @@ def main():
             else "unreadable_or_rendering_limit"
         )
         result = {"ok": False, "reason": reason}
+        if isinstance(exc, PageOutOfRange):
+            result.update(reason="document_range_out_of_bounds", page_count=exc.count)
     output = json.dumps(result).encode()
     if len(output) > 2_000_000:
         output = b'{"ok":false,"reason":"image_output_limit"}'

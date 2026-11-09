@@ -49,7 +49,7 @@ async def test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocke
     assert result.complete and len(result.items) == 5
     with pg_bridge.store.transaction() as session:
         assert session.get(Connection, ref).last_success
-    with pytest.raises(RuntimeError, match="plaintext"):
+    with pytest.raises(RuntimeError, match="plaintext|durable originals"):
         command.downgrade(Config("alembic.ini"), "base")
     assert "connections" in inspect(pg_bridge.store.engine).get_table_names()
 
@@ -65,7 +65,7 @@ async def test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade
     await outline(pg_bridge, owner, ref, courses[0].id)
     with pg_bridge.store.transaction() as session:
         assert sorted(m.kind for m in session.scalars(select(Material))) == ["file", "page"]
-    with pytest.raises(RuntimeError, match="plaintext"):
+    with pytest.raises(RuntimeError, match="plaintext|durable originals"):
         command.downgrade(Config("alembic.ini"), "9b2a41e5021c")
     with pg_bridge.store.transaction() as session:
         assert sorted(m.kind for m in session.scalars(select(Material))) == ["file", "page"]
@@ -89,9 +89,10 @@ async def test_T18_T40_concurrent_local_versions_do_not_overwrite(pg_bridge, own
     def write(value):
         try:
             return pg_bridge.store.save_local(
-                owner, ref, "preferences", "default", {"value": value}, 0
+                owner, ref, "preferences", "default", {"break_minutes": value}, 0
             )
-        except DomainError:
+        except DomainError as exc:
+            assert exc.status == "source_changed"
             return "conflict"
 
     with ThreadPoolExecutor(max_workers=2) as pool:

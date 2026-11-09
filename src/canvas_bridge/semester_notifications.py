@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from canvas_bridge.domain import utcnow
 from canvas_bridge.evidence import fingerprint
 from canvas_bridge.planning_dates import instant
 
@@ -42,6 +43,7 @@ def notification_decision(
         return result | {"delivery_state": "fresh_authorized_analysis_required"}
     delivered = delivered or {}
     eligible = []
+    delivery_courses = set()
     for f in report["findings"]:
         if (
             not set(f["course_ids"]) <= set(preferences.course_ids)
@@ -57,6 +59,7 @@ def notification_decision(
         if delivered.get(f["issue_key"]) == f["finding_revision"]:
             result["deduplicated_count"] += 1
             continue
+        delivery_courses.update(f["course_ids"])
         eligible.append({"issue_key": f["issue_key"], "finding_revision": f["finding_revision"]})
     return result | {
         "delivery_state": "eligible_for_approved_host"
@@ -64,6 +67,7 @@ def notification_decision(
         else "no_new_actionable_findings",
         "eligible_findings": eligible,
         "delivery_key": fingerprint(eligible) if eligible else None,
+        "delivery_course_ids": sorted(delivery_courses),
     }
 
 
@@ -82,8 +86,23 @@ def delivery_receipt_state(state, decision, *, provider_receipt, delivered_at):
     delivered = dict(state.get("delivered", {}))
     for row in decision["eligible_findings"]:
         delivered[row["issue_key"]] = row["finding_revision"]
+    receipt_hash = fingerprint(provider_receipt)
+    # This is the existing trusted post-delivery boundary. Preserve a small
+    # course-bound receipt for analytics only when the decision carries that scope.
+    effects = dict(state.get("confirmed_deliveries", {}))
+    if decision.get("delivery_key") and decision.get("delivery_course_ids"):
+        effects.setdefault(
+            decision["delivery_key"],
+            {
+                "receipt_hash": receipt_hash,
+                "course_ids": decision["delivery_course_ids"],
+                "delivered_at": delivered_at.isoformat(),
+                "observed_at": utcnow().isoformat(),
+            },
+        )
     return state | {
+        "confirmed_deliveries": dict(list(effects.items())[-200:]),
         "delivered": dict(list(delivered.items())[-1000:]),
         "last_delivery": delivered_at.isoformat(),
-        "provider_receipt_hash": fingerprint(provider_receipt),
+        "provider_receipt_hash": receipt_hash,
     }

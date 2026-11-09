@@ -337,6 +337,8 @@ async def reading(ctx, course, previous):
                     "page_start",
                     "page_end",
                     "total_characters",
+                    "total_extracted_characters",
+                    "text_truncated",
                     "content_boundary",
                 }
             }

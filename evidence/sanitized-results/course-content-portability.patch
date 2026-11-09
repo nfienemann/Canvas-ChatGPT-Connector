@@ -1,0 +1,4388 @@
+diff --git a/src/canvas_bridge/config.py b/src/canvas_bridge/config.py
+--- a/src/canvas_bridge/config.py
++++ b/src/canvas_bridge/config.py
+@@ -35,6 +35,7 @@
+     integrity_policy_reviews_file: Path | None = None
+     independent_egress_file: Path | None = None
+     independent_external_egress_file: Path | None = None
++    portability_origin_sqlite: Path | None = None
+     independent_retention_hours: int = Field(default=24, ge=1, le=24)
+     capability_profile: Literal["offline_research", "institutional_pilot", "public_connected"] = (
+         "institutional_pilot"
+diff --git a/src/canvas_bridge/independent.py b/src/canvas_bridge/independent.py
+--- a/src/canvas_bridge/independent.py
++++ b/src/canvas_bridge/independent.py
+@@ -116,29 +116,39 @@
+                     IndependentResource.id == ident, IndependentResource.owner == owner
+                 )
+             )
+-            if (
+-                not row
+-                or row.kind != kind
+-                or aware(row.expires_at) <= self.bridge.retention.clock()
+-            ):
+-                deny("RESOURCE_AUTHORIZATION_REVOKED")
+-            p = row.provenance
+-            if (
+-                p.get("source_type") != kind
+-                or p.get("schema_version") != "source-provenance-1"
+-                or p.get("origin") != "authenticated_browser_upload"
+-                or p.get("mechanism") != "bounded_browser_upload"
+-                or p.get("owner") != owner
+-                or p.get("content_identity") != row.version_hash
+-                or p.get("institutional_connection") is not None
+-                or p.get("parents")
+-                or p.get("source_category", "independent_import") != "independent_import"
+-                or p.get("privacy_classification") != str(CC.FIRST_PARTY_EDUCATIONAL_RECORD)
+-            ):
+-                deny()
+-            if p.get("authorization") != "explicit_user_permission":
+-                deny("SOURCE_IDENTITY_UNVERIFIED")
+-            return row
++            return self.require_row(session, owner, row, kind=kind)
++
++    def require_row(self, session, owner, row, *, kind="local_document"):
++        if (
++            not row
++            or row.owner != owner
++            or row.kind != kind
++            or aware(row.expires_at) <= self.bridge.retention.clock()
++        ):
++            deny("RESOURCE_AUTHORIZATION_REVOKED")
++        if row.content.get("portable_origin"):
++            from canvas_bridge.usefulness.workspace_authority import verify_restored_source
++
++            verify_restored_source(self.bridge, session, row)
++        if row.content.get("packet"):
++            self.reject_institutional_copy(session, owner, row.version_hash)
++        p = row.provenance
++        if (
++            p.get("source_type") != kind
++            or p.get("schema_version") != "source-provenance-1"
++            or p.get("origin") != "authenticated_browser_upload"
++            or p.get("mechanism") != "bounded_browser_upload"
++            or p.get("owner") != owner
++            or p.get("content_identity") != row.version_hash
++            or p.get("institutional_connection") is not None
++            or p.get("parents")
++            or p.get("source_category", "independent_import") != "independent_import"
++            or p.get("privacy_classification") != str(CC.FIRST_PARTY_EDUCATIONAL_RECORD)
++        ):
++            deny()
++        if p.get("authorization") != "explicit_user_permission":
++            deny("SOURCE_IDENTITY_UNVERIFIED")
++        return row
+ 
+     def reject_institutional_copy(self, session, owner, digest):
+         # Known institutional bytes stay institutional regardless of a new filename.
+@@ -176,6 +186,7 @@
+         purpose="material",
+         replace_id=None,
+         expected_hash=None,
++        packet_member=None,
+     ):
+         if not own_material or not data or len(data) > LOCAL_IMPORT_BYTES:
+             deny("SOURCE_IDENTITY_UNVERIFIED")
+@@ -233,21 +244,39 @@
+             "own_feedback",
+         }:
+             raise DomainError("needs_input", "Choose a supported document purpose.")
++        if packet_member:
++            if packet_member.digest != digest:
++                deny()
++            replace_id = packet_member.target
+         if replace_id:
+             previous = self.require(owner, replace_id)
+             if (
+-                previous.version_hash != expected_hash
+-                or previous.content.get("course", "independent") != course
+-            ):
++                not packet_member and previous.version_hash != expected_hash
++            ) or previous.content.get("course", "independent") != course:
+                 raise DomainError(
+                     "source_changed", "Refresh the explicit replacement target and course."
+                 )
++            if previous.content.get("portable_origin") and previous.version_hash != digest:
++                deny("PORT_ORIGINAL_VERSION_REQUIRED")
+             ident = replace_id
+         with self.bridge.store.transaction() as session:
+             principal = self.bridge.store.principal(session, owner)
+             generation = principal.generation
+             self.reject_institutional_copy(session, owner, digest)
+-            if not replace_id:
++            if packet_member:
++                current = packet_member.check(
++                    session, owner, course, purpose, self.bridge.retention.clock()
++                )
++                if current and current.version_hash == digest:
++                    self.require_row(session, owner, current)
++                    current.content = current.content | {
++                        "packet": packet_member.metadata(current, self.bridge.retention.clock())
++                    }
++                    packet_member.publish(session, owner, current, self.bridge.retention.clock())
++                    return current.id
++                if current:
++                    expected_hash = current.version_hash
++            elif not replace_id:
+                 for existing in session.scalars(
+                     select(IndependentResource).where(
+                         IndependentResource.owner == owner,
+@@ -256,9 +285,14 @@
+                         IndependentResource.expires_at > self.bridge.retention.clock(),
+                     )
+                 ):
+-                    if existing.content.get("course", "independent") == course:
++                    if (
++                        existing.content.get("course", "independent") == course
++                        and existing.content.get("purpose", "material") == purpose
++                        and existing.content.get("packet", {}).get("term", "unspecified")
++                        == "unspecified"
++                    ):
+                         # A retry never upgrades sharing, course membership or provenance.
+-                        return existing.id
++                        return self.require_row(session, owner, existing).id
+             if (
+                 len(
+                     list(
+@@ -326,6 +360,8 @@
+             if self.bridge.store.principal(session, owner).generation != generation:
+                 deny("RESOURCE_AUTHORIZATION_REVOKED")
+             self.reject_institutional_copy(session, owner, digest)
++            if packet_member:
++                packet_member.check(session, owner, course, purpose, now)
+             if not replace_id:
+                 current = list(
+                     session.scalars(
+@@ -337,11 +373,15 @@
+                 )
+                 for existing in current:
+                     if (
+-                        existing.version_hash == digest
++                        not packet_member
++                        and existing.version_hash == digest
++                        and existing.content.get("purpose", "material") == purpose
++                        and existing.content.get("packet", {}).get("term", "unspecified")
++                        == "unspecified"
+                         and existing.content.get("course", "independent") == course
+                         and aware(existing.expires_at) > now
+                     ):
+-                        return existing.id
++                        return self.require_row(session, owner, existing).id
+                 if len(current) >= 20:
+                     raise DomainError(
+                         "retry_later", "Delete an older import before adding another document."
+@@ -351,6 +391,7 @@
+                 if (
+                     not existing
+                     or existing.owner != owner
++                    or aware(existing.expires_at) <= now
+                     or existing.version_hash != expected_hash
+                 ):
+                     raise DomainError(
+@@ -366,7 +407,30 @@
+                         "coverage": existing.content["parsed"].get("coverage"),
+                     }
+                 )
++                packet = existing.content.get("packet")
++                if packet_member:
++                    packet = packet_member.metadata(existing, now)
++                if packet:
++                    history[-1].update(
++                        original_bytes=existing.content["bytes"],
++                        privacy=existing.content["parsed"].get("privacy", {}),
++                        acquired_at=existing.provenance.get("acquired_at"),
++                        logical_path=existing.content.get("packet", {}).get(
++                            "current_path", existing.content["filename"]
++                        ),
++                    )
++                    if (
++                        len(history) > 10
++                        or sum(len(v.get("original_bytes", "")) for v in history) > 28_000_000
++                    ):
++                        raise DomainError(
++                            "needs_input", "This source reached its retained version limit."
++                        )
++                    from canvas_bridge.usefulness.packet import invalidate_version
++
++                    invalidate_version(self.bridge, session, owner, existing.id, expected_hash, now)
+                 existing.content = {
++                    **({"packet": packet} if packet else {}),
+                     "bytes": base64.b64encode(data).decode(),
+                     "format": kind,
+                     "parsed": parsed,
+@@ -386,6 +450,8 @@
+                     existing.provenance.get("egress_policy") if provenance["share_text"] else None
+                 )
+                 existing.provenance = provenance
++                if packet_member:
++                    packet_member.publish(session, owner, existing, now)
+                 return ident
+             session.add(
+                 IndependentResource(
+@@ -395,6 +461,7 @@
+                     version_hash=digest,
+                     provenance=provenance,
+                     content={
++                        **({"packet": packet_member.metadata(None, now)} if packet_member else {}),
+                         "bytes": base64.b64encode(data).decode(),
+                         "format": kind,
+                         "parsed": parsed,
+@@ -407,6 +474,9 @@
+                     + timedelta(hours=self.bridge.settings.independent_retention_hours),
+                 )
+             )
++            if packet_member:
++                session.flush()
++                packet_member.publish(session, owner, session.get(IndependentResource, ident), now)
+         return ident
+ 
+     def list(self, owner):
+@@ -422,10 +492,16 @@
+                     .limit(20)
+                 )
+             )
+-        rows = [self.require(owner, ident) for ident in ids]
++        rows = []
++        for ident in ids:
++            try:
++                rows.append(self.require(owner, ident))
++            except DomainError:
++                continue
+         return Result(
+             summary="Independently imported documents; no institution was contacted.",
+             data={
++                **({"unavailable_count": len(ids) - len(rows)} if len(ids) != len(rows) else {}),
+                 "documents": [
+                     {
+                         "document_id": r.id,
+@@ -436,7 +512,7 @@
+                         "filename": r.content.get("filename", "Imported document"),
+                     }
+                     for r in rows
+-                ]
++                ],
+             },
+         )
+ 
+@@ -790,7 +866,9 @@
+             if not row or row.kind != "local_document":
+                 deny()
+             from canvas_bridge.processes.purge import purge_sources
+-
++            from canvas_bridge.usefulness.packet import fence_deletion
++
++            fence_deletion(session, row, self.bridge.retention.clock())
+             purge_sources(session, owner, source_ids=(ident,))
+             session.delete(row)
+         from canvas_bridge.worker_storage import invalidate
+diff --git a/src/canvas_bridge/processes/identity.py b/src/canvas_bridge/processes/identity.py
+--- a/src/canvas_bridge/processes/identity.py
++++ b/src/canvas_bridge/processes/identity.py
+@@ -70,6 +70,62 @@
+     }
+ 
+ 
++def scoped_association(left, right):
++    """Distinct adapter namespaces stay on the aliases throughout the review."""
++    from canvas_bridge.domain import DomainError
++
++    tags = [k.sources[0] for k in (left, right)]
++    if (
++        len(left.sources) != 1
++        or len(right.sources) != 1
++        or {s.origin for s in tags} != {"local_document", "institutional"}
++        or any(k.scope != s.scope for k, s in zip((left, right), tags, strict=True))
++        or left.scope.principal != right.scope.principal
++        or left.scope.term != right.scope.term
++        or left.scope.term == "unspecified"
++        or left.kind != right.kind
++        or not left.course_code
++        or left.course_code != right.course_code
++        or any(
++            a and b and a != b
++            for a, b in (
++                (left.section, right.section),
++                (left.scope.section, right.scope.section),
++                (left.instructor, right.instructor),
++                (left.start_date, right.start_date),
++                (left.content_hash, right.content_hash),
++            )
++        )
++    ):
++        raise DomainError(
++            "needs_input",
++            "Review the two original course scopes and identity signals.",
++            reason_code="PROCESS_IDENTITY_REVIEW_REQUIRED",
++        )
++    pairs = sorted((entity_key(k) for k in (left, right)), key=repr)
++    return {
++        "canonical_id": fingerprint(["reviewed-scope-association", pairs]),
++        "aliases": [k.model_dump(mode="json") for k in (left, right)],
++        "permission_mode": "authorize_each_origin",
++        "reversible": True,
++    }
++
++
++def entity_key(entity):
++    return (
++        entity.scope.principal,
++        entity.scope.institution,
++        entity.scope.term,
++        entity.scope.course,
++        entity.scope.section,
++        entity.sources[0].connection,
++        entity.sources[0].id if entity.sources[0].origin == "local_document" else None,
++        entity.provider,
++        entity.kind,
++        entity.external_id,
++    )
++
++
+ def unlink(canonical):
+     return tuple(ExternalEntityKey.model_validate(item) for item in canonical["aliases"])
+ 
+@@ -85,27 +141,13 @@
+     aliases = {}
+     for link in confirmed_links:
+         for entity in unlink(link):
+-            key = (
+-                entity.scope.principal,
+-                entity.scope.institution,
+-                entity.scope.term,
+-                entity.provider,
+-                entity.kind,
+-                entity.external_id,
+-            )
++            key = entity_key(entity)
+             if key in aliases and aliases[key] != link["canonical_id"]:
+                 raise ValueError("An alias belongs to conflicting canonical links.")
+             aliases[key] = link["canonical_id"]
+     groups = {}
+     for entity in entities:
+-        key = (
+-            entity.scope.principal,
+-            entity.scope.institution,
+-            entity.scope.term,
+-            entity.provider,
+-            entity.kind,
+-            entity.external_id,
+-        )
++        key = entity_key(entity)
+         canonical = aliases.get(key, fingerprint(key))
+         groups.setdefault(canonical, []).append(entity)
+     return [
+@@ -116,3 +158,58 @@
+         }
+         for key, values in sorted(groups.items())
+     ]
++
++
++def assignment_projection(bridge, owner, aliases, entries, calendar):
++    """One reviewed parent retains both dated assertions and the LMS event marker."""
++    from canvas_bridge.academic.independent_models import IndependentAcademicInput
++    from canvas_bridge.academic.study_steps import step_parents
++    from canvas_bridge.calendar_sync import calendar_proposal
++    from canvas_bridge.domain import WorkItem
++
++    local = next(a for a in aliases if a.sources[0].origin == "local_document")
++    institutional = next(a for a in aliases if a.sources[0].origin == "institutional")
++    row = bridge.independent.require(owner, local.sources[0].id)
++    dataset = IndependentAcademicInput.model_validate(row.content["reviewed_dataset"])
++    declared = next(w for w in dataset.work if w.key == local.external_id)
++    work = WorkItem.model_validate(entries[institutional.sources[0].id]["work"])
++    claims = [
++        {
++            "source_id": a.sources[0].id,
++            "content_hash": a.sources[0].version,
++            "locator": a.sources[0].locator,
++            "basis": basis,
++            "value": value.model_dump(mode="json"),
++        }
++        for a, basis, value in (
++            (local, "user_declared", declared.due),
++            (institutional, "observed", work.effective_due),
++        )
++    ]
++    contested = declared.due.kind in {"local_date", "timestamp", "known_none"} and (
++        declared.due.kind,
++        declared.due.timestamp,
++        declared.due.local_date,
++    ) != (work.effective_due.kind, work.effective_due.timestamp, work.effective_due.local_date)
++    data = {
++        "assignment_id": work.id,
++        "deadline_assertions": claims,
++        "status": "contested" if contested else "reviewed",
++        "child_work_ids": sorted(
++            k for k, parent in step_parents(dataset).items() if parent == declared.key
++        ),
++    }
++    if calendar:
++        proposals = calendar_proposal(
++            [] if contested else [work],
++            calendar,
++            owner,
++            institutional.sources[0].connection,
++            bridge.retention.clock(),
++        )
++        data["calendar_projection"] = {
++            "status": "contested" if contested else proposals["status"],
++            "proposal_count": len(proposals["proposals"]),
++            "external_writes": False,
++        }
++    return {"reviewed_parent": data}
+diff --git a/src/canvas_bridge/processes/privacy.py b/src/canvas_bridge/processes/privacy.py
+--- a/src/canvas_bridge/processes/privacy.py
++++ b/src/canvas_bridge/processes/privacy.py
+@@ -15,7 +15,7 @@
+ event_id correlation_id component_version category sharing_status contains_coursework schema_version
+ classification reschedule_proposed deadline_seconds external_action approval_required_for_external_write
+ signals collisions merge_allowed confirmation_required proposal_id originals_preserved permission_union
+-identity_signal_basis canonical_id aliases permission_mode reversible external_id course_code section start_date
++reviewed_parent deadline_assertions child_work_ids calendar_projection proposal_count canonical_inventory reviewed_association identity_signal_basis canonical_id aliases permission_mode reversible external_id course_code section start_date
+ assignment_id stage archived next_step integrity_decision observed kind minimum_minutes maximum_minutes
+ prerequisites maximum_minutes work_id cases case shortfall_minutes effort_minutes capacity_minutes_before_breaks
+ calendar_changed external_write_requires_separate_preview_and_consent assumptions blocks
+diff --git a/src/canvas_bridge/processes/requests.py b/src/canvas_bridge/processes/requests.py
+--- a/src/canvas_bridge/processes/requests.py
++++ b/src/canvas_bridge/processes/requests.py
+@@ -4,6 +4,7 @@
+ 
+ from pydantic import AwareDatetime, Field, model_validator
+ 
++from canvas_bridge.calendar_sync import CalendarContext
+ from canvas_bridge.integrity.models import Activity
+ from canvas_bridge.processes.feasibility import TimeWindow, WorkEstimate
+ from canvas_bridge.processes.models import Model, Ref
+@@ -105,6 +106,8 @@
+ 
+ class IdentityRequest(Model):
+     operation: Literal["identity"] = "identity"
++    associate_local_course: bool = False
++    calendar: CalendarContext | None = None
+     left: IdentityInput
+     right: IdentityInput
+ 
+diff --git a/src/canvas_bridge/processes/service.py b/src/canvas_bridge/processes/service.py
+--- a/src/canvas_bridge/processes/service.py
++++ b/src/canvas_bridge/processes/service.py
+@@ -74,6 +74,12 @@
+                 or aware(row.expires_at) <= self.bridge.retention.clock()
+             ):
+                 failure("PROCESS_SOURCE_UNAVAILABLE")
++            if row.content.get("packet"):
++                self.bridge.independent.reject_institutional_copy(session, owner, row.version_hash)
++            if row.content.get("portable_origin"):
++                from canvas_bridge.usefulness.workspace_authority import verify_restored_source
++
++                verify_restored_source(self.bridge, session, row)
+             p = row.provenance
+             if (
+                 row.version_hash != tag.version
+@@ -131,6 +137,9 @@
+         for ident in scope.document_ids:
+             row = self.bridge.independent.require(owner, ident)
+             parsed = row.content["parsed"]
++            packet = row.content.get("packet", {})
++            if packet and scope.term not in {"unspecified", packet["term"]}:
++                failure("PROCESS_SCOPE_MISMATCH")
+             tag = SourceTag(
+                 id=ident,
+                 version=row.version_hash,
+@@ -138,8 +147,10 @@
+                 scope=AcademicScope(
+                     principal=owner,
+                     institution="independent",
+-                    term=scope.term,
+-                    course=scope.local_course,
++                    term=packet.get("term", scope.term),
++                    course=row.content.get("course", scope.local_course)
++                    if packet
++                    else scope.local_course,
+                 ),
+                 locator="Imported document",
+                 observed_at=aware(row.created_at),
+@@ -293,6 +304,38 @@
+             )
+         return result
+ 
++    def association_inventory(self, owner, proposed, entries, calendar):
++        from canvas_bridge.processes.identity import canonical_inventory, entity_key, unlink
++
++        aliases = unlink(proposed)
++        with self.bridge.store.transaction() as session:
++            _, state = self.repository._load(session, owner)
++            confirmed = []
++            for rec in state.records.values():
++                link = rec.data.get("canonical_link_proposal") if rec.kind == "identity" else None
++                if not link:
++                    continue
++                if link.get("canonical_id") != proposed["canonical_id"]:
++                    if {entity_key(a) for a in unlink(link)} & {entity_key(a) for a in aliases}:
++                        failure(
++                            "PROCESS_IDENTITY_REVIEW_REQUIRED",
++                            "Unlink the existing association before assigning this alias elsewhere.",
++                        )
++                    continue
++                # Reauthorize each current alias. Historical observations do not supply current facts.
++                for alias in aliases:
++                    self.authorize_source(
++                        session, owner, entries[alias.sources[0].id]["tag"], "read"
++                    )
++                confirmed.append(proposed)
++        groups = canonical_inventory(aliases, confirmed)
++        result = {"canonical_inventory": groups, "reviewed_association": bool(confirmed)}
++        if confirmed and aliases[0].kind == "assignment":
++            from canvas_bridge.processes.identity import assignment_projection
++
++            result.update(assignment_projection(self.bridge, owner, aliases, entries, calendar))
++        return result
++
+     async def compute(self, owner, request):
+         entries = self.load(owner, request.scope)
+         payload, now = request.payload, self.bridge.retention.clock()
+@@ -380,16 +423,19 @@
+                 ExternalEntityKey,
+                 canonical_link,
+                 match_entities,
++                scoped_association,
+             )
+ 
+             def external(item):
+                 tag = entry(item.source_id)["tag"]
++                if tag.origin == "institutional" and item.external_id != tag.id:
++                    failure("PROCESS_SCOPE_MISMATCH")
+                 return ExternalEntityKey(
+-                    provider=item.provider,
++                    provider=tag.origin
++                    if payload.associate_local_course or tag.origin == "institutional"
++                    else item.provider,
+                     external_id=item.external_id,
+-                    scope=tag.scope.model_copy(
+-                        update={"institution": item.institution, "term": item.term}
+-                    ),
++                    scope=tag.scope,
+                     kind=item.kind,
+                     course_code=item.course_code,
+                     section=item.section,
+@@ -401,7 +447,36 @@
+ 
+             left, right = external(payload.left), external(payload.right)
+             data = match_entities(left, right)
+-            if data["merge_allowed"]:
++            if payload.associate_local_course:
++                for alias in (left, right):
++                    tag = alias.sources[0]
++                    if tag.origin == "institutional" and (
++                        alias.external_id != tag.id
++                        or (alias.kind == "assignment" and not entry(tag.id)["work"])
++                    ):
++                        failure("PROCESS_SCOPE_MISMATCH")
++                    if tag.origin == "local_document":
++                        row = self.bridge.independent.require(owner, tag.id)
++                        if tag.scope.course != row.content.get("course", "independent"):
++                            failure("PROCESS_SCOPE_MISMATCH")
++                        if alias.kind == "assignment":
++                            keys = {
++                                w["key"]
++                                for w in row.content.get("reviewed_dataset", {}).get("work", [])
++                            }
++                            if alias.external_id not in keys:
++                                failure("PROCESS_IDENTITY_REVIEW_REQUIRED")
++                link = scoped_association(left, right)
++                data = {
++                    "status": "review_required",
++                    "merge_allowed": True,
++                    "confirmation_required": True,
++                    "originals_preserved": True,
++                    "permission_union": False,
++                    "canonical_link_proposal": link,
++                }
++                data.update(self.association_inventory(owner, link, entries, payload.calendar))
++            elif data["merge_allowed"]:
+                 # This is an unsaved proposal. The generic exact-preview flow
+                 # creates the link only after the student's explicit confirmation.
+                 data["canonical_link_proposal"] = canonical_link(left, right, confirmed=True)
+@@ -617,7 +692,37 @@
+         return plain(data), entries
+ 
+     async def evaluate(self, owner, request):
+-        data, entries = await self.compute(owner, request)
++        try:
++            data, entries = await self.compute(owner, request)
++        except DomainError:
++            if not getattr(request.payload, "associate_local_course", False):
++                raise
++            scope = request.scope
++            if not scope.document_ids or not scope.resource_ids:
++                raise
++            available = []
++            for subset in (
++                scope.model_copy(
++                    update={"connection_id": None, "course_id": None, "resource_ids": ()}
++                ),
++                scope.model_copy(update={"document_ids": ()}),
++            ):
++                try:
++                    available.append(self.load(owner, subset))
++                except DomainError:
++                    continue
++            if len(available) != 1:
++                raise
++            return Result(
++                status="partial_data",
++                summary="Only one selected origin is currently available.",
++                data={
++                    "reviewed_association": False,
++                    "status": "partial",
++                    "permission_union": False,
++                },
++                sources=[entry["citation"] for entry in available[0].values()],
++            )
+         return Result(
+             summary="Evidence-bound process evaluation; proposals do not perform external actions.",
+             data=plain(data, public=True),
+@@ -708,6 +813,11 @@
+         return data, sources
+ 
+     async def propose(self, owner, request):
++        if getattr(request.evaluation.payload, "calendar", None):
++            failure(
++                "PROCESS_IDENTITY_REVIEW_REQUIRED",
++                "Use the calendar snapshot only for a current read-only projection.",
++            )
+         data, entries = await self.compute(owner, request.evaluation)
+         tags = {e["tag"].key: e["tag"] for e in entries.values()}
+         for parent in request.depends_on:
+diff --git a/src/canvas_bridge/processes/state.py b/src/canvas_bridge/processes/state.py
+--- a/src/canvas_bridge/processes/state.py
++++ b/src/canvas_bridge/processes/state.py
+@@ -215,6 +215,23 @@
+                 expires_at=self.clock() + timedelta(days=30),
+             )
+             session.add(row)
++        if row.content:
++            removed = row.content.get("records", {}).keys() - state.records.keys()
++            for ident in removed:
++                key = fingerprint(["portable-record-deletion", owner, ident])
++                fence = session.get(IndependentResource, key)
++                if fence is None:
++                    fence = IndependentResource(
++                        id=key,
++                        owner=owner,
++                        kind="local_deletion_fence",
++                        content={},
++                        version_hash=key,
++                        provenance={"retention_class": "deletion_fence"},
++                    )
++                    session.add(fence)
++                fence.created_at = self.clock()
++                fence.expires_at = self.clock() + timedelta(days=91)
+         # Updates do not extend original retention or resurrect expired sources.
+         row.content, row.version_hash = payload, fingerprint(payload)
+         row.provenance = {
+diff --git a/src/canvas_bridge/usefulness/imports.py b/src/canvas_bridge/usefulness/imports.py
+--- a/src/canvas_bridge/usefulness/imports.py
++++ b/src/canvas_bridge/usefulness/imports.py
+@@ -5,6 +5,7 @@
+ import mimetypes
+ import re
+ import stat
++import unicodedata
+ import zipfile
+ from copy import deepcopy
+ from datetime import timedelta
+@@ -13,7 +14,7 @@
+ from sqlalchemy import select
+ 
+ from canvas_bridge.academic.independent_models import IndependentAcademicInput, IndependentWork
+-from canvas_bridge.domain import DomainError
++from canvas_bridge.domain import DomainError, opaque_id
+ from canvas_bridge.evidence import fingerprint
+ from canvas_bridge.storage import IndependentResource, aware
+ from canvas_bridge.usefulness.search import locator
+@@ -23,7 +24,7 @@
+ SUPPORTED = {".pdf", ".docx", ".pptx", ".xlsx", ".txt", ".md"}
+ 
+ 
+-def unpack(data, filename, mime):
++def unpack(data, filename, mime, *, logical_paths=False):
+     if not filename.lower().endswith(".zip"):
+         if len(data) > DOCUMENT_BYTES:
+             raise DomainError("needs_input", "Batch imports allow 10 MB per document.")
+@@ -42,9 +43,13 @@
+             names, accepted, excluded, total = set(), [], [], 0
+             for entry in entries:
+                 path = PurePosixPath(entry.filename)
+-                folded = entry.filename.casefold().rstrip("/")
++                folded = unicodedata.normalize("NFC", entry.filename).casefold().rstrip("/")
+                 if (
+                     path.is_absolute()
++                    or entry.orig_filename != entry.filename
++                    or len(entry.filename) > 2048
++                    or any(not part for part in entry.filename.rstrip("/").split("/"))
++                    or any(ord(c) < 32 for c in entry.filename)
+                     or any(p in {"..", "."} for p in entry.filename.split("/"))
+                     or any(c in entry.filename for c in "\\:\x00")
+                     or folded in names
+@@ -65,7 +70,7 @@
+                 if path.suffix.lower() in {".zip", ".tar", ".gz", ".7z", ".rar"}:
+                     raise ValueError
+                 if path.suffix.lower() not in SUPPORTED:
+-                    excluded.append(entry.filename[:180])
++                    excluded.append(entry.filename)
+                     continue
+                 if len(accepted) >= 20:
+                     raise ValueError
+@@ -76,12 +81,12 @@
+                     raise ValueError
+                 accepted.append(
+                     (
+-                        path.name,
++                        entry.filename if logical_paths else path.name,
+                         body,
+                         mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+                     )
+                 )
+-            if not accepted:
++            if not accepted and not logical_paths:
+                 raise DomainError("needs_input", "This ZIP has no supported documents.")
+             return accepted, excluded
+     except (ValueError, OSError, RuntimeError, zipfile.BadZipFile, NotImplementedError):
+@@ -107,7 +112,7 @@
+                 raise DomainError("permission_denied", "This import batch is unavailable.")
+             return dict(row.content)
+ 
+-    def update(self, owner, ident, update):
++    def update(self, owner, ident, update, *, attempt=None):
+         with self.bridge.store.transaction() as session:
+             self.bridge.store.principal(session, owner)
+             row = session.get(IndependentResource, ident)
+@@ -119,6 +124,8 @@
+             ):
+                 raise DomainError("permission_denied", "This import batch is unavailable.")
+             content = deepcopy(row.content)
++            if attempt and content.get("attempt") != attempt:
++                raise DomainError("source_changed", "Another attempt owns this receipt.")
+             update(content)
+             row.content, row.version_hash = content, fingerprint(content)
+ 
+@@ -132,19 +139,117 @@
+         self.update(owner, ident, cancel)
+ 
+     async def run(
+-        self, owner, data, filename, mime, *, course, purpose, key, permissions, validate_session
++        self,
++        owner,
++        data,
++        filename,
++        mime,
++        *,
++        course,
++        purpose,
++        key,
++        permissions,
++        validate_session,
++        term="unspecified",
++        preview_only=False,
++        confirmation=None,
++        decisions=None,
++        expected=None,
+     ):
+         if not 1 <= len(key) <= 100:
+             raise DomainError("needs_input", "A bounded import retry key is required.")
+-        files, excluded = unpack(data, filename, mime)
++        from canvas_bridge.usefulness import packet
++
++        attempt = opaque_id()
++        is_packet = filename.lower().endswith(".zip")
++        if not permissions.get("own_material"):
++            raise DomainError(
++                "permission_denied", "Confirm permission to process the selected materials."
++            )
++        try:
++            files, excluded = unpack(data, filename, mime, logical_paths=is_packet)
++        except DomainError:
++            if not (is_packet and preview_only):
++                raise
++            # Never decompress rejected archives. Account for the bounded central
++            # directory only where it can safely be read.
++            members = []
++            if len(data) <= ZIP_BYTES:
++                try:
++                    with zipfile.ZipFile(io.BytesIO(data)) as archive:
++                        for entry in archive.infolist()[:100]:
++                            members.append(
++                                {
++                                    "logical_path": entry.orig_filename[:2048],
++                                    "disposition": "rejected",
++                                    "state": "rejected",
++                                }
++                            )
++                except (zipfile.BadZipFile, ValueError, OSError):
++                    pass
++            return {
++                "state": "rejected",
++                "items": members,
++                "excluded": [],
++                "reason": "PORT_ARCHIVE_REJECTED",
++                "coverage": {"missing": [], "mode": "rejected"},
++            }
++        decisions = decisions or {}
++        expected = expected or {}
++        if not isinstance(decisions, dict) or len(decisions) > 20:
++            raise DomainError("needs_input", "Review the bounded packet mapping.")
++        packet_hash = hashlib.sha256(data).hexdigest()
+         ident = fingerprint([owner, "import-batch", key])
+         signature = fingerprint(
+-            [hashlib.sha256(data).hexdigest(), filename, mime, course, purpose, permissions]
++            [packet_hash, filename, mime, course, purpose, permissions]
++            + (
++                [term, decisions, expected]
++                if is_packet and (term != "unspecified" or decisions or expected)
++                else []
++            )
+         )
+         now = self.bridge.retention.clock()
+         with self.bridge.store.transaction() as session:
+-            self.bridge.store.principal(session, owner)
++            principal = self.bridge.store.principal(session, owner)
+             prior = session.get(IndependentResource, ident)
++            proposed = None
++            if is_packet and (preview_only or not prior):
++                current = packet.eligible_documents(
++                    self.bridge, session, owner, course, purpose, term, now
++                )
++                proposed = packet.plan(
++                    session, owner, course, purpose, term, files, decisions, now, current
++                )
++                observation = packet.coverage(
++                    session, owner, course, purpose, term, proposed, expected, now, current
++                )
++                review_id = fingerprint(
++                    [signature, principal.generation, proposed, observation, excluded]
++                )
++                if preview_only or (
++                    confirmation != review_id
++                    and (
++                        confirmation
++                        or any(
++                            i["disposition"]
++                            in {
++                                "ambiguous",
++                                "new_version",
++                                "conflicting_mapping",
++                                "unexpected_version",
++                            }
++                            for i in proposed
++                        )
++                    )
++                ):
++                    return {
++                        "state": "review_required",
++                        "preview_id": review_id,
++                        "items": proposed,
++                        "excluded": excluded,
++                        "coverage": observation,
++                        "packet_hash": packet_hash,
++                    }
+             if prior:
+                 if aware(prior.expires_at) <= now:
+                     raise DomainError(
+@@ -154,6 +259,8 @@
+                 if (
+                     prior.owner != owner
+                     or prior.kind != "import_batch"
++                    or prior.provenance.get("generation", principal.generation)
++                    != principal.generation
+                     or prior.content["signature"] != signature
+                 ):
+                     raise DomainError(
+@@ -170,6 +277,7 @@
+                     )
+                 content = dict(prior.content)
+                 content["state"] = "extracting"
++                content["attempt"] = attempt
+                 content["items"] = [
+                     i if i["state"] == "ready" else i | {"state": "staged"}
+                     for i in content["items"]
+@@ -201,13 +309,30 @@
+                     )
+                 content = {
+                     "batch_id": ident,
++                    "attempt": attempt,
+                     "signature": signature,
++                    **(
++                        {
++                            "preview_id": review_id,
++                            "packet_hash": packet_hash,
++                            "coverage": observation,
++                        }
++                        if proposed is not None
++                        else {}
++                    ),
+                     "state": "extracting",
+                     "course": course,
++                    "term": term,
++                    "purpose": purpose,
+                     "excluded": excluded,
+                     "items": [
+-                        {"filename": name, "size": len(body), "state": "staged"}
+-                        for name, body, _ in files
++                        {
++                            "filename": name,
++                            "size": len(body),
++                            "state": "staged",
++                            **(proposed[n] if proposed else {}),
++                        }
++                        for n, (name, body, _) in enumerate(files)
+                     ],
+                 }
+                 session.add(
+@@ -217,7 +342,11 @@
+                         kind="import_batch",
+                         version_hash=fingerprint(content),
+                         content=content,
+-                        provenance={"owner": owner, "retention_class": "restricted_raw_records"},
++                        provenance={
++                            "owner": owner,
++                            "retention_class": "restricted_raw_records",
++                            "generation": principal.generation,
++                        },
+                         created_at=now,
+                         expires_at=now + timedelta(hours=24),
+                     )
+@@ -225,7 +354,8 @@
+ 
+         def recheck():
+             validate_session()
+-            if self.status(owner, ident)["state"] == "cancelled":
++            status = self.status(owner, ident)
++            if status["state"] == "cancelled" or status.get("attempt") != attempt:
+                 raise DomainError(
+                     "needs_input", "The batch was cancelled; completed imports were retained."
+                 )
+@@ -236,24 +366,51 @@
+             if self.status(owner, ident)["state"] == "cancelled":
+                 break
+             self.update(
+-                owner, ident, lambda c, index=index: c["items"][index].update(state="extracting")
++                owner,
++                ident,
++                lambda c, index=index: c["items"][index].update(state="extracting"),
++                attempt=attempt,
+             )
+             try:
++                item = self.status(owner, ident)["items"][index]
++                selection = (
++                    packet.member(item, ident, index, attempt)
++                    if is_packet and "binding" in item
++                    else None
++                )
++                if selection:
++                    recheck()
++                    if selection.disposition in {
++                        "ambiguous",
++                        "conflicting_mapping",
++                        "unexpected_version",
++                    }:
++                        raise DomainError(
++                            "needs_input", "Review this source mapping or expected version."
++                        )
++                basename = PurePosixPath(name).name if is_packet else name
++                if selection and len(basename) > 180:
++                    basename = selection.digest + PurePosixPath(basename).suffix
+                 doc = await self.bridge.independent.ingest(
+                     owner,
+                     body,
+-                    name,
++                    basename,
+                     content_type,
+                     course=course,
+                     purpose=purpose,
+                     validate_session=recheck,
++                    packet_member=selection,
+                     **permissions,
+                 )
++                if selection:
++                    continue
++                saved = self.bridge.independent.require(owner, doc)
++                extraction = saved.content["parsed"].get("coverage", "unknown")
+                 self.update(
+                     owner,
+                     ident,
+-                    lambda c, index=index, doc=doc: c["items"][index].update(
+-                        state="ready", document_id=doc
++                    lambda c, index=index, doc=doc, extraction=extraction: c["items"][index].update(
++                        state="ready", document_id=doc, extraction=extraction
+                     ),
+                 )
+             except DomainError as exc:
+@@ -277,16 +434,23 @@
+                         reason=reason,
+                         next_action=next_action,
+                     ),
++                    attempt=attempt,
+                 )
+ 
+         def finish(content):
+             if content["state"] != "cancelled":
+                 ready = sum(i["state"] == "ready" for i in content["items"])
+                 content["state"] = (
+-                    "ready" if ready == len(content["items"]) else "partial" if ready else "failed"
+-                )
+-
+-        self.update(owner, ident, finish)
++                    "partial"
++                    if not content["items"] and content["excluded"]
++                    else "ready"
++                    if ready == len(content["items"])
++                    else "partial"
++                    if ready
++                    else "failed"
++                )
++
++        self.update(owner, ident, finish, attempt=attempt)
+         return self.status(owner, ident)
+ 
+ 
+diff --git a/src/canvas_bridge/usefulness/imports.js b/src/canvas_bridge/usefulness/imports.js
+--- a/src/canvas_bridge/usefulness/imports.js
++++ b/src/canvas_bridge/usefulness/imports.js
+@@ -2,6 +2,44 @@
+ const form = document.querySelector("#batch");
+ const status = document.querySelector("#status");
+ let cancelled = false, activeKey = null, retryKeys = new Map(), selectedFiles = [];
++let dismissReview = null;
++function reviewPacket(result, mappings) {
++  const panel = document.createElement("section");
++  const heading = document.createElement("h3");
++  heading.textContent = "Review packet changes";
++  panel.append(heading);
++  let needsMapping = false;
++  for (const item of result.items) {
++    const line = document.createElement("p");
++    line.textContent = item.logical_path + " · " + item.disposition;
++    if (item.disposition === "ambiguous") {
++      needsMapping = true;
++      const select = document.createElement("select");
++      select.append(new Option("Choose an existing source", ""));
++      for (const id of item.candidates) {
++        select.append(new Option(item.candidate_locations[id] + " · " + id.slice(0, 8), id));
++      }
++      select.onchange = () => { mappings[item.logical_path] = select.value; };
++      line.append(select);
++    }
++    panel.append(line);
++  }
++  for (const path of result.excluded) panel.append(document.createTextNode("Unsupported: " + path + " "));
++  for (const ref of result.coverage.missing) {
++    const line = document.createElement("p");
++    line.textContent = ref.logical_path + (ref.retained_version ? " · omitted, earlier version retained" : " · missing");
++    panel.append(line);
++  }
++  form.after(panel);
++  return new Promise(resolve => {
++    const button = document.createElement("button");
++    button.type = "button";
++    button.textContent = needsMapping ? "Review selected mappings" : "Confirm eligible files";
++    button.onclick = () => { panel.remove(); dismissReview = null; resolve(needsMapping ? "review" : "commit"); };
++    panel.append(button);
++    dismissReview = () => { panel.remove(); dismissReview = null; resolve("cancel"); };
++  });
++}
+ function renderSelection() {
+   const list = document.querySelector("#selection");
+   list.replaceChildren();
+@@ -25,6 +63,7 @@
+ });
+ document.querySelector("#cancel").addEventListener("click", async () => {
+   cancelled = true;
++  if (dismissReview) dismissReview();
+   if (activeKey) {
+     await fetch("/settings/materials/cancel", {method: "POST", credentials: "same-origin",
+       headers: {"Content-Type": "application/x-www-form-urlencoded"},
+@@ -45,18 +84,39 @@
+   for (const file of files) {
+     if (cancelled) break;
+     const selection = [file.name, file.size, file.lastModified, form.course.value,
+-      form.purpose.value, form.share.checked, form.analysis.checked, form.visual.checked].join("|");
++      form.purpose.value, form.term.value, form.expected.value, form.share.checked, form.analysis.checked, form.visual.checked].join("|");
+     activeKey = retryKeys.get(selection) || crypto.randomUUID();
+     retryKeys.set(selection, activeKey);
+     status.textContent = "Processing " + file.name + " locally…";
+     try {
+-      const response = await fetch("/settings/materials/import", {method: "POST", credentials: "same-origin",
++      const send = extra => fetch("/settings/materials/import", {method: "POST", credentials: "same-origin",
+         headers: {"Content-Type": file.type || "application/octet-stream",
+           "X-Bridge-CSRF": form.csrf.value, "X-Bridge-Key": activeKey,
+           "X-Bridge-Filename": encodeURIComponent(file.name), "X-Bridge-Course": encodeURIComponent(form.course.value),
+           "X-Bridge-Purpose": form.purpose.value, "X-Bridge-Own": String(form.own.checked),
+           "X-Bridge-Share": String(form.share.checked), "X-Bridge-Analysis": String(form.analysis.checked),
+-          "X-Bridge-Visual": String(form.visual.checked)}, body: file});
++          "X-Bridge-Term": encodeURIComponent(form.term.value || "unspecified"),
++          "X-Bridge-Visual": String(form.visual.checked), ...extra}, body: file});
++      let extra = {};
++      if (file.name.toLowerCase().endsWith(".zip")) {
++        const mappings = {};
++        const expected = Object.fromEntries(form.expected.value.split(/\r?\n/).filter(Boolean).map(path => [path, null]));
++        while (!cancelled) {
++          extra = {"X-Bridge-Mappings": encodeURIComponent(JSON.stringify(mappings)),
++            "X-Bridge-Expected": encodeURIComponent(JSON.stringify(expected))};
++          const preview = await send({...extra, "X-Bridge-Preview": "true"});
++          if (!preview.ok) throw Error("Preview unavailable");
++          const result = await preview.json();
++          if (result.state === "rejected") {
++            status.textContent = "Packet rejected. Review the member paths, formats and limits.";
++            throw Error("Packet rejected");
++          }
++          const choice = await reviewPacket(result, mappings);
++          if (choice === "commit") { extra["X-Bridge-Confirmation"] = result.preview_id; break; }
++        }
++        if (cancelled) break;
++      }
++      const response = await send(extra);
+       if (!response.ok) { failed++; continue; }
+       const result = await response.json();
+       if (result.state === "ready") completed++;
+diff --git a/src/canvas_bridge/usefulness/records.py b/src/canvas_bridge/usefulness/records.py
+--- a/src/canvas_bridge/usefulness/records.py
++++ b/src/canvas_bridge/usefulness/records.py
+@@ -223,7 +223,7 @@
+             scope=AcademicScope(
+                 principal=owner,
+                 institution="independent",
+-                term="unspecified",
++                term=row.content.get("packet", {}).get("term", "unspecified"),
+                 course=row.content.get("course", "independent"),
+             ),
+             locator="Reviewed imported evidence",
+diff --git a/src/canvas_bridge/usefulness/service.py b/src/canvas_bridge/usefulness/service.py
+--- a/src/canvas_bridge/usefulness/service.py
++++ b/src/canvas_bridge/usefulness/service.py
+@@ -77,7 +77,18 @@
+             if not current_review:
+                 history = current.content.get("version_history", [])
+                 current_review = history[-1].get("review") if history else None
+-            if (current_review or {}).get("revision", 0) != expected_revision:
++            prior_revision = (current_review or {}).get("revision", 0)
++            if (
++                current_review
++                and current.content.get("packet")
++                and not current.content.get("review")
++            ):
++                saved = self.records.repo._load(session, owner)[1].records.get(
++                    current_review.get("record_id")
++                )
++                if saved and saved.state == "stale":
++                    prior_revision = saved.revision
++            if prior_revision != expected_revision:
+                 raise DomainError(
+                     "source_changed", "Another review was saved; refresh the reviewed selections."
+                 )
+@@ -86,6 +97,7 @@
+                     "record_id": record.id,
+                     "revision": record.revision,
+                     "source_hash": expected_hash,
++                    "observed_at": record.updated_at.isoformat(),
+                 },
+                 "reviewed_dataset": review["dataset"],
+             }
+diff --git a/src/canvas_bridge/usefulness/ui.py b/src/canvas_bridge/usefulness/ui.py
+--- a/src/canvas_bridge/usefulness/ui.py
++++ b/src/canvas_bridge/usefulness/ui.py
+@@ -51,6 +51,9 @@
+ 
+ 
+ def register_routes(bridge, route, identity, form, page, hidden):
++    from canvas_bridge.usefulness.workspace_ui import register
++
++    register(bridge, route, identity, form, page, hidden)
+     service = bridge.usefulness
+ 
+     def plan_choices(owner, course):
+@@ -89,6 +92,8 @@
+             maxlength=100,
+             required="required",
+         )
++        body += field("term", "Packet term", "unspecified", maxlength=100)
++        body += '<label>Expected packet paths, one per line (optional)<textarea name="expected" maxlength="4000"></textarea></label>'
+         body += select(
+             "purpose",
+             "Purpose",
+@@ -137,6 +142,10 @@
+                     + ": "
+                     + esc(item["state"])
+                     + " "
++                    + esc(item.get("disposition", ""))
++                    + " "
++                    + esc(item.get("extraction", ""))
++                    + " "
+                     + esc(item.get("next_action", ""))
+                     + "</li>"
+                 )
+@@ -147,6 +156,7 @@
+                 + start_form(session, "/settings/materials/cancel", batch_id=batch.id)
+                 + "<button>Cancel unfinished items</button></form></details>"
+             )
++        body += '<p><a href="/settings/materials/workspace">Export or restore a course workspace</a></p>'
+         body += '<p><a href="/settings/study">Selected study records and privacy controls</a></p>'
+         response = page("Add course materials", body)
+         response.headers["Content-Security-Policy"] += (
+@@ -182,6 +192,13 @@
+             if len(raw) + len(chunk) > ZIP_BYTES:
+                 raise DomainError("needs_input", "The upload exceeds the byte limit.")
+             raw.extend(chunk)
++        import json
++
++        try:
++            decisions = json.loads(unquote(request.headers.get("x-bridge-mappings", "{}")))
++            expected = json.loads(unquote(request.headers.get("x-bridge-expected", "{}")))
++        except (ValueError, RecursionError):
++            raise DomainError("needs_input", "Review the selected source references.") from None
+         result = await service.imports.run(
+             session.owner,
+             bytes(raw),
+@@ -189,6 +206,11 @@
+             request.headers.get("content-type", ""),
+             course=unquote(request.headers.get("x-bridge-course", "independent")),
+             purpose=request.headers.get("x-bridge-purpose", "material"),
++            term=unquote(request.headers.get("x-bridge-term", "unspecified")),
++            preview_only=request.headers.get("x-bridge-preview") == "true",
++            confirmation=request.headers.get("x-bridge-confirmation"),
++            decisions=decisions,
++            expected=expected,
+             key=request.headers.get("x-bridge-key", ""),
+             permissions={
+                 "own_material": request.headers.get("x-bridge-own") == "true",
+@@ -230,12 +252,23 @@
+         )
+         body = f"<p>{esc(row.content.get('filename', 'Imported document'))} · {esc(row.content.get('course', 'independent'))}</p>"
+         body += "<p>This preview remains local. Candidate passages are untrusted source data; acceptance records your review, not instructor authority. Unknown times stay unknown. No grading policy is inferred.</p>"
++        if prior_record and prior_record.state == "stale":
++            body += "<p>Source revised. Review the remaining work against the new version.</p><ul>"
++            for work in old_work:
++                body += (
++                    "<li>"
++                    + esc(work["title"])
++                    + " · previous personal progress: "
++                    + esc(work.get("progress", "unknown"))
++                    + "</li>"
++                )
++            body += "</ul>"
+         body += start_form(
+             session,
+             "/settings/materials/review",
+             document_id=row.id,
+             expected_hash=row.version_hash,
+-            expected_revision=prior.get("revision", 0),
++            expected_revision=prior_record.revision if prior_record else prior.get("revision", 0),
+         )
+         for candidate in found[start : start + 4]:
+             ident = candidate["id"]
+@@ -604,6 +637,10 @@
+                 and values.get("own_feedback") == "yes"
+                 and content.get("feedback_work", "") != str(values.get("feedback_work", ""))
+             )
++            if content.get("packet") and content.get("course") != course:
++                raise DomainError(
++                    "needs_input", "Import the packet under the new course as a separate binding."
++                )
+             if content.get("course", "independent") != course or feedback_changed:
+                 from canvas_bridge.processes.purge import purge_sources
+ 
+@@ -719,6 +756,18 @@
+                 )
+             scope = ["document_reading", "study", "visual_analysis"] + (
+                 ["grade_planning", "schedule"] if values.get("analysis") == "yes" else []
++            )
++            from canvas_bridge.usefulness.workspace_authority import require_original_grant
++
++            require_original_grant(
++                bridge,
++                database,
++                current,
++                share=share,
++                visual=visual,
++                scope=scope,
++                profile=profile,
++                external=external if selected else None,
+             )
+             old = current.provenance
+             if (
+diff --git a/src/canvas_bridge/usefulness/packet.py b/src/canvas_bridge/usefulness/packet.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/usefulness/packet.py
+@@ -0,0 +1,398 @@
++"""Reviewable packet observations. Authenticated settings supplies the owner and scope."""
++
++from dataclasses import dataclass
++from hashlib import sha256
++from pathlib import PurePosixPath
++
++from sqlalchemy import select
++
++from canvas_bridge.domain import DomainError
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.storage import IndependentResource, aware
++
++
++def changed():
++    raise DomainError("source_changed", "The source selection changed. Review the packet again.")
++
++
++def documents(session, owner, course, purpose, term, now):
++    rows = session.scalars(
++        select(IndependentResource).where(
++            IndependentResource.owner == owner,
++            IndependentResource.kind == "local_document",
++            IndependentResource.expires_at > now,
++        )
++    )
++    return [
++        row
++        for row in rows
++        if row.content.get("course", "independent") == course
++        and row.content.get("purpose", "material") == purpose
++        and row.content.get("packet", {}).get("term", "unspecified") == term
++    ]
++
++
++def snapshot(row):
++    return fingerprint(
++        [
++            row.id,
++            row.version_hash,
++            binding(row),
++            row.provenance,
++            row.content.get("metadata_revision"),
++            aware(row.expires_at).isoformat(),
++        ]
++    )
++
++
++def binding(row):
++    return row.content.get("packet", {}).get("binding") or fingerprint(["legacy-source", row.id])
++
++
++def locations(row):
++    return row.content.get("packet", {}).get("locations") or [row.content.get("filename")]
++
++
++@dataclass(frozen=True)
++class Member:
++    path: str
++    digest: str
++    term: str
++    binding: str
++    target: str | None
++    before: str | None
++    disposition: str
++    batch_id: str | None = None
++    index: int = 0
++    attempt: str | None = None
++
++    def fields(self):
++        return {
++            "logical_path": self.path,
++            "content_hash": self.digest,
++            "binding": self.binding,
++            "target": self.target,
++            "before": self.before,
++            "disposition": self.disposition,
++            "term": self.term,
++        }
++
++    def check(self, session, owner, course, purpose, now):
++        rows = documents(session, owner, course, purpose, self.term, now)
++        if any(self.path in locations(r) and r.id != self.target for r in rows):
++            changed()
++        if self.target:
++            row = next((r for r in rows if r.id == self.target), None)
++            if not row or snapshot(row) != self.before:
++                changed()
++            return row
++        if fenced(session, owner, course, purpose, self.term, self.binding, self.digest, now=now):
++            raise DomainError(
++                "permission_denied",
++                "A prior deletion excludes this packet source.",
++                reason_code="PORT_SOURCE_DELETED",
++            )
++        if any(binding(row) == self.binding or self.path in locations(row) for row in rows):
++            changed()
++        return None
++
++    def publish(self, session, owner, row, now):
++        from copy import deepcopy
++
++        if not self.batch_id:
++            changed()
++        receipt = session.get(IndependentResource, self.batch_id)
++        if (
++            not receipt
++            or receipt.owner != owner
++            or receipt.kind != "import_batch"
++            or receipt.content.get("attempt") != self.attempt
++            or receipt.content["state"] != "extracting"
++            or aware(receipt.expires_at) <= now
++        ):
++            changed()
++        content = deepcopy(receipt.content)
++        item = content["items"][self.index]
++        if item["content_hash"] != row.version_hash or item["binding"] != binding(row):
++            changed()
++        item.update(
++            state="ready",
++            document_id=row.id,
++            extraction=row.content["parsed"].get("coverage", "unknown"),
++        )
++        receipt.content, receipt.version_hash = content, fingerprint(content)
++
++    def metadata(self, row, now):
++        paths = list(locations(row)) if row else []
++        if self.path not in paths:
++            if len(paths) >= 64:
++                raise DomainError("needs_input", "This source reached its location history limit.")
++            paths.append(self.path)
++        return {
++            "binding": self.binding,
++            "term": self.term,
++            "locations": paths,
++            "current_path": self.path,
++            "observed_at": now.isoformat(),
++        }
++
++
++def eligible_documents(bridge, session, owner, course, purpose, term, now):
++    visible = []
++    for row in documents(session, owner, course, purpose, term, now):
++        try:
++            bridge.independent.require_row(session, owner, row)
++            bridge.independent.reject_institutional_copy(session, owner, row.version_hash)
++        except DomainError:
++            continue
++        visible.append(row)
++    return visible
++
++
++def plan(session, owner, course, purpose, term, files, decisions, now, rows):
++    if not all(isinstance(s, str) and 0 < len(s) <= 100 for s in (term, course)):
++        raise DomainError("needs_input", "Choose a bounded course and term.")
++    items = []
++    for path, body, _ in files:
++        digest = sha256(body).hexdigest()
++        by_path = [r for r in rows if path in locations(r)]
++        by_hash = [
++            r
++            for r in rows
++            if r.version_hash == digest
++            and PurePosixPath(path).suffix.lower().lstrip(".") == r.content["format"]
++        ]
++        candidates = {
++            r.id: r
++            for r in (
++                by_path
++                if by_path and all(r.version_hash == digest for r in by_path)
++                else by_path + by_hash
++            )
++        }
++        target = next(iter(candidates.values())) if len(candidates) == 1 else None
++        ambiguous = len(candidates) > 1
++        if ambiguous and path in decisions:
++            target = candidates.get(decisions[path])
++            if not target:
++                changed()
++            ambiguous = False
++        disposition = (
++            "ambiguous"
++            if ambiguous
++            else "new_binding"
++            if not target
++            else "new_version"
++            if target.version_hash != digest
++            else "unchanged"
++            if path in locations(target)
++            else "relocated"
++        )
++        ident = (
++            binding(target)
++            if target
++            else fingerprint(["packet-source-1", owner, "independent", term, course, purpose, path])
++        )
++        if not target and fenced(session, owner, course, purpose, term, ident, digest, now=now):
++            disposition = "deleted"
++        item = Member(
++            path,
++            digest,
++            term,
++            ident,
++            target.id if target else None,
++            snapshot(target) if target else None,
++            disposition,
++        ).fields()
++        if ambiguous or path in decisions:
++            item["candidates"] = sorted(candidates)
++            item["candidate_locations"] = {
++                ident: candidates[ident]
++                .content.get("packet", {})
++                .get("current_path", candidates[ident].content["filename"])
++                for ident in sorted(candidates)
++            }
++        items.append(item)
++    if set(decisions) - {i["logical_path"] for i in items if "candidates" in i}:
++        changed()
++    # Two simultaneous versions cannot both become the current version of one source.
++    for item in items:
++        if item["target"] and any(
++            other["target"] == item["target"] and other["content_hash"] != item["content_hash"]
++            for other in items
++        ):
++            item["disposition"] = "conflicting_mapping"
++    return items
++
++
++def member(item, batch_id, index, attempt):
++    return Member(
++        item["logical_path"],
++        item["content_hash"],
++        item["term"],
++        item["binding"],
++        item["target"],
++        item["before"],
++        item["disposition"],
++        batch_id,
++        index,
++        attempt,
++    )
++
++
++def invalidate_version(bridge, session, owner, ident, version, now):
++    """Preserve work and its original basis while making affected derivations stale."""
++    from canvas_bridge.processes.state import descendants, indexed
++
++    repo = bridge.processes.repository
++    row, state = repo._load(session, owner)
++    direct = {
++        r.id
++        for r in state.records.values()
++        if any(s.id == ident and s.version == version for s in r.sources)
++    }
++    affected = direct | {child for key in direct for child in descendants(state, key)}
++    if affected:
++        records = dict(state.records)
++        for key in affected:
++            old = records[key]
++            records[key] = old.model_copy(
++                update={
++                    "state": "stale" if old.state == "valid" else old.state,
++                    "revision": old.revision + 1,
++                    "updated_at": now,
++                }
++            )
++        repo._save(
++            session,
++            owner,
++            row,
++            indexed(
++                records,
++                version=state.version + 1,
++                revisions=state.revisions,
++                receipts=state.receipts,
++            ),
++        )
++
++
++def coverage(session, owner, course, purpose, term, items, expected, now, retained):
++    import re
++
++    if (
++        not isinstance(expected, dict)
++        or len(expected) > 100
++        or any(
++            not isinstance(k, str)
++            or not 1 <= len(k) <= 2048
++            or (v is not None and (not isinstance(v, str) or not re.fullmatch("[a-f0-9]{64}", v)))
++            for k, v in expected.items()
++        )
++    ):
++        raise DomainError(
++            "needs_input", "Choose bounded source paths and optional SHA-256 versions."
++        )
++    by_path = {p: r for r in retained for p in locations(r)}
++    # Earlier receipts record unresolved selections for this exact owner, role,
++    # term and course. An omission on retry does not discard the expected hash.
++    pending = {}
++    receipts = session.scalars(
++        select(IndependentResource)
++        .where(
++            IndependentResource.owner == owner,
++            IndependentResource.kind == "import_batch",
++            IndependentResource.expires_at > now,
++        )
++        .order_by(IndependentResource.created_at, IndependentResource.id)
++        .limit(40)
++    )
++    for receipt in receipts:
++        data = receipt.content
++        if (data.get("course"), data.get("purpose"), data.get("term")) != (course, purpose, term):
++            continue
++        for ref in data.get("coverage", {}).get("missing", []):
++            path = ref["logical_path"]
++            if path not in by_path:
++                pending[path] = ref.get("expected_hash")
++        for item in data.get("items", []):
++            if (
++                item.get("disposition") == "unexpected_version"
++                and item.get("logical_path") not in by_path
++            ):
++                pending[item["logical_path"]] = item["expected_hash"]
++    expected = {**pending, **{k: v or pending.get(k) for k, v in expected.items()}}
++    if len(expected) > 100:
++        raise DomainError(
++            "needs_input", "The selected references exceed this course coverage budget."
++        )
++    selected = {i["logical_path"] for i in items}
++    for item in items:
++        wanted = expected.get(item["logical_path"])
++        if wanted and wanted != item["content_hash"]:
++            item["disposition"] = "unexpected_version"
++            item["expected_hash"] = wanted
++    missing = []
++    for path in sorted(set(expected) - selected):
++        row = by_path.get(path)
++        if row and expected[path] and row.version_hash != expected[path]:
++            row = None
++        missing.append(
++            {
++                "logical_path": path,
++                "expected_hash": expected[path],
++                "observation": "not_observed",
++                "retained_version": row.version_hash if row else None,
++            }
++        )
++    observed = {i["target"] for i in items}
++    return {
++        "mode": "incremental",
++        "missing": missing,
++        "omitted_bindings": sorted(binding(r) for r in retained if r.id not in observed),
++    }
++
++
++def fence_id(owner, course, purpose, term, value):
++    return fingerprint(["local-portability-fence-1", owner, course, purpose, term, value])
++
++
++def fence_deletion(session, row, now):
++    from datetime import timedelta
++
++    content = row.content
++    keys = {
++        binding(row),
++        row.version_hash,
++        *(h["hash"] for h in content.get("version_history", [])),
++    }
++    for key in keys:
++        ident = fence_id(
++            row.owner,
++            content.get("course", "independent"),
++            content.get("purpose", "material"),
++            content.get("packet", {}).get("term", "unspecified"),
++            key,
++        )
++        fence = session.get(IndependentResource, ident)
++        if fence is None:
++            fence = IndependentResource(
++                id=ident,
++                owner=row.owner,
++                kind="local_deletion_fence",
++                provenance={"retention_class": "deletion_fence"},
++                content={},
++                version_hash=ident,
++            )
++            session.add(fence)
++        fence.created_at = now
++        fence.expires_at = now + timedelta(days=91)
++
++
++def fenced(session, owner, course, purpose, term, *values, now):
++    return any(
++        f and aware(f.expires_at) > now
++        for f in (
++            session.get(IndependentResource, fence_id(owner, course, purpose, term, v))
++            for v in values
++        )
++    )
+diff --git a/src/canvas_bridge/usefulness/workspace.py b/src/canvas_bridge/usefulness/workspace.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/usefulness/workspace.py
+@@ -0,0 +1,803 @@
++"""Selected owned course export and transactional, reviewed restoration."""
++
++from copy import deepcopy
++from datetime import datetime, timedelta
++from hashlib import sha256
++
++from sqlalchemy import select
++
++from canvas_bridge.domain import DomainError, opaque_id
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes.models import ProcessState
++from canvas_bridge.processes.state import apply, preview
++from canvas_bridge.source_authorization import LocalPreferences
++from canvas_bridge.storage import IndependentResource, PrincipalState, aware
++from canvas_bridge.usefulness.packet import binding, fenced, snapshot
++from canvas_bridge.usefulness.workspace_authority import authority, current_doc
++from canvas_bridge.usefulness.workspace_package import SCHEMA, pack, refuse, unpack, version
++
++
++def timestamp(value):
++    return aware(datetime.fromisoformat(value))
++
++
++def preference_id(owner):
++    return sha256((owner + ":preferences").encode()).hexdigest()
++
++
++def record_value(record):
++    return record.model_dump(mode="json", exclude={"revision", "updated_at"})
++
++
++def payload_eligible(privacy):
++    return (
++        privacy.get("content_status") == "text_inspected_visuals_unreviewed"
++        and privacy.get("page_content_filtered") is False
++        and privacy.get("auxiliary_content_status") not in {"incomplete", "not_assessed"}
++    )
++
++
++def rebind_review(record, tag, destination):
++    """Rewrite only typed citation coordinates. Academic work keys and quotations are evidence."""
++    data = deepcopy(record.data)
++    review = data["value"]
++    for work in review["dataset"]["work"]:
++        for citation in work.get("evidence", []):
++            if citation.get("document_id") == tag.id:
++                citation["document_id"] = destination
++    for decision in review["decisions"]:
++        candidate = decision["candidate"]
++        if candidate["document_id"] == tag.id:
++            candidate["document_id"] = destination
++            candidate["id"] = fingerprint(
++                [
++                    destination,
++                    candidate["content_hash"],
++                    candidate["part"],
++                    candidate["start"],
++                    candidate["quote"],
++                ]
++            )
++        for citation in (decision.get("correction") or {}).get("evidence", []):
++            if citation.get("document_id") == tag.id:
++                citation["document_id"] = destination
++    sources = tuple(
++        s.model_copy(update={"id": destination}) if s == tag else s for s in record.sources
++    )
++    return record.model_copy(update={"data": data, "sources": sources})
++
++
++class Workspace:
++    def __init__(self, bridge):
++        self.bridge = bridge
++        self.repo = bridge.processes.repository
++
++    def _download_link(self, owner, record, recipient):
++        from canvas_bridge.approval_policy import CATEGORIES
++
++        if (
++            recipient is None
++            or record.kind != "identity"
++            or not record.data.get("canonical_link_proposal")
++        ):
++            refuse(
++                "PORT_INSTITUTIONAL_EXPORT_UNAVAILABLE",
++                "A current user-download policy is required.",
++            )
++        from canvas_bridge.processes.service import plain
++
++        # Use the established public identity projection. The local revision is
++        # separately reviewed as container version metadata, never inferred at restore.
++        value = plain(record, public=True)
++        value.pop("revision")
++        wire = {"records": [value], "version": record.revision}
++        for connection in {s.connection for s in record.sources if s.origin == "institutional"}:
++            self.bridge.connection_policy(
++                owner, connection, CATEGORIES, activity="share", recipient="user_download"
++            )
++            clean = self.bridge.egress.connection_export(owner, connection, recipient, wire)
++            if clean != wire:
++                refuse(
++                    "PORT_INSTITUTIONAL_EXPORT_UNAVAILABLE",
++                    "The selected link exceeded its current download permission.",
++                )
++        return wire
++
++    def export(
++        self,
++        owner,
++        course,
++        ids,
++        docs,
++        *,
++        originals=False,
++        preferences=False,
++        generation=None,
++        recipient=None,
++    ):
++        self.bridge.usefulness.enabled()
++        if (
++            not (ids or docs or preferences)
++            or len(ids) > 500
++            or len(docs) > 20
++            or not 1 <= len(course) <= 100
++        ):
++            refuse("PORT_SELECTION_REQUIRED", "Choose a bounded course and its records.")
++        now = self.bridge.retention.clock()
++        payloads, documents, records, omitted = {}, [], [], []
++        approved_links, link_reasons, link_exports = {}, {}, {}
++        if recipient is not None:
++            for ident in ids:
++                try:
++                    candidate = self.repo.read(owner, ident)
++                    if candidate.scope.course != course or not any(
++                        s.origin == "institutional" for s in candidate.sources
++                    ):
++                        continue
++                    link_exports[ident] = self._download_link(owner, candidate, recipient)
++                    approved_links[ident] = candidate
++                except DomainError as exc:
++                    link_reasons[ident] = exc.reason_code or exc.status
++        with self.bridge.store.transaction() as session:
++            principal = self.bridge.store.principal(session, owner)
++            if generation is not None and principal.generation != generation:
++                refuse("PORT_ACCOUNT_CHANGED", "Sign in again to export.")
++            row, state = self.repo._load(session, owner)
++            pending = list(dict.fromkeys(ids))
++            visited = set()
++            doc_ids = set(docs)
++            while pending:
++                ident = pending.pop()
++                if ident in visited:
++                    continue
++                visited.add(ident)
++                rec = state.records.get(ident)
++                if not rec or rec.scope.course != course:
++                    omitted.append({"id": ident, "reason": "unavailable_in_selection"})
++                    continue
++                try:
++                    self.repo._require(session, owner, rec, "export")
++                except DomainError:
++                    omitted.append({"id": ident, "reason": "source_unavailable"})
++                    continue
++                if (
++                    any(s.origin == "institutional" for s in rec.sources)
++                    and approved_links.get(ident) != rec
++                ):
++                    # Mixed-origin records require live provider reauthorization before release.
++                    omitted.append(
++                        {
++                            "id": ident,
++                            "reason": link_reasons.get(ident, "institutional_export_unavailable"),
++                        }
++                    )
++                    continue
++                records.append(
++                    link_exports[ident]["records"][0]
++                    if ident in approved_links
++                    else rec.model_dump(mode="json")
++                )
++                pending.extend(rec.depends_on)
++                doc_ids.update(s.id for s in rec.sources if s.origin == "local_document")
++            for ident in sorted(doc_ids):
++                try:
++                    doc = current_doc(self.bridge, session, owner, ident, now)
++                    if doc.content.get("course", "independent") != course:
++                        raise DomainError("permission_denied", "Outside selected course.")
++                    content = doc.content
++                    versions = []
++                    for h in content.get("version_history", []):
++                        if h.get("original_bytes"):
++                            self.bridge.independent.reject_institutional_copy(
++                                session, owner, h["hash"]
++                            )
++                            versions.append(
++                                version(
++                                    h["original_bytes"],
++                                    h["hash"],
++                                    h["logical_path"],
++                                    h["acquired_at"],
++                                    originals and payload_eligible(h.get("privacy", {})),
++                                    payloads,
++                                )
++                            )
++                    versions.append(
++                        version(
++                            content["bytes"],
++                            doc.version_hash,
++                            content.get("packet", {}).get("current_path", content["filename"]),
++                            doc.provenance["acquired_at"],
++                            originals and payload_eligible(content["parsed"].get("privacy", {})),
++                            payloads,
++                        )
++                    )
++                    documents.append(
++                        {
++                            "id": ident,
++                            "binding": binding(doc),
++                            "hash": doc.version_hash,
++                            "format": content["format"],
++                            "purpose": content.get("purpose", "material"),
++                            "term": content.get("packet", {}).get("term", "unspecified"),
++                            "versions": versions,
++                            "expires_at": aware(doc.expires_at).isoformat(),
++                            "policy": fingerprint(doc.provenance),
++                        }
++                    )
++                except DomainError as exc:
++                    if exc.reason_code == "PORT_PACKAGE_LIMIT":
++                        raise
++                    omitted.append({"id": ident, "reason": exc.reason_code or "source_unavailable"})
++            prefs = None
++            if preferences:
++                pref = session.get(IndependentResource, preference_id(owner))
++                if (
++                    pref
++                    and pref.owner == owner
++                    and pref.kind == "local_preferences"
++                    and aware(pref.expires_at) > now
++                ):
++                    LocalPreferences.model_validate(pref.content["value"])
++                    prefs = {
++                        "id": pref.id,
++                        "value": pref.content,
++                        "hash": pref.version_hash,
++                        "created_at": aware(pref.created_at).isoformat(),
++                        "expires_at": aware(pref.expires_at).isoformat(),
++                    }
++                else:
++                    omitted.append({"id": "preferences", "reason": "unavailable_in_selection"})
++            manifest = {
++                "schema_version": SCHEMA,
++                "export_id": opaque_id(),
++                "owner": owner,
++                "generation": principal.generation,
++                "course": course,
++                "exported_at": now.isoformat(),
++                "process": {
++                    "schema_version": "academic-process-export-1",
++                    "records": records,
++                    "authority": "portable_evidence_only",
++                    "external_transfer": False,
++                },
++                "selected": {
++                    "records": sorted(set(ids)),
++                    "documents": sorted(set(docs)),
++                    "preferences": preferences,
++                },
++                "preferences": prefs,
++                "link_versions": {
++                    k: v["version"]
++                    for k, v in link_exports.items()
++                    if any(r["id"] == k for r in records)
++                },
++                "documents": documents,
++                "omitted": omitted,
++                "retention": (
++                    {
++                        "created_at": aware(row.created_at).isoformat(),
++                        "expires_at": aware(row.expires_at).isoformat(),
++                        "basis": "original_process_container",
++                    }
++                    if records
++                    else None
++                ),
++            }
++            payloads = {
++                v["hash"]: payloads[v["hash"]]
++                for d in documents
++                for v in d["versions"]
++                if v["payload"] == "included"
++            }
++            raw = pack(manifest, payloads)
++            # A digest in a package is not authority. Retain independent issuance evidence.
++            witnesses = session.scalars(
++                select(IndependentResource.id)
++                .where(
++                    IndependentResource.owner == owner,
++                    IndependentResource.kind == "workspace_export",
++                    IndependentResource.expires_at > now,
++                )
++                .limit(100)
++            ).all()
++            if len(witnesses) >= 100:
++                refuse("PORT_EXPORT_CAPACITY", "Allow earlier export receipts to expire.")
++            session.add(
++                IndependentResource(
++                    id=manifest["export_id"],
++                    owner=owner,
++                    kind="workspace_export",
++                    version_hash=sha256(raw).hexdigest(),
++                    content={},
++                    provenance={"generation": principal.generation},
++                    created_at=now,
++                    expires_at=now + timedelta(days=30),
++                )
++            )
++        for ident, link in approved_links.items():
++            if self.repo.read(owner, ident) != link:
++                refuse("PORT_SOURCE_CHANGED", "The selected association changed during export.")
++            self._download_link(owner, link, recipient)
++        return raw
++
++    def restore(self, owner, raw, *, generation, choices=(), confirmation=None, key=None):
++        self.bridge.usefulness.enabled()
++        manifest, docs, records, payloads = unpack(raw, owner)
++        digest = sha256(raw).hexdigest()
++        now = self.bridge.retention.clock()
++        if (
++            not isinstance(choices, (tuple, list))
++            or len(choices) > 500
++            or any(not isinstance(c, str) or len(c) > 200 for c in choices)
++        ):
++            refuse("PORT_CONFLICT_DECISION", "Choose individual record conflicts to replace.")
++        if confirmation and (not isinstance(key, str) or not 1 <= len(key) <= 100):
++            refuse("PORT_RETRY_KEY_REQUIRED", "Use the reviewed restore operation.")
++        with self.bridge.store.transaction() as session:
++            principal = self.bridge.store.principal(session, owner)
++            if principal.generation != generation:
++                refuse("PORT_ACCOUNT_CHANGED", "Sign in again to review the course restore.")
++            with authority(self.bridge, session) as origin:
++                witness = origin.get(IndependentResource, manifest["export_id"])
++                original_owner = origin.get(PrincipalState, owner)
++                if (
++                    not witness
++                    or witness.owner != owner
++                    or witness.kind != "workspace_export"
++                    or witness.version_hash != digest
++                    or aware(witness.expires_at) <= now
++                    or not original_owner
++                    or original_owner.generation != manifest["generation"]
++                    or generation != manifest["generation"]
++                ):
++                    refuse(
++                        "PORT_AUTHORITY_UNAVAILABLE",
++                        "Current owner and post-export deletion history could not be verified.",
++                    )
++                row, state = self.repo._load(session, owner)
++                retry = fingerprint(["course-restore", owner, key])
++                request_hash = fingerprint([digest, confirmation, sorted(choices), generation])
++                prior = state.receipts.get(retry) if confirmation else None
++                if prior:
++                    if prior["request_hash"] != request_hash:
++                        refuse(
++                            "PORT_RETRY_CONFLICT", "This retry key belongs to a different restore."
++                        )
++                    return prior
++                source_state = ProcessState()
++                if records:
++                    try:
++                        source_state = self.repo._load(origin, owner)[1]
++                    except DomainError as error:
++                        if error.reason_code != "PROCESS_STATE_EXPIRED":
++                            raise
++                selected = RestoreUnit(self, session, origin, owner, now, manifest, state, choices)
++                selected.documents(docs, payloads)
++                selected.records(records, source_state)
++                selected.preferences()
++                report = {
++                    "bundle_hash": digest,
++                    "history_authority": "current_store"
++                    if origin is session
++                    else "paired_live_sqlite",
++                    "generation": generation,
++                    "state_version": state.version,
++                    "documents": selected.doc_results,
++                    "records": selected.record_results,
++                    "preferences": selected.preference_result,
++                    "omitted": manifest["omitted"],
++                    "source_id_map": selected.mapping,
++                    "external_writes": False,
++                    "unit": "eligible_dependency_closed_course_records",
++                    "record_id_map": {
++                        k: k
++                        for k, v in selected.record_results.items()
++                        if v["action"] in {"create", "reuse", "replace"}
++                    },
++                }
++                reviewed = fingerprint([owner, report, sorted(choices)])
++                if confirmation is None:
++                    report["preview_id"] = self.bridge.vault.seal(
++                        {
++                            "reviewed": reviewed,
++                            "expires": (now + timedelta(minutes=15)).isoformat(),
++                        },
++                        owner,
++                        "course-workspace-preview-1",
++                    )
++                    return report
++                from cryptography.exceptions import InvalidTag
++
++                try:
++                    proof = self.bridge.vault.open(
++                        confirmation, owner, "course-workspace-preview-1"
++                    )
++                except (ValueError, TypeError, InvalidTag):
++                    refuse("PORT_PREVIEW_CHANGED", "Review a fresh restore preview.")
++                report["preview_id"] = confirmation
++                if reviewed != proof["reviewed"] or timestamp(proof["expires"]) <= now:
++                    refuse(
++                        "PORT_PREVIEW_CHANGED",
++                        "The destination or a source changed. Review a fresh preview.",
++                    )
++                receipt = selected.commit(row, state, report, retry, request_hash)
++                # Finish the destination commit while the external origin read lock is still held.
++                session.commit()
++                return receipt
++
++
++class RestoreUnit:
++    def __init__(self, workspace, session, origin, owner, now, manifest, state, choices):
++        self.bridge, self.repo = workspace.bridge, workspace.repo
++        self.session, self.origin, self.owner, self.now = session, origin, owner, now
++        self.manifest, self.state, self.choices = manifest, state, set(choices)
++        self.mapping, self.doc_results, self.record_results = {}, {}, {}
++        self.payloads = {}
++        self.new_docs, self.after = [], []
++        self.projected = state
++        self.preference_result, self.pref = None, None
++
++    def documents(self, docs, payloads):
++        self.payloads = payloads
++        current = self.session.scalars(
++            select(IndependentResource).where(
++                IndependentResource.owner == self.owner,
++                IndependentResource.kind == "local_document",
++            )
++        ).all()
++        for ident, item in docs.items():
++            try:
++                src = current_doc(self.bridge, self.origin, self.owner, ident, self.now)
++                if (
++                    binding(src) != item["binding"]
++                    or src.version_hash != item["hash"]
++                    or fingerprint(src.provenance) != item["policy"]
++                    or timestamp(item["expires_at"]) <= self.now
++                ):
++                    refuse("PORT_SOURCE_CHANGED", "Current source version or permissions changed.")
++                self.bridge.independent.reject_institutional_copy(
++                    self.session, self.owner, src.version_hash
++                )
++                if fenced(
++                    self.session,
++                    self.owner,
++                    self.manifest["course"],
++                    item["purpose"],
++                    item["term"],
++                    item["binding"],
++                    src.version_hash,
++                    now=self.now,
++                ):
++                    refuse("PORT_SOURCE_DELETED", "A destination deletion excludes this source.")
++                matches = [d for d in current if binding(d) == item["binding"]]
++                if matches:
++                    if (
++                        len(matches) != 1
++                        or matches[0].version_hash != src.version_hash
++                        or aware(matches[0].expires_at) <= self.now
++                    ):
++                        refuse("PORT_SOURCE_COLLISION", "Review the destination source collision.")
++                    dest = self.bridge.independent.require_row(self.session, self.owner, matches[0])
++                    if (
++                        dest.content.get("course", "independent") != self.manifest["course"]
++                        or dest.content.get("purpose", "material") != item["purpose"]
++                        or dest.content.get("packet", {}).get("term", "unspecified") != item["term"]
++                    ):
++                        refuse("PORT_SOURCE_COLLISION", "Review the destination source scope.")
++                    self.mapping[ident] = dest.id
++                    self.doc_results[ident] = {"action": "reuse", "target": snapshot(dest)}
++                    continue
++                if item["versions"][-1]["payload"] != "included":
++                    refuse(
++                        "PORT_REFERENCE_UNRESOLVED",
++                        "Select the current matching source in this destination.",
++                    )
++                target = ident
++                if self.session.get(IndependentResource, target):
++                    target = fingerprint(["restored-document", self.owner, item["binding"]])
++                if len(current) + len(self.new_docs) >= 20 or self.session.get(
++                    IndependentResource, target
++                ):
++                    refuse(
++                        "PORT_SOURCE_COLLISION",
++                        "A destination identity or capacity limit prevents this create.",
++                    )
++                # Keep existing source and nested academic IDs when they are free.
++                self.mapping[ident] = target
++                self.new_docs.append((src, item))
++                self.doc_results[ident] = {"action": "create", "target": None}
++            except DomainError as error:
++                self.doc_results[ident] = {
++                    "action": "blocked",
++                    "reason": error.reason_code or error.status,
++                }
++
++    def records(self, records, source_state):
++        pending = {r.id: r for r in records}
++        while pending:
++            batch = [r for r in pending.values() if not set(r.depends_on) & pending.keys()]
++            if not batch:
++                refuse("PORT_DEPENDENCY_CYCLE", "The workspace contains a dependency cycle.")
++            for rec in batch:
++                del pending[rec.id]
++                existing = self.projected.records.get(rec.id)
++                action = self.record_action(rec, existing, source_state)
++                self.record_results[rec.id] = {
++                    "action": action,
++                    "imported_revision": rec.revision,
++                    "destination_revision": existing.revision if existing else None,
++                }
++                if action in {"create", "replace"}:
++                    change = self.after[-1]
++                    self.record_results[rec.id]["affected"] = list(change.affected)
++                    self.projected = apply(self.projected, change, now=self.now)
++        if self.choices - (set(self.record_results) | {"preferences"}):
++            refuse("PORT_CONFLICT_DECISION", "Choose only conflicts from the selected workspace.")
++
++    def record_action(self, rec, existing, source_state):
++        deletion_key = fingerprint(["portable-record-deletion", self.owner, rec.id])
++        for session in (self.session, self.origin):
++            deletion = session.get(IndependentResource, deletion_key)
++            if deletion and aware(deletion.created_at) >= timestamp(self.manifest["exported_at"]):
++                return "blocked_deleted_record"
++        if (
++            rec.id not in source_state.records
++            or timestamp(self.manifest["retention"]["expires_at"]) <= self.now
++        ):
++            return "blocked_expired_or_deleted"
++        if rec.scope.course != self.manifest["course"] or rec.state != "valid":
++            return "blocked_scope_or_state"
++        if any(
++            self.record_results.get(p, {}).get("action") not in {"create", "reuse", "replace"}
++            for p in rec.depends_on
++        ):
++            return "unresolved_dependency"
++        for tag in rec.sources:
++            if not tag.observed_at <= self.now < tag.expires_at:
++                return "blocked_source_expired"
++            if tag.origin == "user_declaration":
++                from canvas_bridge.usefulness.records import authorize_declaration
++
++                authorize_declaration(self.session, self.owner, tag)
++            elif tag.origin == "local_document":
++                if tag.id not in self.mapping:
++                    return "unresolved_source"
++                doc = self.origin.get(IndependentResource, tag.id)
++                if doc.version_hash != tag.version:
++                    return "blocked_source_changed"
++                if self.mapping[tag.id] != tag.id:
++                    if (
++                        rec.data.get("schema") != "usefulness-1"
++                        or rec.data.get("subtype") != "import_review"
++                    ):
++                        return "unresolved_nested_identity"
++                    rec = rebind_review(rec, tag, self.mapping[tag.id])
++            elif tag.origin == "institutional" and rec.kind == "identity":
++                try:
++                    self.repo.authorize(self.origin, self.owner, tag, "read")
++                    self.repo.authorize(self.session, self.owner, tag, "write")
++                except DomainError:
++                    return "unresolved_origin"
++            else:
++                return "unresolved_origin"
++        if rec.kind in {"plan", "projection", "reminder"} or rec.data.get("subtype") == "plan":
++            return "historical_replan_required"
++        if self.origin is not self.session and rec.data.get("schema") == "usefulness-1":
++            rec = rec.model_copy(
++                update={"data": rec.data | {"share": False, "recipient_policy": None}}
++            )
++        if rec.data.get("subtype") == "import_review":
++            local = next((s for s in rec.sources if s.origin == "local_document"), None)
++            doc = self.session.get(IndependentResource, local.id) if local else None
++            existing_review = doc.content.get("review", {}) if doc else {}
++            if existing_review and existing_review.get("record_id") != rec.id:
++                return "unresolved_destination_review"
++        if existing and record_value(rec) == record_value(existing):
++            return "reuse"
++        if existing and (existing.scope != rec.scope or existing.kind != rec.kind):
++            return "blocked_identity_collision"
++        if existing and rec.id not in self.choices:
++            return "conflict"
++        if existing:
++            try:
++                self.repo._require(self.session, self.owner, existing, "write")
++            except DomainError:
++                return "blocked_destination_source"
++        updated = rec.model_copy(update={"revision": existing.revision + 1 if existing else 1})
++        self.after.append(
++            preview(
++                self.projected,
++                self.owner,
++                rec.id,
++                updated,
++                "correction" if existing else "create",
++                now=self.now,
++            )
++        )
++        return "replace" if existing else "create"
++
++    def preferences(self):
++        data = self.manifest["preferences"]
++        if not data:
++            return
++        src = self.origin.get(IndependentResource, preference_id(self.owner))
++        dest = self.session.get(IndependentResource, preference_id(self.owner))
++        if (
++            not src
++            or src.owner != self.owner
++            or src.kind != "local_preferences"
++            or aware(src.expires_at) <= self.now
++            or timestamp(data["expires_at"]) <= self.now
++        ):
++            self.preference_result = {"action": "blocked_expired_or_deleted"}
++            return
++        value = LocalPreferences.model_validate(data["value"]["value"]).validated()
++        if dest and (
++            dest.owner != self.owner
++            or dest.kind != "local_preferences"
++            or aware(dest.expires_at) <= self.now
++        ):
++            self.preference_result = {"action": "blocked_destination_state"}
++            return
++        current = dest.content["version"] if dest else 0
++        action = (
++            "reuse"
++            if dest and dest.content["value"] == value
++            else "conflict"
++            if dest and "preferences" not in self.choices
++            else "replace"
++            if dest
++            else "create"
++        )
++        self.preference_result = {
++            "action": action,
++            "destination_revision": current,
++            "imported_revision": data["value"]["version"],
++        }
++        if action in {"create", "replace"}:
++            self.pref = (dest, src, value, current + 1)
++
++    def commit(self, row, state, report, retry, request_hash):
++        for src, item in self.new_docs:
++            # Parsed derivatives come only from the verified live source. Do not transfer recipient approvals.
++            content = {
++                k: deepcopy(v)
++                for k, v in src.content.items()
++                if k
++                in {
++                    "filename",
++                    "course",
++                    "purpose",
++                    "format",
++                    "parsed",
++                    "bytes",
++                    "packet",
++                    "version_history",
++                }
++            }
++            if "packet" not in content:
++                content["packet"] = {
++                    "binding": item["binding"],
++                    "term": item["term"],
++                    "locations": [content["filename"]],
++                    "current_path": content["filename"],
++                }
++            import base64
++
++            content["bytes"] = base64.b64encode(self.payloads[src.version_hash]).decode()
++            included = {v["hash"] for v in item["versions"] if v["payload"] == "included"}
++            for historical in content.get("version_history", []):
++                if historical["hash"] not in included:
++                    historical.pop("original_bytes", None)
++                else:
++                    historical["original_bytes"] = base64.b64encode(
++                        self.payloads[historical["hash"]]
++                    ).decode()
++            content["portable_origin"] = {
++                "source": src.id,
++                "binding": item["binding"],
++                "permission_version": src.provenance.get("permission_version", 0),
++            }
++            policy = src.provenance | {
++                "share_text": False,
++                "share_visual": False,
++                "egress_policy": None,
++                "external_egress_policy": None,
++                "scope": ["document_reading", "study"],
++            }
++            policy["revocation_dependency"] = self.mapping[src.id]
++            self.session.add(
++                IndependentResource(
++                    id=self.mapping[src.id],
++                    owner=self.owner,
++                    kind="local_document",
++                    version_hash=src.version_hash,
++                    content=content,
++                    provenance=policy,
++                    created_at=src.created_at,
++                    expires_at=min(
++                        aware(src.expires_at),
++                        timestamp(item["expires_at"]),
++                        self.now
++                        + timedelta(hours=self.bridge.settings.independent_retention_hours),
++                    ),
++                )
++            )
++        self.session.flush()
++        if self.pref:
++            import json
++
++            dest, src, value, revision = self.pref
++            data = self.manifest["preferences"]
++            if dest is None:
++                dest = IndependentResource(
++                    id=src.id,
++                    owner=self.owner,
++                    kind="local_preferences",
++                    created_at=timestamp(data["created_at"]),
++                    expires_at=timestamp(data["expires_at"]),
++                )
++                self.session.add(dest)
++            dest.expires_at = min(
++                aware(dest.expires_at), timestamp(data["expires_at"]), aware(src.expires_at)
++            )
++            dest.content = {"value": value, "version": revision}
++            dest.version_hash = sha256(
++                json.dumps(dest.content, sort_keys=True).encode()
++            ).hexdigest()
++            dest.provenance = src.provenance | {"content_identity": dest.version_hash}
++        for change in self.after:
++            rec = change.after
++            self.repo._require(self.session, self.owner, rec, "write")
++            state = apply(state, change, now=self.now)
++            if (
++                rec.data.get("schema") == "usefulness-1"
++                and rec.data.get("subtype") == "import_review"
++            ):
++                doc = next(s for s in rec.sources if s.origin == "local_document")
++                dest = self.session.get(IndependentResource, doc.id)
++                dest.content = dest.content | {
++                    "review": {
++                        "record_id": rec.id,
++                        "revision": rec.revision,
++                        "source_hash": doc.version,
++                        "observed_at": self.now.isoformat(),
++                    },
++                    "reviewed_dataset": rec.data["value"]["dataset"],
++                }
++        actions = [v["action"] for v in self.doc_results.values()] + [
++            v["action"] for v in self.record_results.values()
++        ]
++        if self.preference_result:
++            actions.append(self.preference_result["action"])
++        receipt = {
++            "request_hash": request_hash,
++            "preview_id": report["preview_id"],
++            "version": state.version,
++            "external_writes": False,
++            "unit": report["unit"],
++            "history_authority": report["history_authority"],
++            "outcomes": {k: report[k] for k in ("documents", "records", "preferences", "omitted")},
++            "status": "complete"
++            if all(a in {"create", "replace", "reuse"} for a in actions)
++            and not self.manifest["omitted"]
++            else "partial",
++            "record_count": len(self.after),
++            "document_count": len(self.new_docs),
++            "source_id_map": self.mapping,
++            "record_id_map": report["record_id_map"],
++        }
++        state = ProcessState.model_validate(
++            state.model_dump()
++            | {"receipts": dict(list((state.receipts | {retry: receipt}).items())[-500:])}
++        )
++        self.repo._save(self.session, self.owner, row, state)
++        container = self.session.get(IndependentResource, self.repo.identity(self.owner))
++        retention = self.manifest["retention"]
++        if self.after and retention:
++            if row is None:
++                container.created_at = timestamp(retention["created_at"])
++            container.expires_at = min(
++                aware(container.expires_at), timestamp(retention["expires_at"])
++            )
++        return receipt
+diff --git a/src/canvas_bridge/usefulness/workspace_authority.py b/src/canvas_bridge/usefulness/workspace_authority.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/usefulness/workspace_authority.py
+@@ -0,0 +1,132 @@
++"""Current deletion continuity comes from a trusted live store, never the bundle."""
++
++import sqlite3
++from contextlib import contextmanager
++from pathlib import Path
++
++from sqlalchemy import create_engine, select
++from sqlalchemy.exc import SQLAlchemyError
++from sqlalchemy.orm import Session
++
++from canvas_bridge.domain import DomainError
++from canvas_bridge.storage import IndependentResource, aware
++from canvas_bridge.usefulness.packet import binding
++from canvas_bridge.usefulness.workspace_package import refuse
++
++
++@contextmanager
++def authority(bridge, local_session):
++    path = bridge.settings.portability_origin_sqlite
++    if path is None:
++        yield local_session
++        return
++    path = Path(path).resolve()
++    database = bridge.store.engine.url.database
++    if database and Path(database).resolve() == path:
++        yield local_session
++        return
++    # Only the operator configures this path. Read-only rollback-journal mode
++    # holds a shared lock until the destination commit exits the inner context.
++    engine = create_engine(
++        "sqlite://",
++        creator=lambda: sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=2),
++    )
++    engine.dialect.bridge_vault = bridge.vault
++    try:
++        with Session(engine) as session:
++            conn = session.connection()
++            if conn.exec_driver_sql("PRAGMA journal_mode").scalar().lower() != "delete":
++                refuse("PORT_AUTHORITY_UNAVAILABLE", "Use a current supported source authority.")
++            conn.exec_driver_sql("BEGIN")
++            yield session
++    except (SQLAlchemyError, sqlite3.Error, OSError, ValueError):
++        refuse(
++            "PORT_AUTHORITY_UNAVAILABLE", "The configured current source authority is unavailable."
++        )
++    finally:
++        engine.dispose()
++
++
++def current_doc(bridge, session, owner, ident, now):
++    row = session.get(IndependentResource, ident)
++    if (
++        row is None
++        or row.owner != owner
++        or row.kind != "local_document"
++        or aware(row.expires_at) <= now
++        or row.content.get("portable_origin")
++    ):
++        refuse("PORT_SOURCE_UNAVAILABLE", "The original source is unavailable or expired.")
++    bridge.independent.require_row(session, owner, row)
++    contexts = session.scalars(
++        select(IndependentResource).where(
++            IndependentResource.owner == owner,
++            IndependentResource.kind == "integrity_context",
++            IndependentResource.expires_at > now,
++        )
++    )
++    if any(
++        ident in ctx.content.get("hashes", {}) and ctx.content.get("scope", {}).get("connection_id")
++        for ctx in contexts
++    ):
++        refuse(
++            "PORT_INSTITUTIONAL_EXPORT_UNAVAILABLE",
++            "This source retains an institutional dependency.",
++        )
++    p = row.provenance
++    if (
++        p.get("owner") != owner
++        or p.get("source_type") != "local_document"
++        or p.get("content_identity") != row.version_hash
++        or p.get("parents")
++        or p.get("institutional_connection") is not None
++        or p.get("origin") != "authenticated_browser_upload"
++        or p.get("authorization") != "explicit_user_permission"
++        or p.get("schema_version") != "source-provenance-1"
++        or p.get("copyright") != "owner_attested"
++        or p.get("source_category", "independent_import") != "independent_import"
++    ):
++        refuse("PORT_SOURCE_UNAVAILABLE", "Review current ownership and source eligibility.")
++    bridge.independent.reject_institutional_copy(session, owner, row.version_hash)
++    return row
++
++
++def verify_restored_source(bridge, session, row):
++    ref = row.content.get("portable_origin")
++    if ref:
++        with authority(bridge, session) as origin:
++            source = current_doc(bridge, origin, row.owner, ref["source"], bridge.retention.clock())
++            if (
++                binding(source) != ref["binding"]
++                or source.version_hash != row.version_hash
++                or source.provenance.get("permission_version", 0) != ref["permission_version"]
++            ):
++                raise DomainError(
++                    "permission_denied", "The original source policy or version changed."
++                )
++
++
++def require_original_grant(bridge, session, row, *, share, visual, scope, profile, external):
++    ref = row.content.get("portable_origin")
++    if not ref:
++        return
++    with authority(bridge, session) as origin:
++        source = current_doc(bridge, origin, row.owner, ref["source"], bridge.retention.clock())
++        p = source.provenance
++        if (
++            not set(scope) <= set(p.get("scope", []))
++            or share
++            and (
++                not p.get("share_text")
++                or not profile
++                or p.get("egress_policy") != profile.model_dump(mode="json")
++            )
++            or visual
++            and not p.get("share_visual")
++            or external
++            and p.get("external_egress_policy") != external.model_dump(mode="json")
++        ):
++            refuse(
++                "PORT_ORIGINAL_GRANT_REQUIRED",
++                "Review the permitted purpose and recipient at the original source.",
++            )
+diff --git a/src/canvas_bridge/usefulness/workspace_ui.py b/src/canvas_bridge/usefulness/workspace_ui.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/usefulness/workspace_ui.py
+@@ -0,0 +1,195 @@
++"""Workspace portability uses only authenticated, CSRF-protected settings forms."""
++
++import secrets
++from urllib.parse import urlsplit
++
++from starlette.responses import Response
++
++from canvas_bridge.domain import DomainError
++from canvas_bridge.usefulness.workspace import Workspace
++from canvas_bridge.usefulness.workspace_package import LIMIT
++
++
++def register(bridge, route, identity, form, page, hidden):
++    from canvas_bridge.usefulness.ui import esc
++
++    workspace = Workspace(bridge)
++
++    @route("/settings/materials/workspace", ["GET"])
++    async def selection(request):
++        session = await identity(request)
++        bridge.usefulness.enabled()
++        course = request.query_params.get("course", "independent")
++        body = (
++            '<form method="get"><label>Course <input name="course" maxlength="100" value="'
++            + esc(course)
++            + '"></label><button>Choose course</button></form>'
++        )
++        body += (
++            '<form method="post" action="/settings/materials/workspace/export">'
++            + hidden("csrf", session.csrf)
++            + hidden("course", course)
++        )
++        for doc in bridge.independent.list(session.owner).data["documents"]:
++            if doc["course"] == course:
++                body += (
++                    '<label><input type="checkbox" name="document" value="'
++                    + esc(doc["document_id"])
++                    + '">'
++                    + esc(doc["filename"])
++                    + "</label>"
++                )
++        state = workspace.repo.inventory(session.owner)
++        for record in state["records"]:
++            if record.get("course") == course:
++                body += (
++                    '<label><input type="checkbox" name="record" value="'
++                    + esc(record["id"])
++                    + '">'
++                    + esc(record["kind"] + " · " + record["id"])
++                    + "</label>"
++                )
++        body += '<label><input type="checkbox" name="originals">Include eligible original source bytes</label><label><input type="checkbox" name="preferences">Include personal study preferences</label><button>Download selection</button></form>'
++        body += (
++            '<h2>Restore a selection</h2><form method="post" enctype="multipart/form-data" action="/settings/materials/workspace/preview">'
++            + hidden("csrf", session.csrf)
++            + '<label>Course workspace file<input type="file" name="bundle" required></label><button>Preview restore</button></form>'
++        )
++        return page("Course workspace export and restore", body)
++
++    @route("/settings/materials/workspace/export", ["POST"])
++    async def export(request):
++        session = await identity(request, True)
++        values = await form(request, session)
++        raw = workspace.export(
++            session.owner,
++            str(values.get("course", "")),
++            values.getlist("record"),
++            values.getlist("document"),
++            originals=values.get("originals") == "on",
++            preferences=values.get("preferences") == "on",
++            recipient=session.egress_identity,
++            generation=request.state.validate_bridge_session(),
++        )
++        return Response(
++            raw,
++            media_type="application/zip",
++            headers={
++                "Cache-Control": "no-store",
++                "Content-Disposition": 'attachment; filename="course-workspace.cbworkspace"',
++            },
++        )
++
++    @route("/settings/materials/workspace/preview", ["POST"])
++    @route("/settings/materials/workspace/restore", ["POST"])
++    async def restore(request):
++        session = await identity(request, True)
++        bridge.usefulness.enabled()
++        root = urlsplit(bridge.settings.resource_url)
++        if request.headers.get("origin") != f"{root.scheme}://{root.netloc}":
++            raise DomainError("permission_denied", "Review the workspace from signed-in settings.")
++        body = bytearray()
++        async for chunk in request.stream():
++            if len(body) + len(chunk) > LIMIT + 16_000:
++                raise DomainError("needs_input", "Choose a smaller course workspace.")
++            body.extend(chunk)
++        request._body = bytes(body)
++        async with request.form(max_files=1, max_fields=100, max_part_size=16_000) as values:
++            if not secrets.compare_digest(str(values.get("csrf", "")), session.csrf):
++                raise DomainError("permission_denied", "Reload the signed-in restore form.")
++            upload = values.get("bundle")
++            if upload is None or not hasattr(upload, "read"):
++                raise DomainError("needs_input", "Select the exact exported workspace.")
++            raw = await upload.read(LIMIT + 1)
++            commit = request.url.path.endswith("/restore")
++            confirmation = str(values.get("confirmation", "")) if commit else None
++            if commit and not confirmation:
++                raise DomainError("needs_input", "Review an exact restore preview first.")
++            choices = values.getlist("replace")
++            result = workspace.restore(
++                session.owner,
++                raw,
++                generation=request.state.validate_bridge_session(),
++                choices=choices,
++                confirmation=confirmation,
++                key=values.get("key"),
++            )
++        history = {
++            "current_store": "this installation",
++            "paired_live_sqlite": "the paired live origin",
++        }.get(result.get("history_authority"))
++        assurance = (
++            "<p>Source and deletion history verified against " + history + ".</p>"
++            if history
++            else ""
++        )
++        if commit:
++            body = (
++                "<p>"
++                + esc(result["status"])
++                + " · "
++                + str(result["document_count"])
++                + " sources created, "
++                + str(result["record_count"])
++                + " records written.</p>"
++                + assurance
++            )
++            outcomes = result.get("outcomes", {})
++        else:
++            body = (
++                "<p>Eligible records commit together. Unresolved records stay in the selected file.</p>"
++                + assurance
++            )
++            outcomes = result
++        for group in ("documents", "records"):
++            for ident, item in outcomes.get(group, {}).items():
++                body += (
++                    "<p>"
++                    + esc(ident)
++                    + " · "
++                    + esc(item["action"])
++                    + " "
++                    + esc(item.get("reason", ""))
++                    + "</p>"
++                )
++        if outcomes.get("preferences"):
++            body += "<p>Preferences · " + esc(outcomes["preferences"]["action"]) + "</p>"
++        for item in outcomes.get("omitted", []):
++            body += "<p>" + esc(item["id"]) + " · " + esc(item["reason"]) + "</p>"
++        if commit:
++            return page("Restore receipt", body)
++        for endpoint in ("preview", "restore"):
++            body += (
++                '<form method="post" enctype="multipart/form-data" action="/settings/materials/workspace/'
++                + endpoint
++                + '">'
++                + hidden("csrf", session.csrf)
++            )
++            if endpoint == "restore":
++                body += hidden("confirmation", result["preview_id"]) + hidden(
++                    "key", secrets.token_urlsafe(24)
++                )
++                body += "".join(hidden("replace", c) for c in choices)
++            else:
++                items = result["records"] | (
++                    {"preferences": result["preferences"]} if result["preferences"] else {}
++                )
++                for ident, item in items.items():
++                    if item["action"] in {"conflict", "replace"}:
++                        body += (
++                            '<label><input type="checkbox" name="replace" value="'
++                            + esc(ident)
++                            + '">Replace '
++                            + esc(ident)
++                            + "</label>"
++                        )
++            body += (
++                '<label>Reselect the reviewed workspace file<input type="file" name="bundle" required></label><button>'
++                + (
++                    "Review conflict choices"
++                    if endpoint == "preview"
++                    else "Confirm eligible changes"
++                )
++                + "</button></form>"
++            )
++        return page("Review workspace restore", body)
+diff --git a/src/canvas_bridge/usefulness/workspace_package.py b/src/canvas_bridge/usefulness/workspace_package.py
+new file mode 100644
+--- /dev/null
++++ b/src/canvas_bridge/usefulness/workspace_package.py
+@@ -0,0 +1,166 @@
++"""Bounded student workspace archive. A manifest records evidence, never grants."""
++
++import base64
++import io
++import json
++import re
++import stat
++import zipfile
++from hashlib import sha256
++
++from canvas_bridge.domain import DomainError
++from canvas_bridge.processes.state import read_portable_export
++
++SCHEMA = "course-workspace-1"
++LIMIT = 50_000_000
++MANIFEST_LIMIT = 2_000_000
++
++
++def refuse(code, message):
++    raise DomainError("needs_input", message, reason_code=code)
++
++
++def pack(manifest, payloads):
++    body = json.dumps(manifest, ensure_ascii=False, allow_nan=False).encode()
++    if len(body) > MANIFEST_LIMIT or sum(map(len, payloads.values())) + len(body) > LIMIT - 64_000:
++        refuse("PORT_PACKAGE_LIMIT", "Reduce the selected course records or payloads.")
++    output = io.BytesIO()
++    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
++        archive.writestr("manifest.json", body)
++        for digest, data in sorted(payloads.items()):
++            archive.writestr("payloads/" + digest, data)
++    return output.getvalue()
++
++
++def unique(pairs):
++    result = {}
++    for key, value in pairs:
++        if key in result:
++            raise ValueError
++        result[key] = value
++    return result
++
++
++def unpack(raw, owner):
++    if len(raw) > LIMIT:
++        refuse("PORT_PACKAGE_LIMIT", "Choose a workspace package within 50 MB.")
++    try:
++        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
++            entries = archive.infolist()
++            if len(entries) > 221 or len({i.filename for i in entries}) != len(entries):
++                raise ValueError
++            payloads = {}
++            body = None
++            for entry in entries:
++                manifest = entry.filename == "manifest.json"
++                if (
++                    not manifest
++                    and not re.fullmatch(r"payloads/[a-f0-9]{64}", entry.filename)
++                    or entry.orig_filename != entry.filename
++                    or entry.flag_bits & 1
++                    or entry.compress_type != zipfile.ZIP_STORED
++                    or stat.S_ISLNK(entry.external_attr >> 16)
++                    or entry.compress_size != entry.file_size
++                    or entry.file_size > (MANIFEST_LIMIT if manifest else 10_000_000)
++                ):
++                    raise ValueError
++                value = archive.read(entry)
++                if len(value) != entry.file_size:
++                    raise ValueError
++                if manifest:
++                    body = value
++                else:
++                    digest = sha256(value).hexdigest()
++                    if entry.filename != "payloads/" + digest:
++                        raise ValueError
++                    payloads[digest] = value
++            if body is None:
++                raise ValueError
++            manifest = json.loads(body.decode("utf8"), object_pairs_hook=unique)
++        if manifest["schema_version"] != SCHEMA:
++            refuse(
++                "PORT_SCHEMA_UNSUPPORTED",
++                "This workspace format requires a compatible Bridge version.",
++            )
++        if manifest["owner"] != owner:
++            refuse(
++                "PORT_OWNER_MISMATCH", "Open this selection under its verified original identity."
++            )
++        if (
++            not re.fullmatch("[a-f0-9]{32}", manifest["export_id"])
++            or type(manifest["generation"]) is not int
++            or manifest["generation"] < 0
++        ):
++            raise ValueError
++        from copy import deepcopy
++
++        process = deepcopy(manifest["process"])
++        links = manifest.get("link_versions", {})
++        if not isinstance(links, dict) or set(links) - {r["id"] for r in process["records"]}:
++            raise ValueError
++        for rec in process["records"]:
++            if rec["id"] not in links:
++                continue
++            if rec["kind"] != "identity" or "revision" in rec or type(links[rec["id"]]) is not int:
++                raise ValueError
++            rec["revision"] = links[rec["id"]]
++            data = rec["data"]
++            groups = [data["canonical_link_proposal"], *data.get("canonical_inventory", [])]
++            for group in groups:
++                for alias in group["aliases"]:
++                    alias.setdefault("instructor", None)
++                    for scoped in (alias, *alias["sources"]):
++                        if scoped["scope"].setdefault("principal", owner) != owner:
++                            raise ValueError
++        records = read_portable_export(process, owner=owner)
++        if not isinstance(manifest["documents"], list) or len(manifest["documents"]) > 20:
++            raise ValueError
++        documents = {d["id"]: d for d in manifest["documents"]}
++        if len(documents) != len(manifest["documents"]):
++            raise ValueError
++        required = set()
++        for doc in documents.values():
++            for version in doc["versions"]:
++                digest = version["hash"]
++                if not re.fullmatch("[a-f0-9]{64}", digest):
++                    raise ValueError
++                if version["payload"] == "included":
++                    required.add(digest)
++                    if len(payloads[digest]) != version["size"]:
++                        raise ValueError
++                elif version["payload"] != "reference_only":
++                    raise ValueError
++        if required != set(payloads):
++            raise ValueError
++    except (
++        AttributeError,
++        KeyError,
++        TypeError,
++        ValueError,
++        RuntimeError,
++        zipfile.BadZipFile,
++        RecursionError,
++        OSError,
++        NotImplementedError,
++    ):
++        refuse(
++            "PORT_PACKAGE_INVALID", "The workspace inventory, payload, or schema failed validation."
++        )
++    return manifest, documents, records, payloads
++
++
++def version(raw, digest, locator, acquired, include, payloads):
++    data = base64.b64decode(raw, validate=True)
++    if sha256(data).hexdigest() != digest:
++        refuse("PORT_SOURCE_CHANGED", "The selected source failed its byte identity check.")
++    if include:
++        if digest not in payloads and sum(map(len, payloads.values())) + len(data) > LIMIT:
++            refuse("PORT_PACKAGE_LIMIT", "Reduce the selected original byte inventory.")
++        payloads[digest] = data
++    return {
++        "hash": digest,
++        "size": len(data),
++        "locator": locator,
++        "acquired_at": acquired,
++        "payload": "included" if include else "reference_only",
++    }
+diff --git a/tests/test_content_portability.py b/tests/test_content_portability.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_content_portability.py
+@@ -0,0 +1,802 @@
++"""Synthetic course packet acceptance through the authenticated settings route."""
++
++import io
++import json
++import zipfile
++from hashlib import sha256
++from urllib.parse import quote
++
++import pytest
++
++from tests.test_recovery_independence import parsed_locally as parsed_locally
++from tests.test_usefulness import ui as ui
++
++
++@pytest.fixture(autouse=True)
++def enable(bridge):
++    bridge.settings.usefulness_features_enabled = True
++    bridge.settings.process_features_enabled = True
++
++
++def archive(members):
++    stream = io.BytesIO()
++    with zipfile.ZipFile(stream, "w") as output:
++        for name, value in members:
++            output.writestr(name, value)
++    return stream.getvalue()
++
++
++async def upload(
++    ui,
++    members,
++    key,
++    *,
++    term="fall",
++    role="material",
++    course="MKT",
++    expected=None,
++    decisions=None,
++    commit=True,
++):
++    payload = archive(members)
++    headers = {
++        "X-Bridge-CSRF": "usefulness-csrf",
++        "X-Bridge-Own": "true",
++        "X-Bridge-Key": key,
++        "X-Bridge-Filename": "packet.zip",
++        "X-Bridge-Term": term,
++        "X-Bridge-Purpose": role,
++        "X-Bridge-Course": course,
++        "X-Bridge-Expected": quote(json.dumps(expected or {})),
++        "X-Bridge-Mappings": quote(json.dumps(decisions or {})),
++        "Content-Type": "application/zip",
++    }
++
++    async def post(extra):
++        response = await ui.post(
++            "/settings/materials/import", content=payload, headers=headers | extra
++        )
++        assert response.status_code == 200, response.text
++        return response.json()
++
++    review = await post({"X-Bridge-Preview": "true"})
++    if not commit:
++        return review
++    return await post({"X-Bridge-Confirmation": review["preview_id"]})
++
++
++async def test_packet_move_revision_reorder_and_scopes(ui, bridge, owner, parsed_locally):
++    original = [("unit/a.txt", "Memo due Nov 2."), ("unit/b.md", "Feedback.")]
++    first = await upload(ui, original, "first")
++    assert first["state"] == "ready"
++    old, feedback = first["items"]
++    longpath = "chapter/" * 50 + "reading.txt"
++    moved = await upload(ui, [original[1], (longpath, original[0][1])], "moved")
++    assert [i["disposition"] for i in moved["items"]] == ["unchanged", "relocated"]
++    assert moved["items"][1]["document_id"] == old["document_id"]
++    for field in ("role", "term", "course"):
++        other = await upload(ui, original[:1], field, **{field: "reading"})
++        assert other["items"][0]["binding"] != old["binding"]
++        assert other["items"][0]["document_id"] != old["document_id"]
++    rev = await upload(ui, [("unit/a.txt", "Memo due Nov 4.")], "revision")
++    item = rev["items"][0]
++    assert item["disposition"] == "new_version" and item["binding"] == old["binding"]
++    row = bridge.independent.require(owner, item["document_id"])
++    assert row.content["version_history"][-1]["hash"] == old["content_hash"]
++    assert row.content["version_history"][-1]["logical_path"] == longpath
++    assert (
++        bridge.independent.require(owner, feedback["document_id"]).version_hash
++        == feedback["content_hash"]
++    )
++
++
++async def test_review_ambiguous_exact_bytes(ui, parsed_locally):
++    first = await upload(ui, [("left.txt", "same"), ("right.txt", "same")], "first")
++    review = await upload(ui, [("moved.txt", "same")], "review", commit=False)
++    item = review["items"][0]
++    assert item["disposition"] == "ambiguous"
++    target = first["items"][0]["document_id"]
++    assert target in item["candidates"]
++    result = await upload(ui, [("moved.txt", "same")], "chosen", decisions={"moved.txt": target})
++    assert result["items"][0]["document_id"] == target
++
++
++async def test_recover_incremental_selection(ui, bridge, owner, parsed_locally):
++    detail = b"Feedback describes the design."
++    expected = {"feedback.md": sha256(detail).hexdigest(), "original-case.md": None}
++    available = [("brief.md", "Memo due Nov 2.")]
++    dropout = await upload(ui, available, "dropout", expected=expected)
++    assert all(m["retained_version"] is None for m in dropout["coverage"]["missing"])
++    wrong = await upload(ui, [("feedback.md", "unrelated")], "wrong", expected=expected)
++    assert wrong["items"][0]["state"] == "failed"
++    recovered = await upload(ui, [("feedback.md", detail)], "recovered", expected=expected)
++    assert recovered["items"][0]["content_hash"] == expected["feedback.md"]
++    partial = await upload(ui, available, "partial", expected=expected)
++    assert partial["coverage"]["missing"][0]["retained_version"] == expected["feedback.md"]
++    assert bridge.independent.require(owner, recovered["items"][0]["document_id"])
++
++
++@pytest.fixture
++def paired(settings, tmp_path):
++    from tests.conftest import bridge as build
++
++    path = tmp_path / "live-authority.sqlite"
++    source_settings = settings.model_copy(
++        update={
++            "database_url": "sqlite:///" + path.as_posix(),
++            "usefulness_features_enabled": True,
++            "process_features_enabled": True,
++        }
++    )
++    destination_settings = settings.model_copy(
++        update={
++            "portability_origin_sqlite": path,
++            "database_url": "sqlite:///" + (tmp_path / "destination.sqlite").as_posix(),
++            "usefulness_features_enabled": True,
++            "process_features_enabled": True,
++        }
++    )
++    sources = build.__wrapped__(source_settings)
++    destinations = build.__wrapped__(destination_settings)
++    try:
++        yield next(sources), next(destinations)
++    finally:
++        sources.close()
++        destinations.close()
++
++
++async def test_paired_workspace_roundtrip_and_revocation(
++    paired, owner, parsed_locally, monkeypatch
++):
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.storage import IndependentResource
++    from canvas_bridge.usefulness.workspace import Workspace
++    from canvas_bridge.usefulness.workspace_package import unpack
++    from tests.test_usefulness import import_text, reviewed
++
++    source, dest = paired
++    doc = await import_text(source, owner, "Memo due November 2, 2026.", course="MKT")
++    review = reviewed(source, owner, doc)
++    source.independent.preferences(owner, {"timezone": "UTC"})
++    raw = Workspace(source).export(
++        owner, "MKT", [review["record_id"]], [], originals=True, preferences=True
++    )
++    manifest, docs, recs, payloads = unpack(raw, owner)
++    assert payloads[doc.version_hash] == b"Memo due November 2, 2026."
++    api = Workspace(dest)
++    plan = api.restore(owner, raw, generation=0)
++    assert plan["history_authority"] == "paired_live_sqlite"
++    assert plan["source_id_map"] == {doc.id: doc.id}
++    assert plan["preferences"]["action"] == "create"
++    assert plan["records"][recs[0].id]["action"] == "create"
++    with pytest.raises(RuntimeError), monkeypatch.context() as scoped:
++
++        def interrupt(*args, **kwargs):
++            raise RuntimeError("injected before transaction commit")
++
++        scoped.setattr(api.repo, "_save", interrupt)
++        api.restore(owner, raw, generation=0, confirmation=plan["preview_id"], key="same")
++    assert dest.independent.list(owner).data["documents"] == []
++    done = api.restore(owner, raw, generation=0, confirmation=plan["preview_id"], key="same")
++    assert done["status"] == "complete"
++    assert done["history_authority"] == plan["history_authority"]
++    assert done["outcomes"]["records"] == plan["records"]
++    assert (
++        api.restore(owner, raw, generation=0, confirmation=plan["preview_id"], key="same") == done
++    )
++    restored = dest.independent.require(owner, doc.id)
++    assert not restored.provenance["share_text"]
++    assert (
++        restored.content["reviewed_dataset"]
++        == source.independent.require(owner, doc.id).content["reviewed_dataset"]
++    )
++    assert dest.independent.preferences(owner).data["value"]["timezone"] == "UTC"
++    with dest.store.transaction() as db:
++        container = db.get(IndependentResource, api.repo.identity(owner))
++        assert container.expires_at.replace(tzinfo=None) == timestamp_for_test(
++            manifest["retention"]["expires_at"]
++        )
++    source.independent.delete(owner, doc.id)
++    assert api.restore(owner, raw, generation=0)["documents"][doc.id]["action"] == "blocked"
++    with pytest.raises(DomainError):
++        dest.independent.require(owner, doc.id)
++
++
++def timestamp_for_test(value):
++    from datetime import datetime
++
++    return datetime.fromisoformat(value).replace(tzinfo=None)
++
++
++async def test_reject_malformed_workspace_before_commit(paired, owner):
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.usefulness.workspace import Workspace
++    from canvas_bridge.usefulness.workspace_package import MANIFEST_LIMIT, pack, unpack
++    from tests.test_usefulness import goal
++
++    origin, dest = paired
++    ident = goal(origin, owner)
++    raw = Workspace(origin).export(owner, "biology", [ident], [])
++    manifest, _, _, payloads = unpack(raw, owner)
++    process = manifest["process"]
++    record = process["records"][0]
++    variants = [
++        (pack(manifest | {"export_id": []}, payloads), "PORT_PACKAGE_INVALID"),
++        (pack(manifest | {"generation": False}, payloads), "PORT_PACKAGE_INVALID"),
++        (archive([("/manifest.json", "{}")]), "PORT_PACKAGE_INVALID"),
++        (archive([("manifest.json", b"x" * (MANIFEST_LIMIT + 1))]), "PORT_PACKAGE_INVALID"),
++        (
++            pack(manifest | {"process": process | {"records": [record, record]}}, payloads),
++            "PROCESS_SCOPE_MISMATCH",
++        ),
++        (
++            pack(
++                manifest | {"process": process | {"records": [record | {"kind": "future_kind"}]}},
++                payloads,
++            ),
++            "PROCESS_EXPORT_SCHEMA_UNSUPPORTED",
++        ),
++    ]
++    for damaged, reason in variants:
++        with pytest.raises(DomainError) as error:
++            Workspace(dest).restore(owner, damaged, generation=0)
++        assert error.value.reason_code == reason
++    assert not dest.processes.repository.inventory(owner)["records"]
++
++
++async def test_original_container_expiry_and_owner_generation(paired, owner, monkeypatch):
++    from datetime import timedelta
++
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.storage import IndependentResource, PrincipalState
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import goal
++
++    origin, dest = paired
++    ident = goal(origin, owner)
++    now = origin.retention.clock()
++    with origin.store.transaction() as session:
++        container = session.get(IndependentResource, origin.processes.repository.identity(owner))
++        container.created_at = now - timedelta(days=25)
++        container.expires_at = now + timedelta(minutes=1)
++    raw = Workspace(origin).export(owner, "biology", [ident], [])
++    api = Workspace(dest)
++    assert api.restore(owner, raw, generation=0)["records"][ident]["action"] == "create"
++    with monkeypatch.context() as shifted:
++        shifted.setattr(dest.retention, "clock", lambda: now + timedelta(minutes=2))
++        assert (
++            api.restore(owner, raw, generation=0)["records"][ident]["action"]
++            == "blocked_expired_or_deleted"
++        )
++    with origin.store.transaction() as session:
++        session.get(PrincipalState, owner).generation += 1
++    with pytest.raises(DomainError) as error:
++        api.restore(owner, raw, generation=0)
++    assert error.value.reason_code == "PORT_AUTHORITY_UNAVAILABLE"
++    assert not dest.processes.repository.inventory(owner)["records"]
++
++
++async def test_destination_conflicts_and_stale_preview(paired, owner, parsed_locally):
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import goal
++
++    source, dest = paired
++    goal_id = goal(source, owner, course="MKT", share=False)
++    raw = Workspace(source).export(owner, "MKT", [goal_id], [])
++    api = Workspace(dest)
++    preview = api.restore(owner, raw, generation=0)
++    api.restore(owner, raw, generation=0, confirmation=preview["preview_id"], key="first")
++    dest.usefulness.records.save(
++        owner,
++        "MKT",
++        "goal",
++        {"concept": "different"},
++        record_id=goal_id,
++        expected_revision=1,
++        idempotency_key="local-edit",
++    )
++    assert api.restore(owner, raw, generation=0)["records"][goal_id]["action"] == "conflict"
++    replace = api.restore(owner, raw, generation=0, choices=[goal_id])
++    assert replace["records"][goal_id]["destination_revision"] == 2
++    goal(dest, owner, course="FIN", share=False)
++    with pytest.raises(DomainError, match="destination"):
++        api.restore(
++            owner,
++            raw,
++            generation=0,
++            choices=[goal_id],
++            confirmation=replace["preview_id"],
++            key="race",
++        )
++    replace = api.restore(owner, raw, generation=0, choices=[goal_id])
++    api.restore(
++        owner, raw, generation=0, choices=[goal_id], confirmation=replace["preview_id"], key="final"
++    )
++    assert dest.processes.repository.read(owner, goal_id).revision == 3
++
++
++async def test_workspace_browser_and_missing_authority(ui, owner, bridge):
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import goal
++
++    ident = goal(bridge, owner)
++    download = await ui.post(
++        "/settings/materials/workspace/export",
++        data={"csrf": "usefulness-csrf", "course": "biology", "record": ident},
++    )
++    assert download.status_code == 200
++    review = await ui.post(
++        "/settings/materials/workspace/preview",
++        data={"csrf": "usefulness-csrf"},
++        files={"bundle": ("course.cbworkspace", download.content)},
++    )
++    assert review.status_code == 200 and "Confirm eligible changes" in review.text
++    assert "verified against this installation" in review.text
++    with pytest.raises(DomainError):
++        Workspace(bridge).restore("foreign", download.content, generation=0)
++    for bad in [archive([("../manifest.json", "{}")]), b"invalid"]:
++        with pytest.raises(DomainError):
++            Workspace(bridge).restore(owner, bad, generation=0)
++
++
++async def test_reviewed_mixed_assignment_projection(bridge, owner, seeded, parsed_locally, ui):
++    from datetime import timedelta
++
++    from canvas_bridge.processes.requests import EvaluationRequest, SaveRequest
++    from tests.test_usefulness import import_text, reviewed
++
++    now = bridge.retention.clock()
++    workload = await bridge.workload(owner, seeded, now, now + timedelta(days=7), "UTC")
++    item = workload.data["items"][0]
++    doc = await import_text(bridge, owner, "A separate brief due November 2, 2026.", course="MKT")
++    reviewed(bridge, owner, doc)
++    scope = {
++        "document_ids": [doc.id],
++        "local_course": "MKT",
++        "connection_id": seeded,
++        "course_id": item["course_id"],
++        "resource_ids": [item["id"]],
++        "term": "fall",
++    }
++    local = {
++        "source_id": doc.id,
++        "provider": "manual",
++        "external_id": "paper",
++        "kind": "assignment",
++        "term": "fall",
++        "institution": "ignored-caller-label",
++        "course_code": "MKT",
++    }
++    remote = local | {"source_id": item["id"], "provider": "canvas", "external_id": item["id"]}
++    request = EvaluationRequest.model_validate(
++        {
++            "scope": scope,
++            "payload": {
++                "operation": "identity",
++                "associate_local_course": True,
++                "left": local,
++                "right": remote,
++            },
++        }
++    )
++    before = await bridge.processes.evaluate(owner, request)
++    assert len(before.data["canonical_inventory"]) == 2
++    link = before.data["canonical_link_proposal"]
++    assert len({a["scope"]["institution"] for a in link["aliases"]}) == 2
++    propose = await bridge.processes.propose(
++        owner, SaveRequest(evaluation=request, record_id="mixed")
++    )
++    await bridge.processes.confirm(owner, propose.data["preview_id"], True, "confirm-mixed")
++    confirmed = await bridge.processes.evaluate(owner, request)
++    assert len(confirmed.data["canonical_inventory"]) == 1
++    parent = confirmed.data["reviewed_parent"]
++    assert len(parent["deadline_assertions"]) == 2 and parent["assignment_id"] == item["id"]
++    current = request.model_dump(mode="json")
++    current["payload"]["calendar"] = dict(
++        calendar_id="synthetic",
++        timezone="UTC",
++        retrieved_at=now,
++        window_start=now,
++        window_end=now + timedelta(days=7),
++        pagination_complete=True,
++        mapping_search_complete=True,
++        events=[],
++    )
++    projected = await bridge.processes.evaluate(owner, EvaluationRequest.model_validate(current))
++    assert projected.data["reviewed_parent"]["calendar_projection"]["proposal_count"] <= 1
++    from canvas_bridge.usefulness.workspace_package import unpack
++
++    download = await ui.post(
++        "/settings/materials/workspace/export",
++        data={"csrf": "usefulness-csrf", "course": "MKT", "record": "mixed"},
++    )
++    assert download.status_code == 200
++    manifest, _, exported, _ = unpack(download.content, owner)
++    assert exported and exported[0].id == "mixed", manifest["omitted"]
++    from canvas_bridge.usefulness.workspace import Workspace
++
++    assert (
++        Workspace(bridge).restore(owner, download.content, generation=0)["records"]["mixed"][
++            "action"
++        ]
++        == "reuse"
++    )
++    remove = bridge.processes.recovery_preview(owner, record_id="mixed")
++    await bridge.processes.confirm(owner, remove.data["preview_id"], True, "unlink")
++    assert len((await bridge.processes.evaluate(owner, request)).data["canonical_inventory"]) == 2
++    bridge.store.disconnect(owner, seeded)
++    partial = await bridge.processes.evaluate(owner, request)
++    assert partial.status == "partial_data" and [s.id for s in partial.sources] == [doc.id]
++    assert bridge.independent.require(owner, doc.id)
++
++
++async def test_packet_validation_and_historical_progress(ui, bridge, owner, parsed_locally):
++    from canvas_bridge.usefulness.imports import candidates
++
++    unsafe = await upload(
++        ui, [("café.md", "one"), ("cafe\u0301.md", "two")], "collision", commit=False
++    )
++    assert unsafe["state"] == "rejected" and len(unsafe["items"]) == 2
++    first = await upload(ui, [("assignment.md", "Memo must contain two tables.")], "first")
++    doc = first["items"][0]["document_id"]
++    source = bridge.independent.require(owner, doc)
++
++    def decide(row, progress, revision):
++        item = candidates(row)[0]
++        return bridge.usefulness.save_review(
++            owner,
++            doc,
++            row.version_hash,
++            {
++                item["id"]: {
++                    "action": "edit",
++                    "work": {
++                        "key": "memo",
++                        "title": "Memo",
++                        "progress": progress,
++                        "revision_requested": revision,
++                    },
++                }
++            },
++            expected_revision=0 if not revision else stale.revision,
++            key="review2" if revision else "review1",
++        )
++
++    first_review = decide(source, "student_marked_done", False)
++    revised = await upload(ui, [("assignment.md", "Memo must contain three tables.")], "revised")
++    assert revised["items"][0]["document_id"] == doc
++    stale = bridge.usefulness.records.state(owner).records[first_review["record_id"]]
++    assert (
++        stale.state == "stale"
++        and stale.data["value"]["dataset"]["work"][0]["progress"] == "student_marked_done"
++    )
++    result = decide(bridge.independent.require(owner, doc), "student_marked_done", True)
++    assert result["record_id"] == stale.id
++    current = bridge.processes.repository.read(owner, result["record_id"])
++    assert current.data["value"]["dataset"]["work"][0]["revision_requested"]
++
++
++async def test_reference_remap_and_missing_parent(paired, owner, parsed_locally):
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import reviewed
++
++    source, dest = paired
++    data = archive([("brief.md", "Memo due November 2, 2026.")])
++
++    async def acquire_app(app):
++        result = await app.usefulness.imports.run(
++            owner,
++            data,
++            "test.zip",
++            "application/zip",
++            course="MKT",
++            purpose="material",
++            key="baseline",
++            permissions={"own_material": True},
++            validate_session=lambda: 0,
++        )
++        return app.independent.require(owner, result["items"][0]["document_id"])
++
++    src = await acquire_app(source)
++    review = reviewed(source, owner, src, key="memo")["record_id"]
++    tag = source.usefulness.records.document_tag(owner, src)
++    child = source.usefulness.records.save(
++        owner,
++        "MKT",
++        "task",
++        {
++            "title": "Prepare",
++            "minutes": 0,
++            "finished": False,
++            "grade": None,
++            "submission": "unknown",
++        },
++        sources=[tag],
++        depends_on=[review],
++        idempotency_key="manual",
++    )["record_id"]
++    raw = Workspace(source).export(owner, "MKT", [child], [], originals=False)
++    api = Workspace(dest)
++    missing = api.restore(owner, raw, generation=0)
++    assert missing["records"][child]["action"] == "unresolved_dependency"
++    assert missing["documents"][src.id]["reason"] == "PORT_REFERENCE_UNRESOLVED"
++    dst = await acquire_app(dest)
++    assert src.id != dst.id
++    mapped = api.restore(owner, raw, generation=0)
++    assert mapped["source_id_map"] == {src.id: dst.id}
++    assert mapped["records"][review]["action"] == "create"
++    api.restore(owner, raw, generation=0, confirmation=mapped["preview_id"], key="mapped")
++    read = dest.processes.repository.read(owner, review)
++    assert read.sources[0].id == dst.id
++    assert read.data["value"]["dataset"]["work"][0]["evidence"][0]["document_id"] == dst.id
++    assert (
++        dest.independent.require(owner, dst.id).content["reviewed_dataset"]["work"][0]["key"]
++        == "memo"
++    )
++    source.independent.delete(owner, src.id)
++    deleted = api.restore(owner, raw, generation=0)
++    assert deleted["documents"][src.id]["action"] == "blocked"
++    assert src.id not in deleted["source_id_map"]
++    assert dest.independent.require(owner, dst.id).id == dst.id
++
++
++async def test_workspace_tampering_expiry_and_trusted_history(
++    paired, owner, parsed_locally, monkeypatch, tmp_path
++):
++    from datetime import timedelta
++
++    from canvas_bridge.domain import DomainError
++    from canvas_bridge.usefulness.workspace import Workspace
++    from canvas_bridge.usefulness.workspace_package import pack, unpack
++    from tests.test_usefulness import import_text
++
++    source, dest = paired
++    doc = await import_text(source, owner, "Sample", course="MKT")
++    raw = Workspace(source).export(owner, "MKT", [], [doc.id], originals=True)
++    manifest, _, _, payloads = unpack(raw, owner)
++    api = Workspace(dest)
++    wrong = pack(manifest | {"schema_version": "course-workspace-99"}, payloads)
++    with pytest.raises(DomainError) as err:
++        api.restore(owner, wrong, generation=0)
++    assert err.value.reason_code == "PORT_SCHEMA_UNSUPPORTED"
++    forged = pack(manifest | {"course": "different"}, payloads)
++    with pytest.raises(DomainError) as err:
++        api.restore(owner, forged, generation=0)
++    assert err.value.reason_code == "PORT_AUTHORITY_UNAVAILABLE"
++    for damaged in [raw[: len(raw) // 2], pack(manifest, {doc.version_hash: b"tampered"})]:
++        with pytest.raises(DomainError) as err:
++            api.restore(owner, damaged, generation=0)
++        assert err.value.reason_code == "PORT_PACKAGE_INVALID"
++    with monkeypatch.context() as m:
++        m.setattr(dest.settings, "portability_origin_sqlite", tmp_path / "unavailable.sqlite")
++        with pytest.raises(DomainError) as err:
++            api.restore(owner, raw, generation=0)
++        assert err.value.reason_code == "PORT_AUTHORITY_UNAVAILABLE"
++    review = api.restore(owner, raw, generation=0)
++    with monkeypatch.context() as m:
++        clock = dest.retention.clock() + timedelta(minutes=16)
++        m.setattr(dest.retention, "clock", lambda: clock)
++        with pytest.raises(DomainError) as err:
++            api.restore(owner, raw, generation=0, confirmation=review["preview_id"], key="expired")
++        assert err.value.reason_code == "PORT_PREVIEW_CHANGED"
++    source.independent.delete(owner, doc.id)
++    with pytest.raises(DomainError):
++        api.restore(owner, raw, generation=0, confirmation=review["preview_id"], key="revoked")
++    assert not dest.independent.list(owner).data["documents"]
++
++
++@pytest.fixture(autouse=True)
++def capture_portability_receipts(monkeypatch, request):
++    """Optional synthetic execution evidence, excluding session and confirmation credentials."""
++    import os
++    from pathlib import Path
++
++    from canvas_bridge.processes.service import ProcessService
++    from canvas_bridge.usefulness.imports import Imports
++    from canvas_bridge.usefulness.workspace import Workspace
++    from canvas_bridge.usefulness.workspace_package import unpack
++
++    folder = os.environ.get("BRIDGE_TEST_PORT_OUTPUT")
++    if not folder:
++        yield
++        return
++    events = []
++
++    def safe(value):
++        if isinstance(value, dict):
++            return {
++                k: (
++                    "digest:" + sha256(str(v).encode()).hexdigest()
++                    if k in {"preview_id", "confirmation"}
++                    else safe(v)
++                )
++                for k, v in value.items()
++                if k not in {"csrf", "key", "attempt", "validate_session"}
++            }
++        if isinstance(value, (list, tuple)):
++            return [safe(v) for v in value]
++        if hasattr(value, "model_dump"):
++            return safe(value.model_dump(mode="json"))
++        return value
++
++    export, restore, acquire, evaluate = (
++        Workspace.export,
++        Workspace.restore,
++        Imports.run,
++        ProcessService.evaluate,
++    )
++
++    def capture_export(self, owner, course, ids, docs, **options):
++        raw = export(self, owner, course, ids, docs, **options)
++        manifest, _, _, _ = unpack(raw, owner)
++        events.append(
++            {
++                "operation": "export",
++                "course": course,
++                "selection": [ids, docs],
++                "manifest": manifest,
++                "bundle_sha256": sha256(raw).hexdigest(),
++            }
++        )
++        return raw
++
++    def capture_restore(self, owner, raw, **options):
++        event = {
++            "operation": "restore",
++            "request": options,
++            "bundle_sha256": sha256(raw).hexdigest(),
++        }
++        events.append(event)
++        try:
++            event["response"] = restore(self, owner, raw, **options)
++            return event["response"]
++        except Exception as exc:
++            event["error"] = getattr(exc, "reason_code", None) or type(exc).__name__
++            raise
++
++    async def capture_import(self, owner, data, filename, mime, **options):
++        result = await acquire(self, owner, data, filename, mime, **options)
++        events.append(
++            {
++                "operation": "import",
++                "archive_sha256": sha256(data).hexdigest(),
++                "request": options,
++                "response": result,
++            }
++        )
++        return result
++
++    async def capture_evaluate(self, owner, evaluation):
++        result = await evaluate(self, owner, evaluation)
++        events.append({"operation": "evaluate", "request": evaluation, "response": result})
++        return result
++
++    monkeypatch.setattr(Workspace, "export", capture_export)
++    monkeypatch.setattr(Workspace, "restore", capture_restore)
++    monkeypatch.setattr(Imports, "run", capture_import)
++    monkeypatch.setattr(ProcessService, "evaluate", capture_evaluate)
++    yield
++    output = Path(folder)
++    output.mkdir(parents=True, exist_ok=True)
++    (output / (request.node.name + ".json")).write_text(
++        json.dumps(safe(events), indent=2, default=str), encoding="utf8"
++    )
++
++
++async def test_typed_state_and_dependency_closure(paired, owner, parsed_locally):
++    import base64
++
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import attempt_value, goal, import_text
++
++    src, dest = paired
++    parent = goal(src, owner, "MKT", share=False)
++    child = src.usefulness.save_attempt(
++        owner, "MKT", attempt_value(parent), key="explicit-attempt", share=False
++    )["record_id"]
++    typed = {
++        "schema_version": "independent-academic-1",
++        "complete": False,
++        "timezone": None,
++        "work": [],
++        "grades": {
++            "complete": False,
++            "assessments": [
++                {"key": "entered-zero", "score": 0, "possible": 10},
++                {"key": "unknown-score", "score": None},
++                {"key": "absent-score"},
++            ],
++        },
++    }
++    material = await import_text(src, owner, json.dumps(typed), course="MKT")
++    raw = Workspace(src).export(owner, "MKT", [child], [material.id], originals=True)
++    api = Workspace(dest)
++    plan = api.restore(owner, raw, generation=0)
++    assert set(plan["record_id_map"]) == {parent, child}
++    api.restore(owner, raw, generation=0, confirmation=plan["preview_id"], key="typed")
++    read = dest.processes.repository.read(owner, child)
++    original = src.processes.repository.read(owner, child)
++    assert read.data["value"] == original.data["value"]
++    assert (
++        read.depends_on == (parent,)
++        and read.sources == original.sources
++        and read.updated_at == original.updated_at
++    )
++    actual = json.loads(
++        base64.b64decode(dest.independent.require(owner, material.id).content["bytes"])
++    )
++    assert actual == typed
++    assert actual["complete"] is False and actual["timezone"] is None
++    a, b, c = actual["grades"]["assessments"]
++    assert type(a["score"]) is int and a["score"] == 0 and b["score"] is None and "score" not in c
++    dest.usefulness.records.delete(owner, parent, 1)
++    blocked = api.restore(owner, raw, generation=0)
++    assert blocked["records"][parent]["action"] == "blocked_deleted_record"
++    assert blocked["records"][child]["action"] in {
++        "blocked_deleted_record",
++        "unresolved_dependency",
++    }
++
++
++def test_concurrent_restore_receipt(paired, owner):
++    from concurrent.futures import ThreadPoolExecutor
++    from threading import Barrier
++
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import goal
++
++    source, dest = paired
++    ident = goal(source, owner, "MKT", share=False)
++    raw = Workspace(source).export(owner, "MKT", [ident], [])
++    api = Workspace(dest)
++    plan = api.restore(owner, raw, generation=0)
++    start = Barrier(2)
++
++    def confirm():
++        start.wait(timeout=10)
++        return api.restore(
++            owner, raw, generation=0, confirmation=plan["preview_id"], key="concurrent"
++        )
++
++    with ThreadPoolExecutor(max_workers=2) as workers:
++        tasks = [workers.submit(confirm) for _ in range(2)]
++        receipts = [future.result(timeout=20) for future in tasks]
++    assert receipts[0] == receipts[1] and receipts[0]["record_count"] == 1
++    assert dest.processes.repository.read(owner, ident).revision == 1
++
++
++async def test_independent_destination_review_is_preserved(paired, owner, parsed_locally):
++    from canvas_bridge.usefulness.workspace import Workspace
++    from tests.test_usefulness import reviewed
++
++    source, dest = paired
++    data = archive([("brief.md", "Memo due November 2, 2026.")])
++    rows = []
++    for app in (source, dest):
++        receipt = await app.usefulness.imports.run(
++            owner,
++            data,
++            "test.zip",
++            "application/zip",
++            course="MKT",
++            purpose="material",
++            key="packet",
++            permissions={"own_material": True},
++            validate_session=lambda: 0,
++        )
++        doc = app.independent.require(owner, receipt["items"][0]["document_id"])
++        rows.append((doc, reviewed(app, owner, doc, key="memo")["record_id"]))
++    (src, origin_review), (dst, destination_review) = rows
++    raw = Workspace(source).export(owner, "MKT", [origin_review], [src.id])
++    api = Workspace(dest)
++    proposed = api.restore(owner, raw, generation=0)
++    assert proposed["records"][origin_review]["action"] == "unresolved_destination_review"
++    receipt = api.restore(
++        owner, raw, generation=0, confirmation=proposed["preview_id"], key="preserve"
++    )
++    assert receipt["status"] == "partial"
++    assert (
++        dest.independent.require(owner, dst.id).content["review"]["record_id"] == destination_review
++    )
+diff --git a/tests/test_portability_acceptance.py b/tests/test_portability_acceptance.py
+new file mode 100644
+--- /dev/null
++++ b/tests/test_portability_acceptance.py
+@@ -0,0 +1,504 @@
++"""Opt-in execution of the supplied synthetic Stage 4 course and semester packets."""
++
++import io
++import json
++import os
++import platform
++import zipfile
++from collections import Counter, defaultdict
++from datetime import UTC, datetime
++from hashlib import sha256
++from pathlib import Path
++
++import pytest
++
++from canvas_bridge.academic.study_steps import source_steps
++from canvas_bridge.usefulness.imports import candidates
++from canvas_bridge.usefulness.workspace import Workspace
++from tests.test_academic_operations_acceptance import build_identity
++from tests.test_content_portability import archive
++from tests.test_content_portability import paired as paired
++
++pytestmark = pytest.mark.skipif(
++    not os.getenv("BRIDGE_TEST_PORT_SUITE"), reason="requires supplied Stage 4 synthetic archive"
++)
++
++
++@pytest.fixture
++def rig(paired, owner, tmp_path, monkeypatch):
++    bundle = Path(os.environ["BRIDGE_TEST_PORT_SUITE"])
++    assert (
++        sha256(bundle.read_bytes()).hexdigest()
++        == "e91dc8bb1c5c1cf660155d087cab62057702b0bc02622f43815d47614ac0935f"
++    )
++    inputs = zipfile.ZipFile(bundle)
++    root = "stage4_portability/"
++    output = Path(os.environ.get("BRIDGE_TEST_PORT_OUTPUT", tmp_path / "receipts"))
++    output.mkdir(parents=True, exist_ok=True)
++    clock = datetime(2026, 10, 29, 16, tzinfo=UTC)
++    for bridge in paired:
++        bridge.settings.file_reading_enabled = True
++        if os.name == "nt":
++            parser = Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++            bridge.settings.parser_root = bridge.settings.parser_runtime_root = parser
++        monkeypatch.setattr(bridge.retention, "clock", lambda: clock)
++
++    def save(name, value):
++        (output / (name + ".json")).write_text(
++            json.dumps(value, indent=2, default=str), encoding="utf8"
++        )
++
++    build = build_identity()
++    save(
++        "environment",
++        {
++            "base_commit": build["base_commit"],
++            "source_sha256": build["source_sha256"],
++            "runtime": platform.python_version(),
++            "clock": clock.isoformat(),
++            "profile": "synthetic",
++            "principal": owner,
++            "recipient": "authenticated_settings_owner",
++            "authority": "paired_live_sqlite",
++        },
++    )
++
++    def fixture(name):
++        return inputs.read(root + "fixtures/" + name)
++
++    async def acquire(bridge, name, data, *, course="MKT320", expected=None, decisions=None):
++        args = dict(
++            course=course,
++            purpose="material",
++            key=name,
++            term="fall26",
++            expected=expected,
++            decisions=decisions,
++            permissions={"own_material": True, "share_text": True, "allow_academic_analysis": True},
++            validate_session=lambda: 0,
++        )
++        service = bridge.usefulness.imports
++        pre = await service.run(
++            owner, data, "selection.zip", "application/zip", preview_only=True, **args
++        )
++        result = await service.run(
++            owner, data, "selection.zip", "application/zip", confirmation=pre["preview_id"], **args
++        )
++        save(
++            name,
++            {
++                "request": {
++                    "scope": course,
++                    "term": "fall26",
++                    "hash": sha256(data).hexdigest(),
++                    "expected": expected,
++                    "decisions": decisions,
++                },
++                "preview": pre,
++                "result": result,
++            },
++        )
++        return result
++
++    yield *paired, fixture, acquire, save
++    inputs.close()
++
++
++async def test_exact_course_sequence(rig, owner, token_factory, monkeypatch):
++    source, dest, fixture, acquire, save = rig
++    missing = {"course/MKT320-C01.md": None}
++    base = await acquire(source, "baseline", fixture("base.zip"), expected=missing)
++    by_path = {i["logical_path"]: i for i in base["items"]}
++    brief = by_path["course/MKT320-A05.md"]
++    assert brief["state"] == "ready", brief
++    row = source.independent.require(owner, brief["document_id"])
++    paragraphs = row.content["parsed"]["pages"]
++    parts = [
++        {"text": p["text"], "locator": "Page " + str(i), "kind": "page", "ordinal": i}
++        for i, p in enumerate(paragraphs, 1)
++    ]
++    document = {
++        "id": row.id,
++        "role": "instructions",
++        "parts": parts,
++        "content_hash": row.version_hash,
++        "title": "MKT320-A05",
++        "version": row.version_hash,
++        "source_version": row.version_hash,
++        "url": "",
++        "course_id": "MKT320",
++        "source_type": "local_document",
++        "retrieved_at": row.provenance["acquired_at"],
++        "complete": bool(paragraphs),
++    }
++    evidence = source_steps([document])
++    assert len([s for s in evidence["steps"] if s["kind"] == "deliverable"]) == 3
++    save("baseline-evidence", {"steps": evidence, "coverage": base["coverage"]})
++    matches = candidates(row)
++    assert matches
++    selected = next(c for c in matches if "November 2 at 23:59 America/New_York" in c["quote"])
++    review = source.usefulness.save_review(
++        owner,
++        row.id,
++        row.version_hash,
++        {
++            selected["id"]: {
++                "action": "edit",
++                "work": {
++                    "key": "MKT320-A05",
++                    "title": "Research Decision Memo",
++                    "activity_kind": "assignment",
++                    "progress": "in_progress",
++                    "due": {"kind": "timestamp", "timestamp": "2026-11-02T23:59:00-05:00"},
++                    "requirement": "required",
++                },
++            }
++        },
++        key="explicit-personal-progress",
++    )
++    source.independent.preferences(owner, {"timezone": "America/New_York"})
++    save(
++        "progress",
++        {
++            "receipt": review,
++            "record": source.processes.repository.read(owner, review["record_id"]).model_dump(
++                mode="json"
++            ),
++        },
++    )
++    for name in ("moved", "duplicate", "longpaths"):
++        result = await acquire(source, name, fixture(name + ".zip"), expected=missing)
++        originals = {
++            i["content_hash"]: i["binding"] for i in base["items"] if i["state"] == "ready"
++        }
++        assert all(
++            i["binding"] == originals[i["content_hash"]]
++            for i in result["items"]
++            if i["state"] == "ready" and i["content_hash"] in originals
++        )
++    with zipfile.ZipFile(io.BytesIO(fixture("base.zip"))) as original:
++        reversed_zip = archive([(n, original.read(n)) for n in reversed(original.namelist())])
++    reordered = await acquire(source, "reordered", reversed_zip)
++    assert {i["binding"] for i in reordered["items"]} == {i["binding"] for i in base["items"]}
++    revision = await acquire(source, "revised", fixture("revised.zip"))
++    notice = next(i for i in revision["items"] if i["logical_path"].endswith("N01.md"))
++    assert notice["state"] == "ready" and notice["disposition"] == "new_version"
++    amended = source.independent.require(owner, notice["document_id"])
++    save(
++        "competing-deadlines",
++        {
++            "assertions": [
++                {
++                    "source": r.id,
++                    "version": r.version_hash,
++                    "passages": [
++                        line
++                        for p in r.content["parsed"]["pages"]
++                        for line in p["text"].splitlines()
++                        if "November 2" in line or "November 4" in line
++                    ],
++                }
++                for r in (row, amended)
++            ]
++        },
++    )
++    from canvas_bridge.processes.requests import EvaluationRequest
++
++    conflicts = await source.processes.evaluate(
++        owner,
++        EvaluationRequest.model_validate(
++            {
++                "scope": {
++                    "document_ids": [row.id, amended.id],
++                    "local_course": "MKT320",
++                    "term": "fall26",
++                },
++                "payload": {
++                    "operation": "evidence",
++                    "decision_class": "deadline",
++                    "claims": [
++                        {
++                            "source_id": r.id,
++                            "entity": "MKT320-A05",
++                            "field": "deadline",
++                            "value": date,
++                        }
++                        for r, date in ((row, "November 2"), (amended, "November 4"))
++                    ],
++                },
++            }
++        ),
++    )
++    assert conflicts.data["resolution"]["status"] == "unresolved"
++    assert len(conflicts.data["resolution"]["candidates"]) == 2
++    save("unresolved-deadline", conflicts.model_dump(mode="json"))
++    done = [i["document_id"] for i in revision["items"] if i["state"] == "ready"]
++    raw = Workspace(source).export(
++        owner, "MKT320", [review["record_id"]], done, originals=True, preferences=True
++    )
++    api = Workspace(dest)
++    preview = api.restore(owner, raw, generation=0)
++    save("clean-restore-preview", preview)
++    references = {
++        ident
++        for ident, item in preview["documents"].items()
++        if item.get("reason") == "PORT_REFERENCE_UNRESOLVED"
++    }
++    if references:
++        # A separate authenticated acquisition supplies original fixture bytes for reference-only sources.
++        with zipfile.ZipFile(io.BytesIO(fixture("revised.zip"))) as original:
++            needed = [
++                (i["logical_path"], original.read(i["logical_path"]))
++                for i in revision["items"]
++                if i["document_id"] in references
++            ]
++        await acquire(dest, "destination-selected-references", archive(needed))
++        preview = api.restore(owner, raw, generation=0)
++    save("restore-preview", preview)
++    receipt = api.restore(
++        owner, raw, generation=0, confirmation=preview["preview_id"], key="roundtrip"
++    )
++    save("restore-receipt", receipt)
++    assert receipt["status"] == "complete", receipt
++    restored = dest.independent.require(owner, row.id)
++    assert restored.content["reviewed_dataset"]["work"][0]["progress"] == "in_progress"
++    assert restored.version_hash == row.version_hash
++    for ident in done:
++        assert (
++            dest.independent.require(owner, preview["source_id_map"][ident]).version_hash
++            == source.independent.require(owner, ident).version_hash
++        )
++    assert (
++        api.restore(owner, raw, generation=0, confirmation=preview["preview_id"], key="roundtrip")
++        == receipt
++    )
++
++    from canvas_bridge.usefulness.service import scoped_work_id
++
++    oldplan = source.usefulness.records.save(
++        owner,
++        "MKT320",
++        "plan",
++        {
++            "blocks": [
++                {
++                    "work_id": scoped_work_id(row.id, "MKT320-A05"),
++                    "start": "2026-10-29T16:00:00Z",
++                    "end": "2026-10-29T16:30:00Z",
++                }
++            ],
++            "calendar_action": False,
++        },
++        depends_on=[review["record_id"]],
++        sources=[source.usefulness.records.document_tag(owner, row)],
++        idempotency_key="saved-plan",
++    )
++    historical = Workspace(source).export(
++        owner, "MKT320", [oldplan["record_id"]], [], originals=False
++    )
++    handoff = api.restore(owner, historical, generation=0)
++    assert handoff["records"][oldplan["record_id"]]["action"] == "historical_replan_required"
++    save("historical-plan", handoff)
++
++    # Explicitly permit the destination recipient before exercising academic analysis.
++    from datetime import timedelta
++
++    import httpx
++
++    from canvas_bridge.academic.independent_engine import work_items
++    from canvas_bridge.academic.independent_models import (
++        IndependentAcademicInput,
++        IndependentRequest,
++    )
++    from canvas_bridge.app import create_app
++    from canvas_bridge.authorization import RequestAuthorization, request_authorization
++    from canvas_bridge.calendar_sync import marker
++    from canvas_bridge.egress_models import RecipientIdentity
++    from canvas_bridge.independent_intelligence import run
++    from tests.test_usefulness import browser_session
++
++    browser_session(dest, owner, token_factory)
++    async with httpx.AsyncClient(
++        transport=httpx.ASGITransport(app=create_app(dest.settings, dest)),
++        base_url=dest.settings.resource_url,
++        cookies={"bridge_session": "usefulness-browser"},
++        headers={"Origin": dest.settings.resource_url},
++    ) as browser:
++        saved = await browser.post(
++            "/settings/materials/sharing",
++            data={
++                "csrf": "usefulness-csrf",
++                "document_id": row.id,
++                "expected_hash": row.version_hash,
++                "permission_version": "0",
++                "confirm": "reviewed",
++                "share": "yes",
++                "analysis": "yes",
++                "primary_review": dest.independent.profile().review_digest(),
++            },
++        )
++        assert saved.status_code == 303, saved.text
++    instant = dest.retention.clock() + timedelta(hours=2)
++    monkeypatch.setattr("canvas_bridge.independent_intelligence.utcnow", lambda: instant)
++    dataset = IndependentAcademicInput.model_validate(restored.content["reviewed_dataset"])
++    parent = work_items(dataset, dest.independent.evidence(restored))[0]
++    event = {
++        "id": "fictional-current-event",
++        "title": parent.title,
++        "bridge_marker": marker(owner, "", parent),
++        "start": parent.effective_due.timestamp,
++        "end": parent.effective_due.timestamp + timedelta(minutes=15),
++        "status": "confirmed",
++        "version": "current-calendar-readback",
++    }
++    calendar = {
++        "calendar_id": "fictional-calendar",
++        "timezone": "America/New_York",
++        "events": [event],
++        "retrieved_at": instant,
++        "window_start": instant,
++        "window_end": instant + timedelta(days=7),
++        "pagination_complete": True,
++        "mapping_search_complete": True,
++    }
++    context = request_authorization.set(
++        RequestAuthorization(
++            "portability-test", recipient="chatgpt", egress_identity=RecipientIdentity("chatgpt")
++        )
++    )
++    try:
++        for capability, options in [
++            ("calendar", {"calendar": calendar}),
++            (
++                "planning",
++                {"plan": {"windows": [{"start": instant, "end": instant + timedelta(minutes=45)}]}},
++            ),
++        ]:
++            request = IndependentRequest.model_validate(
++                {
++                    "capability": capability,
++                    "dataset": {"document_id": restored.id, "expected_hash": restored.version_hash},
++                    **options,
++                }
++            )
++            result = await run(dest, owner, request)
++            save(
++                "current-" + capability,
++                {
++                    "request": request.model_dump(mode="json"),
++                    "result": result.model_dump(mode="json"),
++                },
++            )
++            if capability == "calendar":
++                assert not result.data["proposals"] and len(result.data["mappings"]) == 1
++                assert result.data["provider_writes_executed"] is False
++    finally:
++        request_authorization.reset(context)
++
++
++async def test_exact_dropout(rig, owner):
++    source, _, fixture, acquire, save = rig
++    with zipfile.ZipFile(io.BytesIO(fixture("base.zip"))) as original:
++        feedback = original.read("course/MKT320-F01.md")
++    expected = {"course/MKT320-F01.md": sha256(feedback).hexdigest(), "course/MKT320-C01.md": None}
++    first = await acquire(source, "fresh-dropout", fixture("dropout.zip"), expected=expected)
++    assert all(m["retained_version"] is None for m in first["coverage"]["missing"])
++    recovery = await acquire(source, "exact-recovery", fixture("recovered.zip"), expected=expected)
++    item = next(i for i in recovery["items"] if i["logical_path"].endswith("F01.md"))
++    row = source.independent.require(owner, item["document_id"])
++    assert row.version_hash == sha256(feedback).hexdigest()
++    save(
++        "recovered-feedback",
++        {"source": row.id, "hash": row.version_hash, "pages": row.content["parsed"]["pages"]},
++    )
++    again = await acquire(source, "retained-omission", fixture("dropout.zip"), expected=expected)
++    assert any(m["retained_version"] == row.version_hash for m in again["coverage"]["missing"])
++    source.independent.delete(owner, row.id)
++    deleted = await acquire(source, "after-deletion", fixture("recovered.zip"), expected=expected)
++    assert (
++        next(i for i in deleted["items"] if i["logical_path"].endswith("F01.md"))["state"]
++        == "failed"
++    )
++
++
++async def test_bounded_semester(rig, owner):
++    source, dest, fixture, acquire, save = rig
++    index = json.loads(fixture("full-semester-index.json"))
++    by_course = defaultdict(list)
++    for entry in index["members"]:
++        by_course[entry["course_fixture_key"]].append(entry["archive_entry"])
++    counts = Counter()
++    with zipfile.ZipFile(io.BytesIO(fixture("full-semester.zip"))) as full:
++        for course, paths in sorted(by_course.items()):
++            for offset in range(0, len(paths), 19):
++                names = paths[offset : offset + 19]
++                selected = archive([(n, full.read(n)) for n in names])
++                name = f"semester-{course}-{offset}"
++                expected = {
++                    k: None
++                    for k in {"MKT320": ["MKT320-C01"], "OPS330": ["OPS330-N02", "OPS330-R04"]}.get(
++                        course, []
++                    )
++                }
++                result = await acquire(source, name, selected, course=course, expected=expected)
++                counts["unsupported"] += len(result["excluded"])
++                counts.update(i["state"] for i in result["items"])
++                assert len(result["items"]) + len(result["excluded"]) == len(names)
++                docs = [i["document_id"] for i in result["items"] if i["state"] == "ready"]
++                if docs:
++                    raw = Workspace(source).export(owner, course, [], docs, originals=True)
++                    api = Workspace(dest)
++                    preview = api.restore(owner, raw, generation=0)
++                    receipt = api.restore(
++                        owner, raw, generation=0, confirmation=preview["preview_id"], key=name
++                    )
++                    save(name + "-restore", {"preview": preview, "receipt": receipt})
++                    unresolved = {
++                        k for k, v in preview["documents"].items() if v["action"] == "blocked"
++                    }
++                    assert all(
++                        preview["documents"][k].get("reason") == "PORT_REFERENCE_UNRESOLVED"
++                        for k in unresolved
++                    )
++                    assert receipt["status"] == ("partial" if unresolved else "complete")
++                    for ident in set(docs) - unresolved:
++                        assert (
++                            dest.independent.require(owner, ident).version_hash
++                            == source.independent.require(owner, ident).version_hash
++                        )
++                    # Each declared course unit is bounded by the actual 20-document store limit.
++                    for ident in docs:
++                        if ident not in unresolved:
++                            dest.independent.delete(owner, ident)
++                        source.independent.delete(owner, ident)
++    save(
++        "semester-accounting",
++        {
++            "members": sum(counts.values()),
++            "courses": list(by_course),
++            "states": counts,
++            "strategy": "sequential bounded units with explicit synthetic deletion after verified readback",
++        },
++    )
++    assert sum(counts.values()) == 236
++
++
++async def test_supplied_shared_reading(rig, owner):
++    source, _, fixture, acquire, save = rig
++    with zipfile.ZipFile(io.BytesIO(fixture("shared.zip"))) as shared:
++        first, second = "course/MKT320-R02.pdf", "finance/shared-reading.pdf"
++        mkt = await acquire(
++            source, "shared-marketing", archive([(first, shared.read(first))]), course="MKT320"
++        )
++        fin = await acquire(
++            source, "shared-finance", archive([(second, shared.read(second))]), course="FIN310"
++        )
++    a, b = mkt["items"][0], fin["items"][0]
++    assert a["content_hash"] == b["content_hash"] and a["binding"] != b["binding"]
++    assert a["document_id"] != b["document_id"]
++    source.independent.delete(owner, a["document_id"])
++    assert source.independent.require(owner, b["document_id"]).version_hash == a["content_hash"]
++    save(
++        "shared-isolation",
++        {"version": a["content_hash"], "removed": a["binding"], "retained": b["binding"]},
++    )
+diff --git a/docs/course-content-portability.md b/docs/course-content-portability.md
+new file mode 100644
+--- /dev/null
++++ b/docs/course-content-portability.md
+@@ -0,0 +1,37 @@
++# Course content portability
++
++Open **Settings → Add course materials** with independent review workflows enabled. Choose the term, course and purpose before importing a ZIP. Treat a packet covering several courses as separate course selections. A filename or folder label cannot establish institutional authority.
++
++## Import and recover materials
++
++The packet preview shows one outcome for each selected member. A recognized move keeps the document and work identities and adds the original path to location history. A source revision retains the earlier bytes, hash, locator and acquisition time within the original retention window. Affected reviews become stale, including their dependent work. Inspect the earlier personal progress in the review form and explicitly choose the previously reviewed activity when recording revised requirements.
++
++Choose a candidate for an ambiguous match and review the updated preview. A conflicting mapping stays pending. A packet can contain 100 archive entries, up to 20 supported documents, at most 10 MB per document and 50 MB compressed. The existing expansion and per-format processing limits also apply. Temporary storage holds up to 20 documents per owner. The importer checks normalized archive paths and retains accepted logical paths up to 2,048 characters. It never uses the member path as a filesystem destination.
++
++Enter expected logical paths, one per line, to track missing materials. An authenticated programmatic caller of the same settings route may also supply an expected SHA-256 for a path. An omitted file remains usable while the retained source is eligible. A wrong recovery hash stays in review. A recovered quotation retains the identity of the document that contains it. Deletion invalidates dependent state and installs scoped hash and binding fences for 91 days. An older workspace export expires within 30 days.
++
++## Export and restore
++
++Choose **Export or restore a course workspace**, choose the course, then select individual documents, process records and optional personal preferences. Include original bytes explicitly if needed. The download contains a bounded `course-workspace-1` manifest with an embedded `academic-process-export-1` selection. Source and record dependencies, original expiry, historical revisions, byte hashes, sizes, omissions and reference-only payloads travel with the selection. Store the downloaded file privately.
++
++Select the bundle in the destination settings. Review each create, reuse, replacement, unresolved dependency, blocked source and historical plan. An existing edit requires a separate replacement choice and fresh preview. Reselect the exact file to confirm. Eligible records and their resolved parents, documents and preferences commit in one transaction. The receipt distinguishes a complete selection from a partial restore. A retry with the same confirmation and operation key returns the original receipt.
++
++| Selection | Destination behavior |
++| --- | --- |
++| Independently owned source | Restore eligible original bytes or match an independently acquired current binding. Filtered originals can travel as references. The preview shows the exact runtime ID map. |
++| Reviewed assignments and personal progress | Restore the existing review schema, work keys, citations and declaration basis. The destination uses its own storage revisions. Typed review citations can be remapped to a new document ID. A nested structure without a verified mapping stays unresolved. |
++| Dependent study history and personal preferences | Restore eligible dependency-closed records and explicitly selected independent preferences. The shorter applicable expiry controls use. |
++| Saved plans and calendar references | Retain the exported historical plan in the bundle. Run planning again with current sources, time and availability. A current event marker and provider version govern any later calendar proposal. |
++| Local and Canvas identity association | Use the existing academic-process identity preview and confirmation, with `associate_local_course` enabled. Both adapter scopes, an explicit course code, compatible term and entity kind, and independently authorized sources are required. For an assignment, select an existing reviewed local work key and the actual Canvas work ID. A read projects one confirmed parent and its two dated assertions. A conflicting date holds the calendar proposal for review. Removing the link restores the separate inventory. |
++
++Mixed-origin export uses the existing institutional user-download policy and privacy filter. A permitted link exports its public representation and local version metadata. Other institutional state, raw LMS payloads and unresolvable links receive an explicit omission or blocked outcome. Restored local documents and study records start with sharing disabled in a paired destination. Renewing consent uses the current source and recipient policies.
++
++## Trusted source continuity
++
++The signed-in issuer and subject determine the owner. The destination checks the digest against an independently retained issuance receipt, checks the principal generation and consults current source and deletion state again at commit. A matching owner, correct ZIP checksum, or copied vault key alone cannot establish continuity.
++
++The default authority is the current store. A separately initialized destination can pair with an existing authoritative SQLite installation by setting `BRIDGE_PORTABILITY_ORIGIN_SQLITE` to its **live database** in trusted operator configuration. The destination must already have the corresponding database encryption setup. The origin opens read-only with SQLite rollback-journal mode `DELETE`. Its shared read transaction spans the destination commit. Configure an authoritative store whose deletion history is current. A backup or file supplied by the importing student is unsuitable. Missing authority, incompatible storage, expired evidence or a different generation blocks restoration.
++
++Separate PostgreSQL installations, independent cloud deployments and transfers between different issuer/subject pairs have no paired-authority adapter in this version. The existing operator backup/recovery flow remains separate from a student workspace export.
++
++[Executed acceptance and evidence](../evidence/sanitized-results/course-content-portability.md)

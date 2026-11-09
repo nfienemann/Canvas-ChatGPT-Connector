@@ -27,6 +27,10 @@ class PinnedBlock(Window):
     work_id: str = Field(min_length=1, max_length=100)
 
 
+class PinTimingConflict(ValueError):
+    """A retained user pin falls outside a resolved source bound."""
+
+
 class Importance(Model):
     grade_weight_percent: float = Field(ge=0, le=100, allow_inf_nan=False)
     basis: Literal["student_provided"] = "student_provided"
@@ -151,6 +155,7 @@ def prioritize(
         action = (
             f"Verify the {receipt_label} for {item.title}; you marked the work done, so do not redo it based only on this status."
             if item.personal_progress == "student_marked_done"
+            and item.revision_state in {"none_known", "unknown"}
             else f"Confirm the source date, timezone or availability for {item.title} before scheduling it."
             if timing.blocked
             else f"Confirm when {item.title} takes place and whether any work remains before scheduling it."
@@ -223,8 +228,73 @@ def subtract(windows: list[list[datetime]], start: datetime, end: datetime):
     return result
 
 
+def planning_windows(availability, busy_times, now, buffer_minutes):
+    windows = []
+    for window in sorted(availability, key=lambda w: w.start):
+        start = max(window.start, now)
+        end = window.end - timedelta(minutes=buffer_minutes)
+        if start < end:
+            windows.append([start, end])
+    for busy in busy_times:
+        windows = subtract(windows, busy.start, busy.end)
+    return windows
+
+
+def effort_summary(items, accounting, blocks):
+    """Balance upper estimates in work minutes. Keep unestimated work and extra
+    reserved time outside that balance (a pin may exceed its work estimate).
+    """
+    allocated = {}
+    for block in blocks:
+        ref = block["work_id"]
+        allocated[ref] = allocated.get(ref, 0) + block["minutes"]
+    known = credited = capacity = dependency = 0
+    completed, unknown, receipts = [], [], []
+    for ref, item in items.items():
+        if completion_reason(item):
+            completed.append(ref)
+            continue
+        if item.personal_progress == "student_marked_done" and item.revision_state in {
+            "none_known",
+            "unknown",
+        }:
+            receipts.append(ref)
+            continue
+        if not item.effort_remaining:
+            unknown.append(ref)
+            continue
+        estimate = item.effort_remaining.maximum_minutes
+        planned = min(estimate, allocated.get(ref, 0))
+        known += estimate
+        credited += planned
+        reason = accounting[ref]["reason"]
+        if reason == "insufficient_capacity":
+            capacity += estimate - planned
+        elif reason in {"pinned_prerequisite_conflict", "prerequisite_unallocated"}:
+            dependency += estimate - planned
+    return {
+        "known_remaining_minutes": known,
+        "allocated_work_minutes": credited,
+        "total_known_unallocated_minutes": known - credited,
+        "capacity_blocked_minutes": capacity,
+        "dependency_blocked_minutes": dependency,
+        "other_unallocated_minutes": known - credited - capacity - dependency,
+        "uncredited_block_minutes": sum(allocated.values()) - credited,
+        "unknown_effort_work_ids": sorted(unknown),
+        "completed_work_ids": sorted(completed),
+        "receipt_verification_work_ids": sorted(receipts),
+        "receipt_checks": [{"work_id": ref, "title": items[ref].title} for ref in sorted(receipts)],
+        "unresolved_requirement_ids": [],
+    }
+
+
 def propose(
-    items: list[WorkItem], request: PlanRequest, now: datetime, *, preparation_targets=None
+    items: list[WorkItem],
+    request: PlanRequest,
+    now: datetime,
+    *,
+    preparation_targets=None,
+    completed_prerequisites=(),
 ) -> dict:
     now = instant(now)
     by_id = {item.id: item.model_copy(deep=True) for item in items}
@@ -286,21 +356,16 @@ def propose(
             "known_shortfall_minutes": 0,
             "omitted_work": omitted,
             "work_accounting": accounting,
+            "effort_summary": effort_summary(by_id, accounting, []),
             "recommendations": ranked[:5],
             "blocks": [],
+            "pin_conflicts": [],
             "unmet_work": [],
             "timing_constraints": timing_evidence,
             "assumptions": ["No calendar access or free time has been independently verified."],
         }
-    windows = []
-    for window in sorted(request.windows, key=lambda w: w.start):
-        start = max(window.start, now)
-        end = window.end - timedelta(minutes=request.buffer_minutes)
-        if start < end:
-            windows.append([start, end])
-    for busy in request.busy_times:
-        windows = subtract(windows, busy.start, busy.end)
-    blocks, unmet, pinned_minutes, pinned_end = [], [], {}, {}
+    windows = planning_windows(request.windows, request.busy_times, now, request.buffer_minutes)
+    blocks, unmet, pins_by_work, pin_conflicts = [], [], {}, []
     for pin in sorted(request.pinned_blocks, key=lambda w: w.start):
         if pin.work_id not in by_id or omission_reason(by_id[pin.work_id], allow_future=True):
             raise ValueError("Pinned block references work that is not eligible for planning.")
@@ -318,22 +383,11 @@ def propose(
         if (timing.opens and pin.start < timing.opens) or (
             timing.deadline and pin.end > timing.deadline
         ):
-            raise ValueError(
+            raise PinTimingConflict(
                 "Pinned block conflicts with source timing or a conservative date-only planning bound."
             )
-        pinned_minutes[pin.work_id] = pinned_minutes.get(pin.work_id, 0) + minutes
-        pinned_end[pin.work_id] = max(pin.end, pinned_end.get(pin.work_id, pin.end))
-        blocks.append(
-            {
-                "work_id": pin.work_id,
-                "start": pin.start.isoformat(),
-                "end": pin.end.isoformat(),
-                "minutes": minutes,
-                "pinned": True,
-                "overdue_recovery": timing.overdue,
-                "conditional_on_future_access": item.availability_state == "future_locked",
-            }
-        )
+        pins_by_work.setdefault(pin.work_id, []).append(pin)
+        # A student pin reserves capacity even when its prerequisites later conflict.
         windows = subtract(
             windows,
             pin.start - timedelta(minutes=request.break_minutes),
@@ -348,10 +402,11 @@ def propose(
             and item.revision_state == "none_known"
         )
         or (
-            item.submission_state == "not_applicable"
-            and item.personal_progress == "student_marked_done"
+            completion_reason(item) == "student_marked_done"
+            and item.revision_state in {"none_known", "unknown"}
         )
     }
+    completed_at.update(dict.fromkeys(completed_prerequisites, now))
     # Visit prerequisites before their dependents, retaining rank among unrelated tasks.
     pending = [row["work_id"] for row in ranked]
     ordered, visiting, visited = [], set(), set()
@@ -375,43 +430,74 @@ def propose(
         if timing.blocked:
             unmet.append({"work_id": item.id, "reason": timing.blocked, "minutes": None})
             continue
+        effort = item.effort_remaining
+        missing = sorted(set(item.prerequisites) - completed_at.keys())
+        earliest = max(
+            [
+                now,
+                timing.opens or now,
+                *(completed_at[p] for p in item.prerequisites if p in completed_at),
+            ]
+        )
+        pinned_minutes, finish = 0, now
+        conflict = False
+        for pin in pins_by_work.get(ref, ()):
+            blockers = missing or sorted(
+                p for p in item.prerequisites if completed_at[p] > pin.start
+            )
+            if blockers:
+                conflict = True
+                pin_conflicts.append(
+                    {
+                        **pin.model_dump(mode="json"),
+                        "reason": "prerequisite_unallocated"
+                        if missing
+                        else "prerequisite_finishes_after_pin_starts",
+                        "prerequisites": blockers,
+                        "next_action": "Review the prerequisite work. Move the pin after it can finish, revise its remaining effort, or make more time before the pin.",
+                    }
+                )
+                continue
+            minutes = int((pin.end - pin.start).total_seconds() // 60)
+            blocks.append(
+                {
+                    "work_id": ref,
+                    "start": pin.start.isoformat(),
+                    "end": pin.end.isoformat(),
+                    "minutes": minutes,
+                    "pinned": True,
+                    "overdue_recovery": timing.overdue,
+                    "conditional_on_future_access": item.availability_state == "future_locked",
+                }
+            )
+            pinned_minutes += minutes
+            finish = max(finish, pin.end)
+        remaining = max(0, effort.maximum_minutes - pinned_minutes) if effort else None
+        if missing or conflict:
+            unmet.append(
+                {
+                    "work_id": ref,
+                    "reason": "pinned_prerequisite_conflict"
+                    if conflict
+                    else "prerequisite_unallocated",
+                    "minutes": remaining,
+                }
+            )
+            continue
         if (
             item.effective_due.kind not in {"timestamp", "local_date"}
             and not timing.deadline
             and ref not in request.effort_overrides
-            and ref not in pinned_minutes
+            and not pinned_minutes
             and item.personal_progress != "in_progress"
         ):
             unmet.append(
                 {"work_id": item.id, "reason": "schedule_and_relevance_unknown", "minutes": None}
             )
             continue
-        effort = item.effort_remaining
         if not effort:
             unmet.append({"work_id": item.id, "reason": "effort_unknown", "minutes": None})
             continue
-        if set(item.prerequisites) - completed_at.keys():
-            unmet.append(
-                {
-                    "work_id": item.id,
-                    "reason": "prerequisite_unallocated",
-                    "minutes": effort.maximum_minutes,
-                }
-            )
-            continue
-        earliest = max([now, timing.opens or now, *(completed_at[p] for p in item.prerequisites)])
-        item_pins = [p for p in request.pinned_blocks if p.work_id == item.id]
-        if any(p.start < earliest for p in item_pins):
-            unmet.append(
-                {
-                    "work_id": item.id,
-                    "reason": "pinned_prerequisite_conflict",
-                    "minutes": max(0, effort.maximum_minutes - pinned_minutes.get(item.id, 0)),
-                }
-            )
-            continue
-        remaining = max(0, effort.maximum_minutes - pinned_minutes.get(item.id, 0))
-        finish = pinned_end.get(item.id, now)
         # Overdue-but-open work uses the close time and labels lateness, not an invented extension.
         deadline, overdue = timing.deadline, timing.overdue
         for left, window_end in list(windows):
@@ -483,8 +569,10 @@ def propose(
         "information_status": "uncertain" if uncertain else "sufficient",
         "omitted_work": omitted,
         "work_accounting": accounting,
+        "effort_summary": effort_summary(by_id, accounting, blocks),
         "recommendations": ranked[:5],
         "blocks": sorted(blocks, key=lambda b: b["start"]),
+        "pin_conflicts": sorted(pin_conflicts, key=lambda p: p["start"]),
         "unmet_work": unmet,
         "timing_constraints": timing_evidence,
         "known_shortfall_minutes": known_shortfall,

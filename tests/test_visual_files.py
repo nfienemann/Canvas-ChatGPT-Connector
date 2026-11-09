@@ -161,8 +161,18 @@ BT /F1 16 Tf 320 525 Td (Quiz Four) Tj ET
     ids=["corrupt", "oversized", "out_of_range"],
 )
 def test_T11_render_failures_are_explicit(data, page, tmp_path):
-    with pytest.raises(DomainError):
+    with pytest.raises(DomainError) as caught:
         extract_isolated(data, "pdf", tmp_path / "parser", visual={"page": page, "rotation": 0})
+    if page == 4:
+        assert caught.value.reason_code == "DOCUMENT_RANGE_OUT_OF_BOUNDS"
+        assert {k: caught.value.data[k] for k in ("page_start", "page_end", "page_count")} == {
+            "page_start": 4,
+            "page_end": 4,
+            "page_count": 3,
+        }
+    else:
+        assert caught.value.reason_code != "DOCUMENT_RANGE_OUT_OF_BOUNDS"
+        assert "page_count" not in caught.value.data
 
 
 async def test_T13_render_authorization_hash_and_receipt(bridge, owner, seeded, readable, tmp_path):
@@ -254,6 +264,10 @@ async def test_T12_T21_native_mcp_image_content(
                     "render_course_file_page", {"connection_id": seeded, "file_id": "other-file"}
                 )
                 assert denied.structuredContent["status"] == "permission_denied"
+                diagnostic = denied.structuredContent["data"]["diagnostic"]
+                assert diagnostic["code"] == "IDENTIFIER_MAPPING_FAILURE"
+                assert diagnostic["category"] == "authorization"
+                assert diagnostic["content_delivery"] == "none"
                 assert not any(c.type == "image" for c in denied.content)
 
 
@@ -285,9 +299,12 @@ async def test_T13_denied_download_does_not_retry_forever(file_client):
         return httpx.Response(403)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(transfer)) as http:
-        with pytest.raises(DomainError, match="unavailable"):
+        with pytest.raises(DomainError, match="unavailable") as failure:
             await download_file(client, "11", "51", http=http)
-    assert len(calls) == 2
+        assert failure.value.upstream_http_status == 403
+        assert failure.value.data["origin"] == "file_delivery_provider"
+        assert failure.value.reason_code == "RESOURCE_PERMISSION_DENIED"
+    assert len(calls) == 1  # Identical denied download URL is never replayed.
 
 
 async def test_T25_parser_upgrade_invalidates_empty_cache(bridge, owner, seeded, readable):

@@ -57,6 +57,11 @@ class ProcessService:
     def authorize_source(self, session, owner, tag, purpose):
         if tag.scope.principal != owner:
             failure("PROCESS_SCOPE_MISMATCH")
+        if tag.origin == "user_declaration":
+            from canvas_bridge.usefulness.records import authorize_declaration
+
+            authorize_declaration(session, owner, tag)
+            return
         if tag.origin == "local_document":
             row = session.scalar(
                 select(IndependentResource)
@@ -69,6 +74,12 @@ class ProcessService:
                 or aware(row.expires_at) <= self.bridge.retention.clock()
             ):
                 failure("PROCESS_SOURCE_UNAVAILABLE")
+            if row.content.get("packet"):
+                self.bridge.independent.reject_institutional_copy(session, owner, row.version_hash)
+            if row.content.get("portable_origin"):
+                from canvas_bridge.usefulness.workspace_authority import verify_restored_source
+
+                verify_restored_source(self.bridge, session, row)
             p = row.provenance
             if (
                 row.version_hash != tag.version
@@ -126,6 +137,9 @@ class ProcessService:
         for ident in scope.document_ids:
             row = self.bridge.independent.require(owner, ident)
             parsed = row.content["parsed"]
+            packet = row.content.get("packet", {})
+            if packet and scope.term not in {"unspecified", packet["term"]}:
+                failure("PROCESS_SCOPE_MISMATCH")
             tag = SourceTag(
                 id=ident,
                 version=row.version_hash,
@@ -133,8 +147,10 @@ class ProcessService:
                 scope=AcademicScope(
                     principal=owner,
                     institution="independent",
-                    term=scope.term,
-                    course=scope.local_course,
+                    term=packet.get("term", scope.term),
+                    course=row.content.get("course", scope.local_course)
+                    if packet
+                    else scope.local_course,
                 ),
                 locator="Imported document",
                 observed_at=aware(row.created_at),
@@ -266,6 +282,7 @@ class ProcessService:
             "citation": citation,
             "work": None,
             "text": "\n".join(p.get("text", "") for p in pages)[:200_000],
+            "pages": pages,
         }
 
     @staticmethod
@@ -286,6 +303,38 @@ class ProcessService:
                     basis="user_declared",
                 )
             )
+        return result
+
+    def association_inventory(self, owner, proposed, entries, calendar):
+        from canvas_bridge.processes.identity import canonical_inventory, entity_key, unlink
+
+        aliases = unlink(proposed)
+        with self.bridge.store.transaction() as session:
+            _, state = self.repository._load(session, owner)
+            confirmed = []
+            for rec in state.records.values():
+                link = rec.data.get("canonical_link_proposal") if rec.kind == "identity" else None
+                if not link:
+                    continue
+                if link.get("canonical_id") != proposed["canonical_id"]:
+                    if {entity_key(a) for a in unlink(link)} & {entity_key(a) for a in aliases}:
+                        failure(
+                            "PROCESS_IDENTITY_REVIEW_REQUIRED",
+                            "Unlink the existing association before assigning this alias elsewhere.",
+                        )
+                    continue
+                # Reauthorize each current alias. Historical observations do not supply current facts.
+                for alias in aliases:
+                    self.authorize_source(
+                        session, owner, entries[alias.sources[0].id]["tag"], "read"
+                    )
+                confirmed.append(proposed)
+        groups = canonical_inventory(aliases, confirmed)
+        result = {"canonical_inventory": groups, "reviewed_association": bool(confirmed)}
+        if confirmed and aliases[0].kind == "assignment":
+            from canvas_bridge.processes.identity import assignment_projection
+
+            result.update(assignment_projection(self.bridge, owner, aliases, entries, calendar))
         return result
 
     async def compute(self, owner, request):
@@ -375,16 +424,19 @@ class ProcessService:
                 ExternalEntityKey,
                 canonical_link,
                 match_entities,
+                scoped_association,
             )
 
             def external(item):
                 tag = entry(item.source_id)["tag"]
+                if tag.origin == "institutional" and item.external_id != tag.id:
+                    failure("PROCESS_SCOPE_MISMATCH")
                 return ExternalEntityKey(
-                    provider=item.provider,
+                    provider=tag.origin
+                    if payload.associate_local_course or tag.origin == "institutional"
+                    else item.provider,
                     external_id=item.external_id,
-                    scope=tag.scope.model_copy(
-                        update={"institution": item.institution, "term": item.term}
-                    ),
+                    scope=tag.scope,
                     kind=item.kind,
                     course_code=item.course_code,
                     section=item.section,
@@ -396,7 +448,36 @@ class ProcessService:
 
             left, right = external(payload.left), external(payload.right)
             data = match_entities(left, right)
-            if data["merge_allowed"]:
+            if payload.associate_local_course:
+                for alias in (left, right):
+                    tag = alias.sources[0]
+                    if tag.origin == "institutional" and (
+                        alias.external_id != tag.id
+                        or (alias.kind == "assignment" and not entry(tag.id)["work"])
+                    ):
+                        failure("PROCESS_SCOPE_MISMATCH")
+                    if tag.origin == "local_document":
+                        row = self.bridge.independent.require(owner, tag.id)
+                        if tag.scope.course != row.content.get("course", "independent"):
+                            failure("PROCESS_SCOPE_MISMATCH")
+                        if alias.kind == "assignment":
+                            keys = {
+                                w["key"]
+                                for w in row.content.get("reviewed_dataset", {}).get("work", [])
+                            }
+                            if alias.external_id not in keys:
+                                failure("PROCESS_IDENTITY_REVIEW_REQUIRED")
+                link = scoped_association(left, right)
+                data = {
+                    "status": "review_required",
+                    "merge_allowed": True,
+                    "confirmation_required": True,
+                    "originals_preserved": True,
+                    "permission_union": False,
+                    "canonical_link_proposal": link,
+                }
+                data.update(self.association_inventory(owner, link, entries, payload.calendar))
+            elif data["merge_allowed"]:
                 # This is an unsaved proposal. The generic exact-preview flow
                 # creates the link only after the student's explicit confirmation.
                 data["canonical_link_proposal"] = canonical_link(left, right, confirmed=True)
@@ -612,7 +693,37 @@ class ProcessService:
         return plain(data), entries
 
     async def evaluate(self, owner, request):
-        data, entries = await self.compute(owner, request)
+        try:
+            data, entries = await self.compute(owner, request)
+        except DomainError:
+            if not getattr(request.payload, "associate_local_course", False):
+                raise
+            scope = request.scope
+            if not scope.document_ids or not scope.resource_ids:
+                raise
+            available = []
+            for subset in (
+                scope.model_copy(
+                    update={"connection_id": None, "course_id": None, "resource_ids": ()}
+                ),
+                scope.model_copy(update={"document_ids": ()}),
+            ):
+                try:
+                    available.append(self.load(owner, subset))
+                except DomainError:
+                    continue
+            if len(available) != 1:
+                raise
+            return Result(
+                status="partial_data",
+                summary="Only one selected origin is currently available.",
+                data={
+                    "reviewed_association": False,
+                    "status": "partial",
+                    "permission_union": False,
+                },
+                sources=[entry["citation"] for entry in available[0].values()],
+            )
         return Result(
             summary="Evidence-bound process evaluation; proposals do not perform external actions.",
             data=plain(data, public=True),
@@ -703,6 +814,11 @@ class ProcessService:
         return data, sources
 
     async def propose(self, owner, request):
+        if getattr(request.evaluation.payload, "calendar", None):
+            failure(
+                "PROCESS_IDENTITY_REVIEW_REQUIRED",
+                "Use the calendar snapshot only for a current read-only projection.",
+            )
         data, entries = await self.compute(owner, request.evaluation)
         tags = {e["tag"].key: e["tag"] for e in entries.values()}
         for parent in request.depends_on:

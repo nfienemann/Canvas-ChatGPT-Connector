@@ -52,17 +52,28 @@ DATES = re.compile(
 )
 
 
-def parse_day(raw):
+def day_components(raw):
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
-        return date.fromisoformat(raw)
+        day = date.fromisoformat(raw)
+        return day.year, day.month, day.day
     if "/" in raw:
-        raise ValueError("Numeric month/day order is not established; no locale was inferred.")
+        first, second, *years = raw.split("/")
+        choices = set()
+        year = int(years[0]) if years and len(years[0]) == 4 else None
+        for month, day in ((int(first), int(second)), (int(second), int(first))):
+            try:
+                date(year if year is not None else 2000, month, day)
+            except ValueError:
+                continue
+            choices.add((month, day))
+        if len(choices) != 1:
+            raise ValueError("Numeric month/day order is ambiguous or the date is invalid.")
+        month, day = choices.pop()
+        return year, month, day
     tokens = re.sub(r"(\d)(?:st|nd|rd|th)\b", r"\1", raw, flags=re.I)
     tokens = re.sub(r"[.,]", "", tokens).lower().split()
-    if len(tokens) != 3:
-        raise ValueError("Year is not stated in this passage; no year was inferred.")
     month, day = (tokens[0], tokens[1]) if tokens[0] in MONTHS else (tokens[1], tokens[0])
-    return date(int(tokens[2]), MONTHS[month], int(day))
+    return int(tokens[2]) if len(tokens) == 3 else None, MONTHS[month], int(day)
 
 
 def parse_clock(raw):
@@ -124,6 +135,10 @@ def parse_candidate(match):
     raw_clock, raw_zone = match.group("clock"), match.group("zone")
     result = {
         "raw_date": match.group(),
+        "clock": raw_clock,
+        "year": None,
+        "month": None,
+        "day": None,
         "date": None,
         "precision": "local_datetime" if raw_clock else "date",
         "timezone": raw_zone,
@@ -132,7 +147,16 @@ def parse_candidate(match):
         "uncertainty": [],
     }
     try:
-        day = parse_day(match.group("day"))
+        raw_day = match.group("day")
+        explicit_year = re.search(r"\b\d{4}\b", raw_day)
+        if explicit_year:
+            result["year"] = int(explicit_year.group())
+        year, month, number = day_components(raw_day)
+        date(year if year is not None else 2000, month, number)
+        result.update(year=year, month=month, day=number)
+        if year is None:
+            raise ValueError("Year is missing or incomplete; no year was inferred.")
+        day = date(year, month, number)
         if raw_clock:
             wall = datetime.combine(day, parse_clock(raw_clock))
             result["local_datetime"] = wall.isoformat()

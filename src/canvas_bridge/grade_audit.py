@@ -4,7 +4,7 @@ import asyncio
 import re
 
 from canvas_bridge.course_files import page_label
-from canvas_bridge.domain import DomainError, Result, Source, utcnow
+from canvas_bridge.domain import Coverage, DomainError, Meta, Result, Source, utcnow
 from canvas_bridge.grading_engine import (
     GradeScenario,
     Mode,
@@ -18,6 +18,8 @@ from canvas_bridge.retrieval import fetch_material, outline
 from canvas_bridge.storage import Material
 
 MAX_DOCUMENTS = 3
+GRADE_REQUEST_SECONDS = 90
+AUTOMATIC_SYLLABUS_SECONDS = 30
 
 
 async def collect(bridge, owner, ref, course_ref):
@@ -119,8 +121,11 @@ async def grading_request(
     scenario: GradeScenario | None = None,
 ):
     # One bounded request, no grade/history persistence and no hidden-work crawl.
+    stage = "grade_input_collection"
+    budget = asyncio.timeout(GRADE_REQUEST_SECONDS)
+    discovery_budget = None
     try:
-        async with asyncio.timeout(90):
+        async with budget:
             evidence = await collect(bridge, owner, ref, course_ref)
             policy = evidence["policy"]
             syllabus, syllabus_policy = None, None
@@ -129,9 +134,27 @@ async def grading_request(
                 or policy_basis == "syllabus"
                 or mode == "syllabus_current"
             ):
-                documents, limits = await syllabus_documents(
-                    bridge, owner, ref, evidence, material_ids
+                stage = (
+                    "syllabus_discovery_and_read"
+                    if material_ids is None
+                    else "selected_syllabus_read"
                 )
+                if material_ids is None:
+                    # Leave time to return a structured diagnosis on large courses.
+                    discovery_budget = asyncio.timeout_at(
+                        min(
+                            budget.when() - 2,
+                            asyncio.get_running_loop().time() + AUTOMATIC_SYLLABUS_SECONDS,
+                        )
+                    )
+                    async with discovery_budget:
+                        documents, limits = await syllabus_documents(
+                            bridge, owner, ref, evidence, None
+                        )
+                else:
+                    documents, limits = await syllabus_documents(
+                        bridge, owner, ref, evidence, material_ids
+                    )
                 syllabus, syllabus_policy = extract_policy(documents, policy, limits, review)
                 # Privacy and evidence-scope blockers apply to every calculation basis.
                 syllabus_policy.blockers.extend(policy.blockers)
@@ -148,6 +171,7 @@ async def grading_request(
                     )
                     for d in documents
                 )
+            stage = "grade_reconciliation"
             data = {
                 "engine": "grade-audit-1",
                 "course_id": course_ref,
@@ -195,7 +219,7 @@ async def grading_request(
                     else "partial_data"
                 )
                 summary = (
-                    "Canvas reports a grade; this audit evaluates consistency with available evidence. "
+                    "Grade reconciliation from available evidence: "
                     + data["reconciliation"]["outcome"].replace("_", " ")
                     + "."
                 )
@@ -226,19 +250,69 @@ async def grading_request(
                 data["rule_evidence_graph"] = course_grade_rule_graph(
                     bridge, owner, ref, evidence, syllabus, documents
                 )
+            meta = evidence["meta"].model_copy(deep=True)
+            if meta.freshness == "unknown":
+                # Older grade-tool catalogs omit "unknown". Keep the missing
+                # receipt explicit without advertising a verified refresh.
+                meta.freshness = "not_refreshed"
+                meta.warnings.append(
+                    "Grade input freshness could not be verified from the returned receipts."
+                )
+            records = []
+            if action == "calculate":
+                from canvas_bridge.evidence import record
+
+                records = [
+                    record(
+                        source, meta.coverage if source.source_type == "canvas_grade_inputs" else ()
+                    )
+                    for source in evidence["sources"]
+                ]
+                meta.coverage.append(
+                    Coverage(
+                        course_ref=course_ref,
+                        resource="grade_calculation_inputs",
+                        state="complete"
+                        if status == "ok" and data["calculation"]["basis"]["evidence_complete"]
+                        else "partial",
+                    )
+                )
             return Result(
+                evidence=records,
                 status=status,
                 summary=summary,
                 data=data,
                 sources=evidence["sources"],
-                meta=bridge.meta(),
+                meta=meta,
             )
     except TimeoutError:
+        bounded = budget.expired() or (discovery_budget is not None and discovery_budget.expired())
+        reason = "TASK_BUDGET_EXCEEDED" if bounded else "UPSTREAM_REQUEST_TIMEOUT"
         return Result(
             status="partial_data",
-            summary="Grade evidence exceeded the request time budget. No precise grade was calculated.",
+            meta=Meta(
+                freshness="not_refreshed",
+                coverage=[
+                    Coverage(
+                        course_ref=course_ref,
+                        resource="grade_calculation_inputs"
+                        if action == "calculate"
+                        else "grade_evidence",
+                        state="unavailable",
+                        reason_code=reason,
+                    )
+                ],
+            ),
+            summary="Grade evidence timed out during "
+            + stage.replace("_", " ")
+            + ". The grade is indeterminate.",
             data={
                 "classification": "indeterminate",
                 "missing_information": ["Grade evidence request timed out."],
+                "timeout_stage": stage,
+                "reason_code": reason,
+                "next_action": "Supply the applicable syllabus material IDs to bound discovery."
+                if stage == "syllabus_discovery_and_read"
+                else "Retry the grade evidence request.",
             },
         )

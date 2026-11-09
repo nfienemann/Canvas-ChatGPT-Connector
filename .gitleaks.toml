@@ -16,3 +16,31 @@ condition = "AND"
 paths = ['''(?:^|/)tests/fixtures/stress-repair/schema_neutral_records\.json$''']
 regexTarget = "line"
 regexes = ['''^\s*"authenticated_user_id": "synthetic-self-001",?\s*$''']
+
+[[allowlists]]
+description = "Reviewed source-file SHA-256 inventories inside synthetic receipt archives"
+condition = "AND"
+paths = ['''(?:^|/)evidence/sanitized-results/[a-z0-9-]+-receipts\.zip![a-zA-Z0-9_./-]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"src/canvas_bridge/(?:auth|auth_diagnostics|oauth_security)\.py": "[a-f0-9]{64}",?\s*$''']
+
+[[allowlists]]
+description = "Synthetic analytics observation identifiers; these keys identify source records, not credentials"
+condition = "AND"
+paths = ['''(?:^|/)evidence/sanitized-results/stage6-academic-analytics-receipts\.zip![a-zA-Z0-9_./-]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"key": "(?:[a-f0-9]{40}|forecast-07-remaining|effort-07-remaining)",?\s*$''']
+
+[[allowlists]]
+description = "Synthetic request replay identifiers in phase receipt archives"
+condition = "AND"
+paths = ['''(?:^|/)evidence/sanitized-results/phase-[bcef]-[a-z-]+-receipts\.zip![a-zA-Z0-9_./-]+\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"idempotency_key": "(?:(?:handoff-)?[a-f0-9]{64}|PHC-S(?:0[1-9]|1[0-5])-observe)",?\s*$''']
+
+[[allowlists]]
+description = "SHA-256 inventory of the synthetic changed-access host case"
+condition = "AND"
+paths = ['''(?:^|/)evidence/sanitized-results/phase-e-resources-receipts\.zip!manifest\.json$''']
+regexTarget = "line"
+regexes = ['''^\s*"host/repair_changed_access-(?:answer\.txt|calls\.json|prompt\.txt|readback\.json|status\.json)": "[a-f0-9]{64}",?\s*$''']

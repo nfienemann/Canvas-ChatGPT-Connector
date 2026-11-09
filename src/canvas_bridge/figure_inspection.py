@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta
 
 from canvas_bridge.course_files import authorized, checked_row, fresh_cache, read_file, source
+from canvas_bridge.document_policy import PDF_BATCH_PAGES
 from canvas_bridge.domain import DomainError, Result, utcnow
 from canvas_bridge.file_download import file_format, file_version
 from canvas_bridge.visual_delivery import lifecycle
@@ -186,9 +187,39 @@ async def inspect_figure(
                 selected, scanned, digest = proof["remaining"], proof["scanned"], proof["hash"]
             else:
                 try:
+                    scan_pdf = source_format == "pdf" and (figure_label or query or page is None)
+                    window = {}
+                    if scan_pdf:
+                        window = (
+                            {"page_start": 1}
+                            if settings.visual_candidate_pages < PDF_BATCH_PAGES
+                            else {}
+                        )
+                    elif source_format == "pdf":
+                        window = {"page_start": page}
                     text = await read_file(
-                        bridge, owner, ref, file_id, length=1, expected_hash=expected_hash
+                        bridge, owner, ref, file_id, length=1, expected_hash=expected_hash, **window
                     )
+                    # Figure ranking needs captions across the candidate range. Bypass
+                    # character windows here; candidates read the validated locators.
+                    while scan_pdf and text.status in {"ok", "partial_data"}:
+                        following = text.data["page_end"] + 1
+                        if following > min(
+                            settings.visual_candidate_pages, text.data["page_count"]
+                        ):
+                            break
+                        if not text.data["page_extraction"]:
+                            break
+                        text = await read_file(
+                            bridge,
+                            owner,
+                            ref,
+                            file_id,
+                            length=1,
+                            page_start=following,
+                            page_end=min(settings.visual_candidate_pages, text.data["page_count"]),
+                            expected_hash=text.data["content_hash"],
+                        )
                     if text.status not in {"ok", "partial_data"}:
                         raise DomainError(
                             "unsupported_feature",

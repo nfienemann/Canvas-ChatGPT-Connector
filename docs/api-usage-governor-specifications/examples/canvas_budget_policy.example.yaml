@@ -1,0 +1,39 @@
+# Canvas Bridge API governor — EXAMPLE ONLY; not an Instructure quote or approval.
+# This configuration must never enable live institutional API access without
+# independent provider/institution authorization and validated contract terms.
+schema_version: 1
+provider: canvas
+contract_id: replace-with-operator-contract-reference
+billing:
+  status: unconfigured # unconfigured | configured | reconciled
+  unit: commercial_transaction
+  monthly_allowance: null # operator updates this AFTER signed terms (e.g. 300000)
+  charge_model: pending_contract_definition
+  cycle_timezone: UTC # replace with contractual billing timezone
+  cycle_day: 1 # replace with actual contract calendar
+  safety_margin_pct: 5
+  paid_overages: disabled
+  external_usage_buffer_units: 0 # change if shared billing scope includes other clients
+allocation:
+  basis: usable_after_safety_margin
+  pool_mode: borrow_unused_nonreserve
+  interactive_pct: 55
+  scheduled_sync_pct: 25
+  exploratory_pct: 10
+  reserve_pct: 10
+  reserve_eligible_operations: [] # explicit audited allowlist
+limits:
+  per_owner_minute_attempts: 12 # illustrative: tune after load testing
+  per_owner_daily_attempts: 300 # illustrative: not contractual
+  max_attempts_per_task: 40 # illustrative: operation-specific overrides supported
+  max_concurrency_per_token: 1
+  max_global_concurrency: 20
+  retries_per_attempt: 2
+alerts:
+  usage_thresholds_pct: [50, 70, 85, 95]
+  alert_deduplication: per_cycle_per_threshold
+security:
+  require_approved_integration: true
+  production_billing_unknown: deny
+  fail_closed_on_ledger_unavailable: true
+  allow_client_budget_override: false

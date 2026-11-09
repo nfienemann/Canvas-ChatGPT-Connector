@@ -307,3 +307,56 @@ def test_large_presentation_in_real_appcontainer(size, tmp_path):
     assert result["page_count"] == 2
     assert result["resource_usage"]["source_bytes"] == size
     assert all(p["visual_observation"] is None for p in result["pages"])
+
+
+async def test_authorized_slide_ranges_and_disclosure(bridge, owner, seeded, presentation):
+    from canvas_bridge.domain import Result
+    from canvas_bridge.egress_errors import safe_error_result
+    from tests.test_presentation_subset import changed
+
+    body = changed(
+        rich_deck(),
+        "ppt/slides/slide2.xml",
+        lambda raw: raw.replace(b"<p:sld ", b'<p:sld show="0" '),
+    )
+    bridge.synthetic.data["files"]["11"][0].update(size=len(body))
+    bridge.synthetic.data["file_bodies"]["51"] = body
+
+    async def read(**args):
+        return await read_file(bridge, owner, seeded, presentation, **args)
+
+    for first, last in ((3, 3), (2, 3)):
+        with pytest.raises(DomainError) as exc:
+            await read(page_start=first, page_end=last)
+        safe = safe_error_result(Result(status=exc.value.status, summary="", data=exc.value.data))
+        assert safe.data == dict(
+            reason_code="DOCUMENT_RANGE_OUT_OF_BOUNDS",
+            page_start=first,
+            page_end=last,
+            page_count=2,
+        )
+        assert not safe.sources
+    first = (await read(page_start=1)).data["slides"][0]
+    assert first["hidden"] and "Repeat controls" in first["notes"] and "2.5" in first["text"]
+    assert (await read(page_start=2)).data["slides"][0]["slide_number"] == 2
+    for args in (dict(page_start=2, page_end=1), dict(page_start=0), dict(page_end=2)):
+        with pytest.raises(DomainError) as exc:
+            await read(**args)
+        assert exc.value.data == {"reason_code": "DOCUMENT_RANGE_INVALID"}
+    for denied in (False, True):
+        bridge.synthetic.data["files"]["11"][0]["hidden_for_user"] = denied
+        for call in (
+            read(page_start=3, expected_hash="0" * 64),
+            render_file(bridge, owner, seeded, presentation, page=3, expected_hash="0" * 64),
+        ):
+            with pytest.raises(DomainError) as exc:
+                await call
+            assert exc.value.status == ("permission_denied" if denied else "source_changed")
+            safe = safe_error_result(
+                Result(status=exc.value.status, summary="", data=exc.value.data)
+            )
+            assert (
+                not safe.sources
+                and not {"page_count", "page_start", "text", "slides"} & safe.data.keys()
+            )
+            assert "Repeat controls" not in safe.model_dump_json()

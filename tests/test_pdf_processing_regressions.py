@@ -210,9 +210,9 @@ async def test_changed_ocr_installation_invalidates_partial_cache(
         assert str(tmp_path) not in json.dumps(row.file_state)
     calls = []
 
-    async def retried(data, kind, settings):
+    async def retried(data, kind, settings, page_range=None):
         calls.append(True)
-        return extract(data, kind)
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", retried)
     bridge.settings.ocr_root = tmp_path / "new-location"
@@ -261,8 +261,8 @@ async def test_failure_status_retries_and_search_preserves_reason(
     assert failure["processing_stage"] == "runtime_setup"
     assert search.data["pass_progress"]["failed_documents"] == 1
 
-    async def repaired(data, kind, settings):
-        return extract(data, kind)
+    async def repaired(data, kind, settings, page_range=None):
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", repaired)
     assert "Methods:" in (await read_file(bridge, owner, seeded, ref)).data["text"]
@@ -307,8 +307,10 @@ async def test_pdf_read_and_render_first_through_actual_mcp_worker(
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", extract_document)
     bridge.settings.parser_root = Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
     bridge.settings.ocr_root = bridge.settings.parser_root / "missing-optional-ocr"
+    # Wait for the isolated worker's own bounded result on a cold runtime.
     async with httpx.AsyncClient(
-        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")}
+        timeout=httpx.Timeout(45, connect=5),
+        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")},
     ) as http:
         async with streamable_http_client(running + "/mcp", http_client=http) as streams:
             async with ClientSession(streams[0], streams[1]) as session:

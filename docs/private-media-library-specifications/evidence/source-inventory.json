@@ -1,0 +1,90 @@
+{
+  "assessment_date": "2026-10-29",
+  "timezone": "America/New_York",
+  "source": "inspected working tree",
+  "base_commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+  "working_tree_has_preexisting_changes": true,
+  "limitations": "Hashes identify inspected files, not deployed code or product acceptance. Private records/configuration and raw connector responses are excluded.",
+  "files": [
+    {
+      "repository_path": "AGENTS.md",
+      "bytes": 562,
+      "sha256": "b89b2d121258b8069c3d293c9db0bf6a44ec8a829deea6192707f718578e401a"
+    },
+    {
+      "repository_path": "Codex_Spec.md",
+      "bytes": 123615,
+      "sha256": "d0acca9c4fee67bdc39cae64eec46da67527c3a5cb69604a1a15872c6cc017e1"
+    },
+    {
+      "repository_path": "evidence/release-gates.md",
+      "bytes": 28511,
+      "sha256": "a0b1d556f048ab719410b5ae44379a0017d8838c1e62529a8020810b605e8208"
+    },
+    {
+      "repository_path": "src/canvas_bridge/independent.py",
+      "bytes": 33607,
+      "sha256": "e5fb0d2e3914dcc804c4c690fbcdbcb76e0fe2abadd5149b5e3642632e46a471"
+    },
+    {
+      "repository_path": "src/canvas_bridge/independent_ui.py",
+      "bytes": 7304,
+      "sha256": "9470631fc365cdf936c0c04b51d613f2da40861b212c544fa9eac73e13c43679"
+    },
+    {
+      "repository_path": "src/canvas_bridge/document_policy.py",
+      "bytes": 1083,
+      "sha256": "d4575b655fbd771f7fda394e8ffa8a3e6b8c98d4136c1212806f35269cc51226"
+    },
+    {
+      "repository_path": "src/canvas_bridge/config.py",
+      "bytes": 6438,
+      "sha256": "c12afb9c376fcb0c71b8c1508048c97cc7606f41153ebf5cf98d082c6c004ee9"
+    },
+    {
+      "repository_path": "src/canvas_bridge/storage.py",
+      "bytes": 26093,
+      "sha256": "98898d9904bd6a606be5205f04a96edfac165b5f7f589cb22313d101ba652552"
+    },
+    {
+      "repository_path": "src/canvas_bridge/auth.py",
+      "bytes": 9941,
+      "sha256": "a4f44b57606984fac69365ef4f600a160dde1cee780ae284c88fe24f28b9a060"
+    },
+    {
+      "repository_path": "src/canvas_bridge/app.py",
+      "bytes": 71505,
+      "sha256": "ce613366b3b13f628b8c947594d389c74bf669a890f7c28bfef4af191c19f4f9"
+    },
+    {
+      "repository_path": "src/canvas_bridge/usefulness/imports.py",
+      "bytes": 16673,
+      "sha256": "3d277fdd29f9b5fe3cc21df1fd9c779458722fd247415b172779318264f95a74"
+    },
+    {
+      "repository_path": "src/canvas_bridge/usefulness/ui.py",
+      "bytes": 62669,
+      "sha256": "41927c0c23449b0735c7786aae0cab20eee588529e98372dd88e488449fc0b7f"
+    },
+    {
+      "repository_path": "src/canvas_bridge/lifecycle.py",
+      "bytes": 12954,
+      "sha256": "945548258f3c2d091112815d855238d17a87194566794742423815ad0b88a1f6"
+    },
+    {
+      "repository_path": "src/canvas_bridge/retention_policy.py",
+      "bytes": 541,
+      "sha256": "580a5d9c29bf4906d398718da3f1a3f07e5ecdd47d1adf49335afdbd7abe1b33"
+    },
+    {
+      "repository_path": "docs/independent-academic-intelligence.md",
+      "bytes": 12630,
+      "sha256": "ff5df2c15cd32f6c43a20d15537886bc6548132df11030944fdb7dc0fd34e79b"
+    },
+    {
+      "repository_path": "docs/usefulness/implementation.md",
+      "bytes": 10070,
+      "sha256": "fe7fb4ca4abfbe70d2be49bdc9a90f43848bb6bcad69b4e3222627558b106ac7"
+    }
+  ]
+}

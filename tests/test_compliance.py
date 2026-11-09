@@ -1,6 +1,7 @@
 """Evidence must be factual, bounded, source-bound, and unable to grant permission."""
 
 import json
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -207,6 +208,38 @@ def test_recorder_omits_parameters_messages_stdout_and_teardown_errors_override_
     result = json.loads(text)
     assert result["cases"][base]["error"] == 1
     assert result["cases"][base]["passed"] == 0
+
+
+def test_recorder_retains_failure_when_final_source_verification_is_unavailable(
+    root, tmp_path, monkeypatch
+):
+    recorder = Recorder(root, tmp_path / "outcomes.json")
+    base = "tests/test_compliance.py::test_files_alone_never_mean_tested_or_releasable"
+    recorder.pytest_collection_finish(SimpleNamespace(items=[SimpleNamespace(nodeid=base)]))
+    recorder.pytest_runtest_logreport(
+        SimpleNamespace(nodeid=base, when="call", passed=False, failed=True, skipped=False)
+    )
+
+    def unavailable(*args):
+        raise EvidenceError("REPOSITORY_METADATA_UNAVAILABLE")
+
+    monkeypatch.setattr("canvas_bridge.compliance.pytest_plugin.source_state", unavailable)
+    recorder.pytest_sessionfinish(None, 1)
+    result = json.loads(recorder.destination.read_text(encoding="utf-8"))
+    assert result["cases"][base]["failed"] == 1
+    assert result["exit_code"] == 1
+    assert result["source_unchanged"] is False
+
+
+def test_repository_metadata_timeout_has_safe_actionable_code(root, monkeypatch):
+    from canvas_bridge.compliance.inventory import git
+
+    def timeout(*args, **kwargs):
+        raise subprocess.TimeoutExpired(["private-canary"], 20, output="private-canary")
+
+    monkeypatch.setattr("canvas_bridge.compliance.inventory.subprocess.run", timeout)
+    with pytest.raises(EvidenceError, match="^REPOSITORY_METADATA_UNAVAILABLE$"):
+        git(root, "status", "--porcelain")
 
 
 def test_expired_and_restricted_claims_remain_blocked(root, monkeypatch):

@@ -19,7 +19,7 @@ dependencies = [
   "cryptography==50.0.2",
   "uvicorn>=0.38",
   "defusedxml==0.7.1",
-  "pypdf==6.21.2",
+  "pypdf==6.21.4",
   "tzdata>=2025",
   "pypdfium2==5.14.0",
   "pillow==13.0.0",
@@ -53,6 +53,7 @@ packages = ["src/canvas_bridge"]
 [tool.hatch.build.targets.wheel.force-include]
 "institutions.json" = "canvas_bridge/resources/institutions.json"
 "migrations" = "canvas_bridge/resources/migrations"
+"scripts/Stop-BridgeApplication.ps1" = "canvas_bridge/resources/scripts/Stop-BridgeApplication.ps1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

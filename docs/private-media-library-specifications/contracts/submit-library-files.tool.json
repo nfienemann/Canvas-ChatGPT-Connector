@@ -1,0 +1,296 @@
+{
+  "name": "submit_library_files",
+  "title": "Save selected files to Bridge",
+  "description": "Transfer the exact files selected in an existing authenticated Bridge intake. Creates private library copies after validation. Requires a supported host adapter; never use for arbitrary URLs or files absent from that intake.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "intake_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "files": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "properties": {
+            "download_url": {
+              "type": "string"
+            },
+            "file_id": {
+              "type": "string"
+            },
+            "mime_type": {
+              "type": "string"
+            },
+            "file_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "download_url",
+            "file_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "idempotency_key": {
+        "type": "string",
+        "minLength": 16,
+        "maxLength": 128
+      }
+    },
+    "required": [
+      "intake_id",
+      "files",
+      "idempotency_key"
+    ],
+    "additionalProperties": false
+  },
+  "outputSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://canvas-bridge.example.invalid/specs/intake-receipt.schema.json",
+    "title": "Proposed bounded intake receipt",
+    "type": "object",
+    "properties": {
+      "schema_version": {
+        "const": "library-intake-receipt-1"
+      },
+      "intake_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "status": {
+        "enum": [
+          "pending",
+          "complete",
+          "partial",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "retention": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "const": "until_deleted"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "const": "expires_at"
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "mode",
+              "expires_at"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "files": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "items": {
+          "type": "object",
+          "properties": {
+            "selection_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "state": {
+              "enum": [
+                "pending",
+                "transfer_received",
+                "published",
+                "rejected",
+                "failed",
+                "cancelled",
+                "expired"
+              ]
+            },
+            "item_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 128
+            },
+            "version_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 128
+            },
+            "size_bytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            },
+            "original_sha256": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "processing_state": {
+              "enum": [
+                "not_requested",
+                "queued",
+                "running",
+                "ready",
+                "partial",
+                "unsupported",
+                "blocked",
+                "failed"
+              ]
+            },
+            "storage_state": {
+              "enum": [
+                "not_published",
+                "available"
+              ]
+            },
+            "coverage": {
+              "enum": [
+                "not_processed",
+                "text_only",
+                "partial",
+                "image_only",
+                "unsupported",
+                "unavailable"
+              ]
+            },
+            "warnings": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "reason_code": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 80
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "next_action": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "selection_id",
+            "state",
+            "item_id",
+            "version_id",
+            "size_bytes",
+            "original_sha256",
+            "processing_state",
+            "storage_state",
+            "coverage",
+            "warnings",
+            "reason_code",
+            "retryable",
+            "next_action"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "state": {
+                    "const": "published"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "item_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "version_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "original_sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "storage_state": {
+                    "const": "available"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "correlation_id": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    },
+    "required": [
+      "schema_version",
+      "intake_id",
+      "status",
+      "retention",
+      "files",
+      "correlation_id"
+    ],
+    "additionalProperties": false
+  },
+  "annotations": {
+    "readOnlyHint": false,
+    "destructiveHint": false,
+    "openWorldHint": true,
+    "idempotentHint": true
+  },
+  "_meta": {
+    "openai/fileParams": [
+      "files"
+    ]
+  }
+}

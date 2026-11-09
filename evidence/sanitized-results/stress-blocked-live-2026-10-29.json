@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-10-30T01:16:06.467503Z",
+  "profile": "personal",
+  "connection_status": [
+    {
+      "state": "disconnected",
+      "authentication_state": "revoked",
+      "live_integration": "disabled",
+      "authorization_allowed": false,
+      "authorization_state": "NOT_ASSESSED",
+      "reason": "APPROVAL_NOT_ASSESSED"
+    }
+  ],
+  "status_only": true,
+  "institutional_content_requested": false,
+  "installed_renderer_acceptance": "NOT_TESTED",
+  "service_restart_by_this_task": false
+}

@@ -9,6 +9,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -20,6 +21,44 @@ from canvas_bridge.approval_policy import (
     canonical_bytes,
     read_bounded,
 )
+from canvas_bridge.egress_models import ContentReview
+
+
+def restore_reviewed_file_text_digest(review: ContentReview, sealed: bytes, key: bytes):
+    """Restore an omitted binding from the review's original encrypted evidence.
+
+    Offline administration only: this neither creates a review nor signs it.
+    The caller must first validate the existing signed approval record.
+    """
+    if review.extracted_text_sha256 or not review.content_sha256:
+        return review
+    match = re.fullmatch(
+        r"Local operator text review; encrypted evidence ([a-f0-9]{64})",
+        review.privacy_review_reference or "",
+    )
+    if not match or hashlib.sha256(sealed).hexdigest() != match.group(1):
+        raise ValueError("Original review evidence digest mismatch")
+    envelope = SealedEvidence.model_validate_json(sealed)
+    evidence = json.loads(
+        AESGCM(key).decrypt(
+            base64.b64decode(envelope.nonce, validate=True),
+            base64.b64decode(envelope.ciphertext, validate=True),
+            b"canvas-approval-v1",
+        )
+    )
+    matches = [
+        source
+        for source in evidence.get("sources", [])
+        if source.get("source_id") == review.source_id
+        and source.get("version") == review.version
+        and source.get("content_sha256") == review.content_sha256
+        and source.get("rights_reference") == review.content_owner_permission_reference
+    ]
+    if len(matches) != 1 or not re.fullmatch(
+        r"[a-f0-9]{64}", matches[0].get("reviewed_text_sha256", "")
+    ):
+        raise ValueError("Exact original reviewed text binding unavailable")
+    return review.model_copy(update={"extracted_text_sha256": matches[0]["reviewed_text_sha256"]})
 
 
 def seal_evidence(content: bytes, key: bytes) -> bytes:

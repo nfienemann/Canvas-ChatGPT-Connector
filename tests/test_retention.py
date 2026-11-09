@@ -188,7 +188,8 @@ async def test_receipts_expire_without_erasure_claims(bridge, owner):
     clock[0] += timedelta(days=7)
     bridge.retention.expire_receipts()
     assert not bridge.retention.receipts
-    assert len(RULES) == 7 and all(r.purpose and r.expiry and r.deletion for r in RULES.values())
+    assert len(RULES) == 8 and all(r.purpose and r.expiry and r.deletion for r in RULES.values())
+    assert "upstream_usage_accounting" in RULES
 
 
 async def test_backup_excludes_credentials_raw_documents_and_jobs_and_restores_inactive(
@@ -460,7 +461,7 @@ def test_existing_plaintext_migration_encrypts_in_place(bridge, tmp_path):
             assert session.get(Snapshot, "snapshot").items == [
                 {"synthetic": "Retained private fixture"}
             ]
-        with pytest.raises(RuntimeError, match="plaintext"):
+        with pytest.raises(RuntimeError, match="plaintext|durable originals"):
             command.downgrade(config, "8d21f4c932ab")
     finally:
         store.close()

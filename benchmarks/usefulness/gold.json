@@ -1,0 +1,263 @@
+{
+  "version": "usefulness-search-gold-1",
+  "cases": [
+    {
+      "id": "exact-01",
+      "category": "exact",
+      "query": "Vehicle-treated cultures established the comparison.",
+      "expected": "d01"
+    },
+    {
+      "id": "exact-02",
+      "category": "exact",
+      "query": "Untreated samples established the baseline.",
+      "expected": "d02"
+    },
+    {
+      "id": "exact-03",
+      "category": "exact",
+      "query": "Molecules cross the cell membrane along a concentration gradient.",
+      "expected": "d03"
+    },
+    {
+      "id": "exact-04",
+      "category": "exact",
+      "query": "Mitochondria contribute to cellular energy metabolism.",
+      "expected": "d04"
+    },
+    {
+      "id": "exact-05",
+      "category": "exact",
+      "query": "Homeostasis involves a signal that inhibits its own production.",
+      "expected": "d05"
+    },
+    {
+      "id": "exact-06",
+      "category": "exact",
+      "query": "The magnitude of the difference between groups was 4 units.",
+      "expected": "d06"
+    },
+    {
+      "id": "exact-07",
+      "category": "exact",
+      "query": "Submit by November 8, 2026.",
+      "expected": "d07"
+    },
+    {
+      "id": "exact-08",
+      "category": "exact",
+      "query": "The report must include a methods section.",
+      "expected": "d08"
+    },
+    {
+      "id": "exact-09",
+      "category": "exact",
+      "query": "Review a classmate using the provided checklist.",
+      "expected": "d09"
+    },
+    {
+      "id": "exact-10",
+      "category": "exact",
+      "query": "The placebo condition allowed a comparison with treatment.",
+      "expected": "d10"
+    },
+    {
+      "id": "paraphrase-01",
+      "category": "paraphrase",
+      "query": "experimental control",
+      "expected": "d01"
+    },
+    {
+      "id": "paraphrase-02",
+      "category": "paraphrase",
+      "query": "control group",
+      "expected": "d02"
+    },
+    {
+      "id": "paraphrase-03",
+      "category": "paraphrase",
+      "query": "diffusion",
+      "expected": "d03"
+    },
+    {
+      "id": "paraphrase-04",
+      "category": "paraphrase",
+      "query": "cell energy",
+      "expected": "d04"
+    },
+    {
+      "id": "paraphrase-05",
+      "category": "paraphrase",
+      "query": "negative feedback",
+      "expected": "d05"
+    },
+    {
+      "id": "paraphrase-06",
+      "category": "paraphrase",
+      "query": "effect size",
+      "expected": "d06"
+    },
+    {
+      "id": "paraphrase-07",
+      "category": "paraphrase",
+      "query": "deadline",
+      "expected": "d07"
+    },
+    {
+      "id": "paraphrase-08",
+      "category": "paraphrase",
+      "query": "requirements",
+      "expected": "d08"
+    },
+    {
+      "id": "paraphrase-09",
+      "category": "paraphrase",
+      "query": "peer review",
+      "expected": "d09"
+    },
+    {
+      "id": "paraphrase-10",
+      "category": "paraphrase",
+      "query": "experimental control",
+      "expected": "d10"
+    },
+    {
+      "id": "paraphrase-11",
+      "category": "paraphrase",
+      "query": "cell energy",
+      "expected": "d11"
+    },
+    {
+      "id": "paraphrase-12",
+      "category": "paraphrase",
+      "query": "diffusion",
+      "expected": "d12"
+    },
+    {
+      "id": "acronym-01",
+      "category": "acronym",
+      "query": "ATP",
+      "expected": "d11"
+    },
+    {
+      "id": "acronym-02",
+      "category": "acronym",
+      "query": "DNA",
+      "expected": "d13"
+    },
+    {
+      "id": "acronym-03",
+      "category": "acronym",
+      "query": "PCR",
+      "expected": "d14"
+    },
+    {
+      "id": "acronym-04",
+      "category": "acronym",
+      "query": "ECM",
+      "expected": "d15"
+    },
+    {
+      "id": "acronym-05",
+      "category": "acronym",
+      "query": "CPU",
+      "expected": "d16"
+    },
+    {
+      "id": "acronym-06",
+      "category": "acronym",
+      "query": "RAM",
+      "expected": "d17"
+    },
+    {
+      "id": "disambiguation-01",
+      "category": "disambiguation",
+      "query": "cell",
+      "expected": "d03",
+      "scope": [
+        "d03"
+      ]
+    },
+    {
+      "id": "disambiguation-02",
+      "category": "disambiguation",
+      "query": "cell",
+      "expected": "d18",
+      "scope": [
+        "d18"
+      ]
+    },
+    {
+      "id": "disambiguation-03",
+      "category": "disambiguation",
+      "query": "control",
+      "expected": "d19",
+      "scope": [
+        "d19"
+      ]
+    },
+    {
+      "id": "disambiguation-04",
+      "category": "disambiguation",
+      "query": "matrix",
+      "expected": "d20",
+      "scope": [
+        "d20"
+      ]
+    },
+    {
+      "id": "disambiguation-05",
+      "category": "disambiguation",
+      "query": "memory",
+      "expected": "d17",
+      "scope": [
+        "d17"
+      ]
+    },
+    {
+      "id": "disambiguation-06",
+      "category": "disambiguation",
+      "query": "expression",
+      "expected": "d20",
+      "scope": [
+        "d20"
+      ]
+    },
+    {
+      "id": "unanswerable-01",
+      "category": "unanswerable",
+      "query": "quantum chromodynamics",
+      "expected": null
+    },
+    {
+      "id": "unanswerable-02",
+      "category": "unanswerable",
+      "query": "Martian weather",
+      "expected": null
+    },
+    {
+      "id": "unanswerable-03",
+      "category": "unanswerable",
+      "query": "renaissance frescoes",
+      "expected": null
+    },
+    {
+      "id": "unanswerable-04",
+      "category": "unanswerable",
+      "query": "Euler topology",
+      "expected": null
+    },
+    {
+      "id": "unanswerable-05",
+      "category": "unanswerable",
+      "query": "marine salinity",
+      "expected": null
+    },
+    {
+      "id": "unanswerable-06",
+      "category": "unanswerable",
+      "query": "medieval heraldry",
+      "expected": null
+    }
+  ]
+}

@@ -33,7 +33,7 @@ best-effort or silently weakened sandbox.
 
 Hard limits: 384 MiB address space, ten seconds CPU, 15 seconds wall time, 64 open
 descriptors, no core dump, 2 MB total writable output, one extraction per service
-process. The worker cannot overwrite input or allocate extra files.
+process. Linux signals the worker at nine CPU seconds so the launcher can report CPU exhaustion distinctly. The ten-second hard ceiling also applies if a worker ignores that signal. The worker cannot overwrite input or allocate extra files.
 The existing file/page/expanded-archive/text limits remain. The launcher kills and
 reaps the worker after timeout; a parent-death signal also prevents an orphaned
 worker. Stdout/stderr go to a null device, and errors returned to MCP are generic

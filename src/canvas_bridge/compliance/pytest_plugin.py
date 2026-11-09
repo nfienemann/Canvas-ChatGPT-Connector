@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from canvas_bridge.compliance.inventory import source_state, test_index
-from canvas_bridge.compliance.models import Counts, TestRun
+from canvas_bridge.compliance.models import Counts, EvidenceError, TestRun
 
 
 def pytest_addoption(parser):
@@ -62,11 +62,24 @@ class Recorder:
                 continue
             cases[base]["collected"] += 1
             cases[base][self.outcomes.get(node, "error")] += 1
+        try:
+            source_unchanged = source_state(self.root).digest == self.source.digest
+        except EvidenceError:
+            # Preserve test outcomes without certifying an unverifiable source state.
+            source_unchanged = False
+            reporter = (
+                session.config.pluginmanager.get_plugin("terminalreporter") if session else None
+            )
+            if reporter:
+                reporter.write_line(
+                    "Compliance source verification unavailable; outcomes retained, "
+                    "source_unchanged=false. Retry source verification before using this run as evidence."
+                )
         run = TestRun(
             schema_version="test-run-1",
             source=self.source,
             finished_on=datetime.now(UTC).date(),
-            source_unchanged=source_state(self.root).digest == self.source.digest,
+            source_unchanged=source_unchanged,
             exit_code=int(exitstatus),
             interrupted=int(exitstatus) in {2, 3, 4, 5},
             complete_selection=self.complete_selection

@@ -194,6 +194,7 @@ def normalize_assignment(
         available_from=opens,
         closes_at=closes,
         submission_state=submission,
+        submitted_at=submitted_at if submission in {"submitted", "resubmitted"} else None,
         submission_evidence=evidence,
         submission_state_basis=basis,
         assessment_state=assessment,

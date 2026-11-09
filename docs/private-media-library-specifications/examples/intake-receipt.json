@@ -1,0 +1,26 @@
+{
+  "schema_version": "library-intake-receipt-1",
+  "intake_id": "example-intake-01",
+  "status": "complete",
+  "retention": {
+    "mode": "until_deleted"
+  },
+  "files": [
+    {
+      "selection_id": "example-selection-01",
+      "state": "published",
+      "item_id": "example-item-01",
+      "version_id": "example-version-01",
+      "size_bytes": 142,
+      "original_sha256": "fdb60e5e47c4ccf3b45884a5d748bd17935dd442fe47dc1f261afc2b1491f5df",
+      "processing_state": "ready",
+      "storage_state": "available",
+      "coverage": "text_only",
+      "warnings": [],
+      "reason_code": null,
+      "retryable": false,
+      "next_action": "Read the permitted fictional note using its exact version."
+    }
+  ],
+  "correlation_id": "example-correlation-01"
+}

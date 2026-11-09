@@ -1,0 +1,195 @@
+{
+  "schema": "usefulness-development-evidence-1",
+  "current_source": {
+    "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+    "dirty": true,
+    "digest": "47a4fb65954edbc249401136846419127295dea7d648d723e49f9b48b749cae8",
+    "files": 561,
+    "scope": "reviewed-source-v1"
+  },
+  "feature_checks_passed": 64,
+  "specification_files_verified": 7,
+  "runs": {
+    "full_initial": {
+      "source": {
+        "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+        "dirty": true,
+        "digest": "266d907c698496e7aeb5c2f9426ae582241ec2abbf66adcdbab98853ea4e6ffa",
+        "files": 553,
+        "scope": "reviewed-source-v1"
+      },
+      "source_unchanged": false,
+      "exit_code": 1,
+      "complete_selection": true,
+      "runtime": "windows",
+      "finished_on": "2026-10-30",
+      "counts": {
+        "collected": 2071,
+        "passed": 2031,
+        "failed": 10,
+        "error": 0,
+        "skipped": 30
+      },
+      "failed_cases": [
+        "tests/test_compliance.py::test_filtered_parameter_run_cannot_certify_full_control",
+        "tests/test_discussions.py::test_DP09_more_than_ten_replies",
+        "tests/test_discussions.py::test_DP10_11_pagination_exhaustion",
+        "tests/test_discussions.py::test_DP12_503_bounded_fallback",
+        "tests/test_egress_contract.py::test_live_document_needs_review_and_rechecks_content_after_local_read",
+        "tests/test_figure_inspection.py::test_discovery_render_and_bounded_continuation",
+        "tests/test_permission_consistency.py::test_restricted_or_unavailable_resource_is_not_a_course_scope_denial",
+        "tests/test_usage_governor.py::test_two_processes_race_last_unit",
+        "tests/test_usage_integration.py::test_standalone_migration_creates_accounting_tables"
+      ],
+      "skipped_cases": [
+        "tests/test_emf_worker.py::test_synthetic_emf_in_native_sandbox",
+        "tests/test_linux_sandbox.py::test_T23_T25_linux_real_format_extraction",
+        "tests/test_linux_sandbox.py::test_T23_linux_cpu_limit_and_corrupt_input",
+        "tests/test_linux_sandbox.py::test_T23_linux_private_file_env_network_process_and_resource_denial",
+        "tests/test_linux_sandbox.py::test_T23_linux_readonly_runtime_separate_from_document_jobs",
+        "tests/test_linux_sandbox.py::test_T23_linux_rejects_public_root_and_script_escape",
+        "tests/test_linux_sandbox.py::test_T23_linux_rejects_root_execution",
+        "tests/test_linux_sandbox.py::test_T23_linux_runtime_contains_only_public_parser_code",
+        "tests/test_linux_sandbox.py::test_T23_linux_timeout_reaps_worker",
+        "tests/test_postgres.py::test_T13_T18_postgres_concurrent_personal_import_keeps_one_grant",
+        "tests/test_postgres.py::test_T13_T21_pool_reuse_never_reuses_another_owner",
+        "tests/test_postgres.py::test_T18_T40_concurrent_local_versions_do_not_overwrite",
+        "tests/test_postgres.py::test_T18_T43_postgres_account_deletion_and_link_race",
+        "tests/test_postgres.py::test_T35_encrypted_file_and_page_inventory_survives_rejected_downgrade",
+        "tests/test_postgres.py::test_T35_postgresql_migration_roundtrip_and_plaintext_downgrade_blocked",
+        "tests/test_postgres.py::test_T39_worker_admin_connection_checks_job_ownership",
+        "tests/test_postgres_processes.py::test_process_revocation_racing_unrelated_correction_preserves_both_boundaries",
+        "tests/test_presentation_order_regressions.py::test_sectioned_deck_in_native_sandbox",
+        "tests/test_presentation_rendering.py::test_native_single_slide_hidden_mapping_and_pdf_pixels",
+        "tests/test_recovery_postgres.py::test_outdated_postgres_upgrade",
+        "tests/test_usage_integration.py::test_postgres_governor_100_contenders_and_durable_restart",
+        "tests/test_visual_files.py::test_T11_T25_image_only_ocr_and_mixed_provenance",
+        "tests/test_visual_files.py::test_T11_colored_table_with_merged_header_and_word_geometry"
+      ]
+    },
+    "compatibility": {
+      "source": {
+        "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+        "dirty": true,
+        "digest": "634b8944e95c63505be81d0ee6ab86ae85f6e9a206c8b766c085da88411b7105",
+        "files": 554,
+        "scope": "reviewed-source-v1"
+      },
+      "source_unchanged": false,
+      "exit_code": 0,
+      "complete_selection": true,
+      "runtime": "windows",
+      "finished_on": "2026-10-30",
+      "counts": {
+        "collected": 132,
+        "passed": 132,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_cases": [],
+      "skipped_cases": []
+    },
+    "scope_and_egress": {
+      "source": {
+        "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+        "dirty": true,
+        "digest": "34303f2ec5dea99fb26d6fae05d113bc19f895d623d2a7075b0340162b254cd0",
+        "files": 554,
+        "scope": "reviewed-source-v1"
+      },
+      "source_unchanged": false,
+      "exit_code": 0,
+      "complete_selection": true,
+      "runtime": "windows",
+      "finished_on": "2026-10-30",
+      "counts": {
+        "collected": 113,
+        "passed": 113,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_cases": [],
+      "skipped_cases": []
+    },
+    "compliance_rerun": {
+      "source": {
+        "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+        "dirty": true,
+        "digest": "ef2433f45129e4e85c9f6432a2473457216c7005656b58163b3bb6b8950e8df7",
+        "files": 554,
+        "scope": "reviewed-source-v1"
+      },
+      "source_unchanged": false,
+      "exit_code": 0,
+      "complete_selection": true,
+      "runtime": "windows",
+      "finished_on": "2026-10-30",
+      "counts": {
+        "collected": 27,
+        "passed": 27,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_cases": [],
+      "skipped_cases": []
+    },
+    "final_feature_and_failed_case_rerun": {
+      "source": {
+        "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+        "dirty": true,
+        "digest": "47a4fb65954edbc249401136846419127295dea7d648d723e49f9b48b749cae8",
+        "files": 561,
+        "scope": "reviewed-source-v1"
+      },
+      "source_unchanged": true,
+      "exit_code": 0,
+      "complete_selection": false,
+      "runtime": "windows",
+      "finished_on": "2026-10-30",
+      "counts": {
+        "collected": 79,
+        "passed": 79,
+        "failed": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_cases": [],
+      "skipped_cases": []
+    }
+  },
+  "obligation_fixture_sha256": "e179ac2a3e15bb7d274835c7a13c957c96a14a268454c2ec671d7efab23875db",
+  "browser": {
+    "environment": "disposable synthetic loopback instance",
+    "isolated_parser": true,
+    "file_picker_import": "passed",
+    "review_save_reload": "passed",
+    "goal_and_attempt_save": "passed",
+    "mobile_viewport_width": 390,
+    "mobile_document_scroll_width": 390,
+    "actual_chatgpt_host": "not_tested",
+    "personal_service_changed": false
+  },
+  "limitations": [
+    "Initial full run overlapped edits and is not a current-source whole-suite certificate.",
+    "All initially failed case groups passed in the final targeted rerun.",
+    "Thirty original environment-dependent skips remain unavailable; no skip is counted as a pass.",
+    "Packaged binary/wheel and actual ChatGPT client not verified."
+  ],
+  "source_at_handoff": {
+    "commit": "5bd086356e730b01b5a9f1be9de106446ef049c6",
+    "dirty": true,
+    "digest": "47a087481819da35fd7d27465b8b2d0ad664e785d5d6d4b4579f6c582665dc43",
+    "files": 565,
+    "scope": "reviewed-source-v1"
+  },
+  "source_changed_after_final_run": true,
+  "source_paths_modified_after_final_receipt": [
+    "docs/private-media-library-specifications/06-formats-and-processing.md",
+    "docs/private-media-library-specifications/07-security-and-operations.md",
+    "docs/private-media-library-specifications/08-delivery-and-migration.md",
+    "docs/private-media-library-specifications/09-acceptance.md"
+  ]
+}

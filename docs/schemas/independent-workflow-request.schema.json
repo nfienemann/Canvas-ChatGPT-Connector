@@ -252,6 +252,20 @@
           "title": "Maximum Minutes",
           "type": "integer"
         },
+        "point_estimate_minutes": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Point Estimate Minutes"
+        },
         "origin": {
           "enum": [
             "student_estimate",
@@ -353,6 +367,57 @@
         "explanation"
       ],
       "title": "Importance",
+      "type": "object"
+    },
+    "Period": {
+      "additionalProperties": false,
+      "properties": {
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "accepted_snapshot": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accepted Snapshot"
+        },
+        "proposed_snapshot": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposed Snapshot"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Period",
       "type": "object"
     },
     "PinnedBlock": {
@@ -538,6 +603,196 @@
       "title": "PolicyReview",
       "type": "object"
     },
+    "RegistrarCourse": {
+      "additionalProperties": false,
+      "properties": {
+        "course_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Course Id",
+          "type": "string"
+        },
+        "course_code": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Course Code"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "crn": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Crn"
+        },
+        "campus": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Campus"
+        }
+      },
+      "required": [
+        "course_id"
+      ],
+      "title": "RegistrarCourse",
+      "type": "object"
+    },
+    "RegistrarLookup": {
+      "additionalProperties": false,
+      "description": "Optional known identifiers, not evidence, permission or mailbox credentials.",
+      "properties": {
+        "term": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Term",
+          "type": "string"
+        },
+        "term_start": {
+          "format": "date",
+          "title": "Term Start",
+          "type": "string"
+        },
+        "term_end": {
+          "format": "date",
+          "title": "Term End",
+          "type": "string"
+        },
+        "courses": {
+          "items": {
+            "$ref": "#/$defs/RegistrarCourse"
+          },
+          "maxItems": 50,
+          "title": "Courses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term",
+        "term_start",
+        "term_end"
+      ],
+      "title": "RegistrarLookup",
+      "type": "object"
+    },
+    "Review": {
+      "additionalProperties": false,
+      "properties": {
+        "course_ids": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 24,
+          "minItems": 1,
+          "title": "Course Ids",
+          "type": "array"
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/Period"
+          },
+          "maxItems": 2,
+          "minItems": 1,
+          "title": "Windows",
+          "type": "array"
+        },
+        "timezone": {
+          "maxLength": 100,
+          "title": "Timezone",
+          "type": "string"
+        },
+        "as_of": {
+          "format": "date-time",
+          "title": "As Of",
+          "type": "string"
+        },
+        "evidence_cutoff": {
+          "format": "date-time",
+          "title": "Evidence Cutoff",
+          "type": "string"
+        },
+        "families": {
+          "items": {
+            "enum": [
+              "deadline_outcomes",
+              "personal_completion",
+              "schedule_conflicts",
+              "effort_calibration",
+              "coordination"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Families",
+          "type": "array"
+        },
+        "restates": {
+          "anyOf": [
+            {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Restates"
+        }
+      },
+      "required": [
+        "course_ids",
+        "windows",
+        "timezone",
+        "as_of",
+        "evidence_cutoff"
+      ],
+      "title": "Review",
+      "type": "object"
+    },
     "Window": {
       "additionalProperties": false,
       "properties": {
@@ -570,7 +825,8 @@
         "grades",
         "deadlines",
         "consistency",
-        "calendar"
+        "calendar",
+        "analytics"
       ],
       "title": "Capability",
       "type": "string"
@@ -609,6 +865,28 @@
       "anyOf": [
         {
           "$ref": "#/$defs/CalendarContext"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "analytics": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Review"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "registrar_lookup": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RegistrarLookup"
         },
         {
           "type": "null"

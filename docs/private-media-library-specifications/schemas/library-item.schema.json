@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://canvas-bridge.example.invalid/specs/library-item.schema.json",
+  "title": "Proposed model-visible library item",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "library-item-1"
+    },
+    "item_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 180
+    },
+    "media_kind": {
+      "enum": [
+        "document",
+        "image",
+        "audio",
+        "video"
+      ]
+    },
+    "mime_type": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "size_bytes": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "original_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "storage_state": {
+      "enum": [
+        "available",
+        "deleting",
+        "deleted"
+      ]
+    },
+    "processing_state": {
+      "enum": [
+        "not_requested",
+        "queued",
+        "running",
+        "ready",
+        "partial",
+        "unsupported",
+        "blocked",
+        "failed"
+      ]
+    },
+    "coverage": {
+      "enum": [
+        "not_processed",
+        "text_only",
+        "partial",
+        "image_only",
+        "unsupported",
+        "unavailable"
+      ]
+    },
+    "retention": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "until_deleted"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "expires_at"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "mode",
+            "expires_at"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "source_origin": {
+      "const": "independent_user_supplied"
+    },
+    "acquisition_channel": {
+      "enum": [
+        "browser_upload",
+        "host_file_handoff",
+        "legacy_explicit_save"
+      ]
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "read_text": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "unverified",
+            "temporarily_unavailable"
+          ]
+        },
+        "search_text": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "unverified",
+            "temporarily_unavailable"
+          ]
+        },
+        "render_visual": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "unverified",
+            "temporarily_unavailable"
+          ]
+        },
+        "download_original": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "unverified",
+            "temporarily_unavailable"
+          ]
+        },
+        "audio_video": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "unverified",
+            "temporarily_unavailable"
+          ]
+        }
+      },
+      "required": [
+        "read_text",
+        "search_text",
+        "render_visual",
+        "download_original",
+        "audio_video"
+      ],
+      "additionalProperties": false
+    },
+    "permitted_channels": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "metadata",
+          "text",
+          "visual",
+          "original",
+          "audio"
+        ]
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "metadata_revision": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "item_id",
+    "version_id",
+    "title",
+    "media_kind",
+    "mime_type",
+    "size_bytes",
+    "original_sha256",
+    "created_at",
+    "storage_state",
+    "processing_state",
+    "coverage",
+    "retention",
+    "source_origin",
+    "acquisition_channel",
+    "capabilities",
+    "permitted_channels",
+    "warnings",
+    "metadata_revision"
+  ],
+  "additionalProperties": false
+}

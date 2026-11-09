@@ -45,10 +45,10 @@ def page(title: str, body: str, status: int = 200):
     return HTMLResponse(
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        f"<title>{html.escape(title)} · Canvas Bridge</title><style>{CSS}</style></head>"
+        f"<title>{html.escape(title)} Â· Canvas Bridge</title><style>{CSS}</style></head>"
         '<body><main><div class="eyebrow">Canvas Bridge</div>'
         f"<h1>{html.escape(title)}</h1>{body}"
-        '<footer><a href="/settings/privacy">Privacy &amp; limitations</a> · '
+        '<footer><a href="/settings/privacy">Privacy &amp; limitations</a> Â· '
         '<a href="/settings">Connection settings</a></footer></main></body></html>',
         status_code=status,
         headers={
@@ -156,6 +156,7 @@ def add_settings_routes(mcp, bridge, verifier):
                     or (principal and current.generation != principal.generation)
                 ):
                     raise DomainError("permission_denied", "This settings session was revoked.")
+                return current.generation
 
         request.state.validate_bridge_session = recheck_session
         return row
@@ -187,11 +188,16 @@ def add_settings_routes(mcp, bridge, verifier):
         if not token:
             from canvas_bridge.auth import last_rejection
 
-            raise DomainError(
-                "permission_denied",
-                "Identity provider did not issue a valid access token. The operator must verify issuer, audience and the configured stable owner subject; email equality does not establish identity.",
-                reason_code=last_rejection.get() or "MCP_TOKEN_VALIDATION_FAILED",
-            )
+            reason = last_rejection.get() or "MCP_TOKEN_VALIDATION_FAILED"
+            if reason in {"MCP_KEY_SOURCE_UNAVAILABLE", "MCP_IDENTITY_STATE_UNAVAILABLE"}:
+                message = (
+                    "Bridge could not complete identity validation. Wait or contact the operator."
+                )
+            elif reason == "MCP_PERSONAL_SUBJECT_MISMATCH":
+                message = "Use the intended application account; email equality does not establish identity."
+            else:
+                message = "Bridge could not accept the sign-in credential. Review the configured settings client with the operator."
+            raise DomainError("permission_denied", message, reason_code=reason)
         owner = principal_id(token.claims["iss"], token.subject)
         if expected_owner and owner != expected_owner:
             raise DomainError(
@@ -263,11 +269,13 @@ def add_settings_routes(mcp, bridge, verifier):
                 + '<a class="button" href="/settings/login">Sign in securely</a>',
             )
         status = bridge.connection_status(session.owner)
-        body = '<p>Manage access here. Ask academic questions in ChatGPT.</p><p><a href="/settings/storage">Stored data and deletion controls</a> · <a href="/settings/documents">Import independent documents</a></p><p>Independent documents and local study preferences remain available without Canvas approval.</p>'
+        body = '<p>Manage access here. Ask academic questions in ChatGPT.</p><p><a href="/settings/storage">Stored data and deletion controls</a> Â· <a href="/settings/documents">Import independent documents</a></p><p>Independent documents and local study preferences remain available without Canvas approval.</p>'
+        if settings.library_enabled:
+            body += '<p><a class="button" href="/settings/library">Private library â€” Add files</a></p>'
         if bridge.synthetic:
-            body += '<div class="notice">Synthetic local environment · not a live institution connection</div>'
+            body += '<div class="notice">Synthetic local environment Â· not a live institution connection</div>'
         elif settings.profile == "personal":
-            body += '<div class="notice">Private developer test · access is limited to the configured owner.</div>'
+            body += '<div class="notice">Private developer test Â· access is limited to the configured owner.</div>'
         from canvas_bridge.authorization_status import stages
 
         institution_stages = {
@@ -529,8 +537,18 @@ def add_settings_routes(mcp, bridge, verifier):
             callback = record.redirect
             session.delete(record)
         code = request.query_params.get("code")
-        if not code:
-            return page("Sign-in cancelled", "<p>No connection was created.</p>")
+        callback_error = request.query_params.get("error")
+        if callback_error == "access_denied" and not code:
+            return page(
+                "Sign-in declined",
+                "<p>Sign-in stopped. The original task can be resumed after verification.</p>",
+            )
+        if callback_error is not None or not code:
+            raise DomainError(
+                "permission_denied",
+                "Sign-in did not complete. Restart from the configured settings page.",
+                reason_code="OAUTH_CALLBACK_INCOMPLETE",
+            )
         data = {
             "grant_type": "authorization_code",
             "client_id": settings.browser_client_id,
@@ -607,15 +625,25 @@ def add_settings_routes(mcp, bridge, verifier):
             for name in ("state", "code", "iss", "error")
         ):
             raise DomainError("permission_denied", "Canvas callback parameters are ambiguous.")
+        callback_error = request.query_params.get("error")
+        code = request.query_params.get("code")
         result = await finish_link(
             bridge,
             request.query_params.get("state", ""),
             request.cookies.get("bridge_canvas", ""),
-            request.query_params.get("code"),
+            code if callback_error is None else None,
             callback=urlsplit(root)._replace(path=request.url.path, query="", fragment="").geturl(),
             response_issuer=request.query_params.get("iss"),
             expected_owner=session.owner,
         )
+        if (callback_error is not None or not code) and not (
+            callback_error == "access_denied" and not code
+        ):
+            raise DomainError(
+                "permission_denied",
+                "Canvas authorization did not complete. Review the configured secure setup.",
+                reason_code="OAUTH_CALLBACK_INCOMPLETE",
+            )
         return page("Canvas authorization", f"<p>{html.escape(result.summary)}</p>")
 
     @route("/settings/sign-out", ["POST"])
@@ -781,3 +809,9 @@ def add_settings_routes(mcp, bridge, verifier):
     from canvas_bridge.independent_ui import register_import_routes
 
     register_import_routes(bridge, route, identity, form, page, hidden)
+    from canvas_bridge.library.ui import register as register_library
+
+    register_library(bridge, route, identity, page)
+    from canvas_bridge.usefulness.ui import register_routes as register_usefulness_routes
+
+    register_usefulness_routes(bridge, route, identity, form, page, hidden)

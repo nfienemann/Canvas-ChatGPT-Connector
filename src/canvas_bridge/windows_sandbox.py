@@ -11,7 +11,7 @@ import time
 from ctypes import wintypes as W
 from pathlib import Path
 
-from canvas_bridge.domain import DomainError
+from canvas_bridge.domain import DomainError, WorkerDeadline
 
 
 def presentation_disk_usage(work):
@@ -19,7 +19,15 @@ def presentation_disk_usage(work):
     pending, count, total = [(work, 0)], 0, 0
     while pending:
         directory, depth = pending.pop()
-        with os.scandir(directory) as entries:
+        try:
+            entries = os.scandir(directory)
+        except FileNotFoundError:
+            if depth == 0:
+                raise
+            # Native conversion removes temporary profile directories while the
+            # monitor runs. A vanished child consumes no remaining disk space.
+            continue
+        with entries:
             for entry in entries:
                 count += 1
                 if (
@@ -63,13 +71,26 @@ def presentation_disk_usage(work):
     return total
 
 
-def acl(path: Path, *arguments: str):
-    result = subprocess.run(  # noqa: S603 - fixed system utility, structured trusted paths.
-        [str(Path(os.environ["SystemRoot"]) / "System32/icacls.exe"), str(path), *arguments],
-        capture_output=True,
-        timeout=15,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+def acl(path: Path, *arguments: str, timeout: float = 15):
+    started = time.monotonic()
+    try:
+        result = subprocess.run(  # noqa: S603 - fixed system utility, structured trusted paths.
+            [str(Path(os.environ["SystemRoot"]) / "System32/icacls.exe"), str(path), *arguments],
+            capture_output=True,
+            timeout=timeout,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise DomainError(
+            "retry_later",
+            "Sandbox permission setup exceeded its time budget; the worker was not started.",
+            reason_code="DOCUMENT_SANDBOX_SETUP_TIMEOUT",
+            details={
+                "deadline_seconds": timeout,
+                "elapsed_ms": round((time.monotonic() - started) * 1000),
+            },
+            processing_stage="sandbox_setup",
+        ) from exc
     if result.returncode:
         raise DomainError(
             "retry_later",
@@ -212,6 +233,7 @@ def run(
         ),
         (kernel, "ResumeThread", W.DWORD, [W.HANDLE]),
         (kernel, "WaitForSingleObject", W.DWORD, [W.HANDLE, W.DWORD]),
+        (kernel, "GetProcessTimes", W.BOOL, [W.HANDLE] + [C.POINTER(W.FILETIME)] * 4),
         (kernel, "GetExitCodeProcess", W.BOOL, [W.HANDLE, C.POINTER(W.DWORD)]),
         (kernel, "TerminateProcess", W.BOOL, [W.HANDLE, W.UINT]),
         (kernel, "CloseHandle", W.BOOL, [W.HANDLE]),
@@ -241,6 +263,7 @@ def run(
 
     profile = profile_name(work)
     sid, process, job, attributes = pointer(), Process(), None, None
+    expired = None
     initialized, created_profile = False, False
     try:
         result = userenv.CreateAppContainerProfile(
@@ -332,7 +355,8 @@ def run(
         if kernel.ResumeThread(process.thread) == 0xFFFFFFFF:
             raise failure("Sandbox could not resume.", "DOCUMENT_WORKER_START_FAILED")
         stage = "worker_execution"
-        deadline = time.monotonic() + timeout
+        started = time.monotonic()
+        deadline = started + timeout
         while True:
             from canvas_bridge.worker_storage import require_running
 
@@ -343,7 +367,8 @@ def run(
             if waited != 0x102 or time.monotonic() >= deadline:
                 break
         if waited == 0x102:
-            raise TimeoutError("Document extraction exceeded its time budget.")
+            expired = WorkerDeadline(timeout)
+            raise expired
         checked(waited != 0xFFFFFFFF)
         code = W.DWORD()
         checked(kernel.GetExitCodeProcess(process.process, C.byref(code)))
@@ -354,8 +379,25 @@ def run(
                     "The isolated presentation converter exceeded its deadline.",
                     reason_code="PPTX_CONVERSION_TIMEOUT",
                     processing_stage="pptx_conversion",
-                    details={"retryable": True, "limit_seconds": 60},
+                    details={
+                        "retryable": True,
+                        "limit_seconds": 60,
+                        "deadline_seconds": 60,
+                        "elapsed_ms": round((time.monotonic() - started) * 1000),
+                    },
                 )
+            if not presentation:
+                times = [W.FILETIME() for _ in range(4)]
+                if kernel.GetProcessTimes(process.process, *(C.byref(t) for t in times)):
+                    user_ticks = (times[3].dwHighDateTime << 32) | times[3].dwLowDateTime
+                    if user_ticks >= limits.basic.process_time:
+                        raise DomainError(
+                            "retry_later",
+                            "Document worker reached its CPU limit.",
+                            reason_code="DOCUMENT_WORKER_CPU_LIMIT",
+                            processing_stage=stage,
+                            worker_exit_code=code.value,
+                        )
             # Only numeric OS status is exposed, never stderr or document text.
             reason = {
                 0xC0000017: "DOCUMENT_WORKER_MEMORY_LIMIT",
@@ -383,7 +425,9 @@ def run(
         # Kill even a suspended process if job assignment/any later step failed.
         if process.process:
             kernel.TerminateProcess(process.process, 1)
-            kernel.WaitForSingleObject(process.process, 5000)
+            stopped = kernel.WaitForSingleObject(process.process, 5000) == 0
+            if expired is not None and not presentation:
+                expired.stopped = stopped
         for handle in (process.thread, process.process, job):
             if handle:
                 kernel.CloseHandle(handle)

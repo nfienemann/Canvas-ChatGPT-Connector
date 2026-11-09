@@ -112,8 +112,7 @@ The service copies only Python standard-library/runtime, pypdf, defusedxml,
 PDFium, Pillow and optionally trusted Tesseract libraries/models into an
 isolated runtime. Each job uses a unique Windows AppContainer SID, no network
 capabilities and write access only to its own temporary directory. The worker
-receives bytes and format only, not tokens, database access, service code or
-inherited handles. A Job Object limits it to one process, 384 MiB memory,
+receives the source bytes, format and requested extraction range. A Job Object limits it to one process, 384 MiB memory,
 10 seconds CPU and 15 seconds wall time, and kills it on cleanup. Worker output
 is capped at 2 MB. One extraction at a time runs per server process.
 
@@ -178,3 +177,57 @@ independent of parser support and does not rewrite source bytes. Preparation and
 host handoff are separate from a verified local save or conversation attachment.
 See [original-file-delivery.md](original-file-delivery.md) for access checks,
 retention, configuration and current client-validation limits.
+
+
+## Sparse raster PDF recovery — November 3, 2026
+
+Parser v12 detects raster resources on pages with fewer than 300 extracted
+characters using bounded resource traversal without decoding images. These pages
+remain partial even when a footer exceeds the old 40-character OCR threshold.
+Optional sandboxed English OCR retains existing four-page batch, confidence,
+byte/pixel/memory/time limits. Poorer OCR does not replace better embedded text.
+OCR structures are rebuilt from recognized text; scientific interpretation and
+image privacy are not established. Unrecognized sparse pages do not count as
+complete body-text positions. Newly recovered text needs fresh review.
+Valid indirect PDF annotation arrays are resolved before bounded privacy inspection.
+Parser failures expose fixed exception categories only, never exception messages.
+
+### Progressive course PDF reads
+
+If another document occupies the parser slot after download, one PDF text read
+per service process can wait up to three seconds for capacity. It then makes
+one more admission attempt with the same downloaded bytes. Extra waiters, a
+wait that expires, or a lost race for the slot receive
+`DOCUMENT_WORKER_BUSY` at `worker_queue`. Cancelling a queued read releases
+its place. Execution timeouts follow the existing page recovery workflow.
+
+A request for one PDF page extracts embedded text from that page. The worker
+checks document metadata and annotations across all pages before releasing any
+text. Open-ended reads return up to four consecutive pages. Follow the supplied
+continuation (including its character offset, page range, parser and hash) to
+finish a text window and advance through the paper.
+
+Each isolated text worker has a 15-second wall limit and a 10-second CPU limit.
+Runtime preparation and source download occur separately. The worker writes
+privacy-filtered page progress into its bounded job output. After a confirmed
+deadline, the reader can recover complete records and discard an interrupted
+record. If no page finished, retry the first requested page alone. For a stalled
+single page, use `render_course_file_page` or continue at the next page. Coverage
+reports unread positions until they are processed.
+
+Authorized reads reuse validated pages for the current source revision, hash,
+parser and OCR configuration. A missing batch requires a fresh source download.
+Document-wide text/structure limits still apply across batches. Cached-only
+search reports partial coverage, and unread-document search can continue through
+missing batches with its search cursor.
+
+
+## Requested document ranges
+
+Ranges are one-based and inclusive. After the file and version pass access
+checks, either endpoint beyond the established length returns `needs_input`
+with `DOCUMENT_RANGE_OUT_OF_BOUNDS`. The response includes the requested
+`page_start` and `page_end`. The valid range is 1 through `page_count`.
+This applies to text units and individual PDF page or PPTX slide renders.
+Malformed range arguments have separate input diagnostics. Failed access,
+version checks and conversion failures do not supply range bounds.

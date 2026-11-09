@@ -37,6 +37,31 @@ async def test_real_workflows_against_independent_gold(corpus, ident):
     assert result["state"] == "passed", result
 
 
+@pytest.mark.parametrize(
+    "coverage",
+    ["text_only", "partial", "partial_text", "scanned_or_empty", "future_coverage", None],
+)
+async def test_text_extraction_coverage_never_implies_visual_reading(corpus, monkeypatch, coverage):
+    from canvas_bridge.benchmark_lab import adapters
+
+    original = adapters.extract
+
+    def extract_with_coverage(data, kind):
+        result = original(data, kind)
+        if coverage is None:
+            result.pop("coverage", None)
+        else:
+            result["coverage"] = coverage
+        return result
+
+    monkeypatch.setattr(adapters, "extract", extract_with_coverage)
+    item = task(corpus, "parse-image-heavy-pdf")
+    observation = await execute(item, corpus.sources, corpus.path, corpus.data["clock"])
+    assert observation["answer"]["visual_reading_claimed"] is False
+    assert "pixels_require_visual_review" in observation["uncertainty"]
+    assert evaluate(item, observation, corpus)["state"] == "passed"
+
+
 def test_corpus_has_required_courses_categories_assets_and_independent_calculations(corpus):
     assert len(corpus.data["courses"]) >= 12
     assert {t["category"] for t in corpus.scenarios} == set(CATEGORIES)

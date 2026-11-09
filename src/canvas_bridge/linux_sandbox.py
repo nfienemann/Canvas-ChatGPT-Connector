@@ -22,7 +22,7 @@ import pypdfium2_cfg
 import pypdfium2_raw
 
 from canvas_bridge import ocr_runtime
-from canvas_bridge.domain import DomainError
+from canvas_bridge.domain import DomainError, WorkerDeadline
 
 
 def private_root(root: Path) -> Path:
@@ -45,6 +45,7 @@ def private_root(root: Path) -> Path:
 def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = private_root(root)
     worker = Path(__file__).with_name("parser_worker.py")
+    safety_worker = Path(__file__).with_name("library_safety_worker.py")
     spreadsheet = Path(__file__).with_name("spreadsheet_worker.py")
     scientific = Path(__file__).with_name("scientific_structure.py")
     presentation = Path(__file__).with_name("presentation_worker.py")
@@ -57,6 +58,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     native = Path(sysconfig.get_config_var("DESTSHARED") or library / "lib-dynload")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + safety_worker.read_bytes()
         + spreadsheet.read_bytes()
         + scientific.read_bytes()
         + presentation.read_bytes()
@@ -116,6 +118,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         if pillow_libs.is_dir():
             shutil.copytree(pillow_libs, stage / "site/pillow.libs")
         shutil.copy2(worker, stage / "worker.py")
+        shutil.copy2(safety_worker, stage / "library_safety_worker.py")
         shutil.copy2(privacy, stage / "privacy_text.py")
         shutil.copy2(spreadsheet, stage / "spreadsheet_worker.py")
         shutil.copy2(scientific, stage / "scientific_structure.py")
@@ -191,21 +194,27 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15, memory_mb=
 
             from canvas_bridge.worker_storage import require_running
 
+            expired = None
             deadline = time.monotonic() + timeout
             while True:
                 require_running()
-                try:
-                    code = process.wait(timeout=0.1)
+                # wait4 attributes a hard-limit SIGKILL to this child's CPU time.
+                # Other SIGKILL exits (including external kills) remain generic.
+                pid, status, usage = os.wait4(process.pid, os.WNOHANG)
+                if pid:
+                    code = process.returncode = os.waitstatus_to_exitcode(status)
                     break
-                except subprocess.TimeoutExpired:
-                    if time.monotonic() >= deadline:
-                        raise TimeoutError(
-                            "Isolated extraction exceeded its wall-time limit."
-                        ) from None
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    expired = WorkerDeadline(timeout)
+                    raise expired
+                time.sleep(min(0.1, remaining))
         finally:
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
+            if expired is not None:
+                expired.stopped = process.poll() is not None
     if code == 77:
         raise DomainError(
             "unsupported_feature",
@@ -219,6 +228,7 @@ def run(runtime: Path, work: Path, *, script="worker.py", timeout=15, memory_mb=
             "The isolated document worker exited without a complete result.",
             reason_code="DOCUMENT_WORKER_CPU_LIMIT"
             if code == -signal.SIGXCPU
+            or (code == -signal.SIGKILL and usage.ru_utime + usage.ru_stime >= 10)
             else "DOCUMENT_WORKER_EXITED",
             processing_stage="worker_execution",
             worker_exit_code=code,

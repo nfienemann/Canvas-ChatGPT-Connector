@@ -54,6 +54,15 @@ def prepare(runtime: Path, office_root: Path) -> Path:
         )
     from canvas_bridge.windows_sandbox import acl
 
-    acl(Path("\\\\?\\" + str(target)), "/grant:r", "*S-1-15-2-1:(OI)(CI)(RX)", "/T", "/Q")
+    # Large public Office distributions need more setup time than a per-job
+    # directory. Permissions and worker execution budgets remain unchanged.
+    acl(
+        Path("\\\\?\\" + str(target)),
+        "/grant:r",
+        "*S-1-15-2-1:(OI)(CI)(RX)",
+        "/T",
+        "/Q",
+        timeout=90,
+    )
     (target / "presentation-ready").write_text(digest.hexdigest(), encoding="ascii")
     return payload

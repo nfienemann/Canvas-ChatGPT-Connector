@@ -16,6 +16,7 @@ from tests.test_permission_consistency_contract import client_session
 
 @pytest.mark.contract
 async def test_all_mcp_surfaces_classified_and_no_approval_mutation(running, token_factory, bridge):
+    from canvas_bridge.library.contracts import TOOLS as LIBRARY_TOOLS
     from canvas_bridge.processes.surfaces import TOOLS as PROCESS_TOOLS
 
     async with client_session(running, token_factory()) as session:
@@ -23,6 +24,10 @@ async def test_all_mcp_surfaces_classified_and_no_approval_mutation(running, tok
         expected = set(TOOL_CATEGORIES) | OFFLINE_TOOLS
         if not bridge.settings.process_features_enabled:
             expected -= PROCESS_TOOLS
+        if not bridge.settings.usefulness_features_enabled:
+            expected.discard("run_local_study_workflow")
+        if not bridge.settings.library_enabled:
+            expected -= LIBRARY_TOOLS
         assert {tool.name for tool in tools} == expected
         for tool in tools:
             properties = tool.inputSchema.get("properties", {})

@@ -72,6 +72,11 @@ RULES = {
         "7 days; no source text or credentials",
         "Expire local receipts; operator must bound external log sinks",
     ),
+    "upstream_usage_accounting": Rule(
+        "Conserve contracted API capacity and reconcile verified vendor statements",
+        "Identity links 30 days; resolved attempt detail 90 days after cycle end; de-identified unresolved holds and aggregate audit history retained for reconciliation",
+        "Account deletion removes identity links; encrypted backups omit those links; aggregate totals cannot be reset by deletion or restore",
+    ),
     "authorization_evidence": Rule(
         "Enforce independently obtained approvals and prevent restoration",
         "Approval evidence: explicit signed expiry plus administrator disposal schedule; deletion fences: backup horizon plus one day; non-content institutional digest restrictions: 91 days",
@@ -179,7 +184,9 @@ class Retention:
 
     async def sweep(self):
         now = self.clock()
+        self.bridge.usage.recover()
         self.bridge.independent.sweep()
+        self.bridge.library.sweep()
         with self.bridge.store.transaction() as session:
             expired = [
                 (c.owner, c.id)

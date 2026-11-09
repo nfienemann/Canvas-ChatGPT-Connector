@@ -16,6 +16,7 @@ from typing import Literal
 from sqlalchemy import select
 
 from canvas_bridge.domain import DomainError, opaque_id, utcnow
+from canvas_bridge.membership import membership_state
 from canvas_bridge.normalize import canonical_id
 from canvas_bridge.policy import Endpoint, source_id
 from canvas_bridge.retention_policy import CONNECTION_LIFETIME
@@ -31,6 +32,9 @@ SCOPES = {
     Endpoint.SUBMISSION: "url:GET|/api/v1/courses/:course_id/assignments/:assignment_id/submissions/:user_id",
     Endpoint.COURSE: "url:GET|/api/v1/courses/:id",
     Endpoint.FILES: "url:GET|/api/v1/courses/:course_id/files",
+    Endpoint.FOLDERS: "url:GET|/api/v1/courses/:course_id/folders",
+    Endpoint.FOLDER: "url:GET|/api/v1/courses/:course_id/folders/:id",
+    Endpoint.FOLDER_FILES: "url:GET|/api/v1/folders/:id/files",
     Endpoint.FILE: "url:GET|/api/v1/courses/:course_id/files/:id",
     Endpoint.MODULES: "url:GET|/api/v1/courses/:course_id/modules",
     Endpoint.MODULE_ITEMS: "url:GET|/api/v1/courses/:course_id/modules/:module_id/items",
@@ -68,6 +72,9 @@ ENDPOINT_RESOURCE = {
     Endpoint.SUBMISSION: "submissions",
     Endpoint.COURSE: "course",
     Endpoint.FILES: "files",
+    Endpoint.FOLDERS: "files",
+    Endpoint.FOLDER: "files",
+    Endpoint.FOLDER_FILES: "files",
     Endpoint.FILE: "files",
     Endpoint.MODULES: "modules",
     Endpoint.MODULE_ITEMS: "modules",
@@ -88,8 +95,10 @@ ENDPOINT_RESOURCE = {
     Endpoint.ANNOUNCEMENTS: "announcements",
 }
 MESSAGES = {
+    "AUTHORIZATION_BUSY": "Another request is using this Canvas connection, or maintenance is active. Retry after it finishes; no reconnect is needed.",
     "CONNECTION_OWNERSHIP_MISMATCH": "Connection unavailable for the authenticated account.",
     "CONNECTION_INACTIVE": "This connection is disabled. Reconnect in settings.",
+    "UPSTREAM_CREDENTIAL_REJECTED": "Canvas rejected the credential. Review the secure connection setup.",
     "UPSTREAM_AUTH_EXPIRED": "The Canvas credential has expired; reconnect the Canvas account.",
     "UPSTREAM_AUTH_UNVERIFIED": "The Canvas credential is unavailable; reconnect the Canvas account.",
     "IDENTIFIER_MAPPING_FAILURE": "The course reference cannot be resolved in this connection. Use the exact opaque ID returned by connection status or course listing.",
@@ -118,6 +127,7 @@ class RequestAuthorization:
     egress_identity: object | None = None
     egress_principal: str | None = None
     egress_arguments: dict = field(default_factory=dict)
+    usage_cache: list[dict] = field(default_factory=list)
 
 
 request_authorization: ContextVar[RequestAuthorization | None] = ContextVar(
@@ -169,28 +179,43 @@ class AuthorizationDecision:
     course: Course | None = field(default=None, repr=False)
     connection: Connection | None = field(default=None, repr=False)
     policy_error: DomainError | None = field(default=None, repr=False)
+    configured_scope_missing: bool = False
 
     def require(self):
         if self.policy_error:
             raise self.policy_error
         if not self.allowed:
-            raise DomainError(self.status, MESSAGES[self.reason_code], reason_code=self.reason_code)
+            raise DomainError(
+                self.status,
+                MESSAGES[self.reason_code],
+                reason_code=self.reason_code,
+                details={"retrieval_constraint": "configured_endpoint_scope"}
+                if self.configured_scope_missing
+                else None,
+            )
         return self
 
 
 def log_decision(owner, ref, course_ref, resource, decision, *, http_status=None, reason=None):
+    from canvas_bridge.egress_errors import SAFE_CODES
+    from canvas_bridge.policy_surfaces import OFFLINE_TOOLS, TOOL_CATEGORIES
+
     context = request_authorization.get()
+    tool = context.tool_name if context else None
+    code = reason or decision.reason_code
     record = {
         "request_id": context.request_id if context else opaque_id(),
-        "tool_name": context.tool_name if context else "internal_course_authorization",
-        "correlation_id": digest(owner + "\0" + ref),
-        "connection_reference": digest(owner + "\0connection\0" + ref),
-        "course_reference": digest(owner + "\0" + ref + "\0" + course_ref),
-        "resource_type": resource,
+        "tool_name": tool
+        if tool in TOOL_CATEGORIES or tool in OFFLINE_TOOLS
+        else "internal_course_authorization",
+        "resource_type": resource if resource in RESOURCE_ENDPOINT else "unknown",
         "authorization_decision": "allow" if decision.allowed else "deny",
-        "reason_code": reason or decision.reason_code,
-        "scope_snapshot_version": decision.scope_snapshot_version,
-        "upstream_http_status": http_status,
+        "reason_code": code
+        if isinstance(code, str) and code in SAFE_CODES
+        else "UNCLASSIFIED_FAILURE",
+        "upstream_http_status": http_status
+        if type(http_status) is int and 100 <= http_status <= 599
+        else None,
         "timestamp": utcnow().isoformat(),
     }
     logger.info("permission_decision %s", json.dumps(record, sort_keys=True))
@@ -206,6 +231,7 @@ def authorize_course_resource(
     *,
     session=None,
     track=True,
+    evaluated_at=None,
 ):
     """Exact owner/connection mapping, current selection, lease and capability.
 
@@ -225,6 +251,7 @@ def authorize_course_resource(
                 operation,
                 session=current,
                 track=track,
+                evaluated_at=evaluated_at,
             )
     d = AuthorizationDecision()
     conn = session.scalar(
@@ -253,12 +280,12 @@ def authorize_course_resource(
             if conn.token_expires_at and aware(conn.token_expires_at) <= utcnow()
             else "present_not_verified"
         )
-        fresh = bool(
-            conn.entitlement_at
-            and 0
-            <= (utcnow() - aware(conn.entitlement_at)).total_seconds()
-            <= bridge.settings.authorization_lease_seconds
+        lease_state = membership_state(
+            conn.entitlement_at,
+            evaluated_at or utcnow(),
+            bridge.settings.authorization_lease_seconds,
         )
+        fresh = lease_state == "within_lease"
         d.authorization_freshness = "within_lease" if fresh else "stale"
         if (
             conn.state != "active"
@@ -312,13 +339,22 @@ def authorize_course_resource(
                 )
                 d.status = "reconnect_required"
             elif not fresh:
+                context = request_authorization.get()
+                logger.warning(
+                    "AUTH_STALE_LEASE:%s:%s",
+                    lease_state,
+                    context.tool_name if context else "internal",
+                )
                 d.reason_code, d.status = "STALE_SCOPE_SNAPSHOT", "retry_later"
             else:
                 d.scope_authorized = True
                 endpoint = RESOURCE_ENDPOINT.get(resource_type)
                 if operation in SCOPES:
                     endpoint = operation
-                supported = (
+                inventory_projection = (
+                    resource_type == "files" and operation == "inventory_metadata"
+                )
+                supported = inventory_projection or (
                     operation in {"read", "metadata", "list", "scope"} or operation in SCOPES
                 )
                 if (
@@ -331,9 +367,11 @@ def authorize_course_resource(
                     d.resource_capability = "unavailable"
                 elif (
                     institution.scopes
+                    and not inventory_projection
                     and SCOPES[endpoint] not in institution.scopes
                     and not (resource_type == "course" and operation == "scope")
                 ):
+                    d.configured_scope_missing = True
                     d.reason_code = "MISSING_RESOURCE_CAPABILITY"
                     d.resource_capability = "unavailable"
                 else:
@@ -382,6 +420,7 @@ def authorize_course_resource(
         key = (principal, connection_id, course_id, resource_type, operation)
         previous = context.decisions.setdefault(key, d.scope_snapshot_version)
         if previous != d.scope_snapshot_version:
+            logger.warning("AUTH_STALE_SCOPE:changed_during_request:%s", context.tool_name)
             raise DomainError(
                 "source_changed",
                 MESSAGES["STALE_SCOPE_SNAPSHOT"],
@@ -399,6 +438,7 @@ def validate_request_authorization(bridge):
             d = authorize_course_resource(bridge, *key, track=False)
             d.require()
             if d.scope_snapshot_version != version:
+                logger.warning("AUTH_STALE_SCOPE:changed_at_response:%s", context.tool_name)
                 raise DomainError(
                     "source_changed",
                     MESSAGES["STALE_SCOPE_SNAPSHOT"],

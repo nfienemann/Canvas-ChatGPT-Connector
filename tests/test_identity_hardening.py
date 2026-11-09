@@ -482,7 +482,17 @@ async def test_midflight_session_revocation_blocks_mcp_release(
                 "params": {"name": "get_connection_status", "arguments": {}},
             },
         )
-        assert response.json()["result"]["structuredContent"]["status"] == "permission_denied"
+        result = response.json()["result"]["structuredContent"]
+        assert result["status"] == "permission_denied"
+        diagnostic = result["data"]["diagnostic"]
+        assert diagnostic["code"] == "MCP_SESSION_REVOKED"
+        assert (
+            diagnostic["authentication_diagnostic"]["recovery_action"]
+            == "repair_inbound_credential"
+        )
+        assert diagnostic["category"] == "authorization"
+        assert diagnostic["content_delivery"] == "none"
+        assert diagnostic["request_id"] == result["meta"]["request_id"]
         assert "PRIVATE-REVOKED-RESULT" not in response.text
 
 

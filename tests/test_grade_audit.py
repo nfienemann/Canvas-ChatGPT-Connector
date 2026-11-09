@@ -1,9 +1,12 @@
 """Grade-auditing regressions use fictional student/course data only."""
 
+import asyncio
+import json
 from copy import deepcopy
 from decimal import Decimal as D
 
 import httpx
+import jsonschema
 import pytest
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
@@ -439,11 +442,17 @@ async def test_T08_inaccessible_configuration_and_timeouts_refuse(
     result = await grading_request(bridge, owner, seeded, grade_data, "calculate")
     assert result.data["calculation"]["calculated_percentage"] is None
 
+    scopes = {c.resource: c for c in result.meta.coverage}
+    assert scopes["grade_configuration"].state == "permission_denied"
+    assert scopes["grade_calculation_inputs"].state == "partial"
+
     async def timed_out(*args):
         raise TimeoutError
 
     monkeypatch.setattr("canvas_bridge.grade_audit.collect", timed_out)
-    result = await grading_request(bridge, owner, seeded, grade_data)
+    result = await grading_request(bridge, owner, seeded, grade_data, "calculate")
+    assert result.meta.freshness == "not_refreshed"
+    assert result.meta.coverage[0].reason_code == "UPSTREAM_REQUEST_TIMEOUT"
     assert result.data["classification"] == "indeterminate"
 
 
@@ -527,14 +536,23 @@ async def test_T08_assessment_budget_never_claims_complete_grade(bridge, owner, 
     bridge.synthetic.data["assignments"]["11"] = [dict(deepcopy(first), id=i) for i in range(1, 62)]
     bridge.settings.max_pages = 40
     result = await grading_request(bridge, owner, seeded, grade_data, "calculate")
+    assert result.meta.coverage[-1].state == "partial"
     assert not result.data["coverage"]["visible_assignment_collection_complete"]
     assert result.data["calculation"]["calculated_percentage"] is None
 
 
 @pytest.mark.contract
 async def test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal(
-    running, token_factory, bridge, seeded, grade_data
+    running, token_factory, bridge, seeded, grade_data, monkeypatch
 ):
+    # Exercise authorized assignment-detail reuse only after the first calculation.
+    ttl = 0
+    get = bridge.upstream_cache.get
+
+    async def with_fixture_ttl(key, authorize, fetch, **kwargs):
+        return await get(key, authorize, fetch, ttl=ttl)
+
+    monkeypatch.setattr(bridge.upstream_cache, "get", with_fixture_ttl)
     async with httpx.AsyncClient(
         headers={"Authorization": "Bearer " + token_factory(scope="academic:read")}
     ) as http:
@@ -542,6 +560,8 @@ async def test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal(
             async with ClientSession(streams[0], streams[1]) as session:
                 await session.initialize()
                 catalog = await session.list_tools()
+                schemas = {t.name: t.outputSchema for t in catalog.tools}
+
                 names = {
                     "get_course_grading_policy",
                     "calculate_course_grade",
@@ -568,6 +588,7 @@ async def test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal(
                     result.structuredContent["data"]["calculation"]["classification"]
                     == "hypothetical_scenario"
                 )
+                ttl = 60
                 result = await session.call_tool(
                     "calculate_course_grade", {"connection_id": seeded, "course_id": grade_data}
                 )
@@ -575,6 +596,29 @@ async def test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal(
                     result.structuredContent["data"]["calculation"]["calculated_percentage"]
                     == "86.0000"
                 )
+                wire = result.structuredContent
+                jsonschema.validate(wire, schemas["calculate_course_grade"])
+                assert wire == json.loads(result.content[0].text)
+                scopes = {c["resource"]: c for c in wire["meta"]["coverage"]}
+                assert wire["meta"]["freshness"] == "live"
+                assert scopes["grade_calculation_inputs"]["state"] == "complete"
+                assert wire["data"]["coverage"]["visible_assignment_collection_complete"]
+                assert wire["data"]["calculation"]["basis"]["evidence_complete"]
+                assert scopes["grade_assignments"]["pagination_complete"]
+                assert wire["evidence"][0]["coverage"] == [
+                    row
+                    for row in wire["meta"]["coverage"]
+                    if row["resource"] != "grade_calculation_inputs"
+                ]
+                cached = (
+                    await session.call_tool(
+                        "calculate_course_grade", {"connection_id": seeded, "course_id": grade_data}
+                    )
+                ).structuredContent
+                assert cached["meta"]["freshness"] == "cached"
+                assert bridge.upstream_cache.hits > 0
+                assert cached["meta"]["coverage"] == wire["meta"]["coverage"]
+                assert cached["data"]["calculation"] == wire["data"]["calculation"]
                 result = await session.call_tool(
                     "audit_course_grade",
                     {"connection_id": seeded, "course_id": grade_data, "syllabus_material_ids": []},
@@ -589,3 +633,177 @@ async def test_T08_T12_native_mcp_grade_tools_and_deliberate_refusal(
                     result.structuredContent["data"]["reconciliation"]["outcome"]
                     == "insufficient_evidence"
                 )
+
+                jsonschema.validate(result.structuredContent, schemas["audit_course_grade"])
+
+                syllabus = result.structuredContent["data"]["syllabus_policy"]
+                confirmed = await session.call_tool(
+                    "audit_course_grade",
+                    {
+                        "connection_id": seeded,
+                        "course_id": grade_data,
+                        "syllabus_material_ids": [],
+                        "policy_review": {
+                            "policy_version": syllabus["policy_version"],
+                            "confirmed_rule_ids": [rule["id"] for rule in syllabus["rules"]],
+                            "complete_policy_confirmed": True,
+                            "applicability_confirmed": True,
+                        },
+                    },
+                )
+                jsonschema.validate(confirmed.structuredContent, schemas["audit_course_grade"])
+                assert confirmed.structuredContent["status"] == "ok"
+
+                denied = await session.call_tool(
+                    "audit_course_grade", {"connection_id": "foreign", "course_id": grade_data}
+                )
+                jsonschema.validate(denied.structuredContent, schemas["audit_course_grade"])
+                assert denied.structuredContent["status"] == "permission_denied"
+
+                async def slow_collection(*args):
+                    await asyncio.sleep(1)
+
+                monkeypatch.setattr("canvas_bridge.grade_audit.collect", slow_collection)
+                monkeypatch.setattr("canvas_bridge.grade_audit.GRADE_REQUEST_SECONDS", 0.01)
+                timed = await session.call_tool(
+                    "audit_course_grade", {"connection_id": seeded, "course_id": grade_data}
+                )
+                wire = timed.structuredContent
+                jsonschema.validate(wire, schemas["audit_course_grade"])
+                assert (
+                    wire["status"] == "partial_data"
+                    and wire["meta"]["freshness"] == "not_refreshed"
+                )
+                assert wire["data"]["classification"] == "indeterminate"
+                assert wire["data"]["reason_code"] == "TASK_BUDGET_EXCEEDED"
+                assert wire["data"]["timeout_stage"] == "grade_input_collection"
+                assert "calculated_percentage" not in json.dumps(wire)
+
+
+@pytest.mark.parametrize(
+    "failure,reason,pages,state",
+    [
+        ("not_refreshed", "INVENTORY_NOT_ATTEMPTED", 0, "not_refreshed"),
+        ("permission_denied", "RESOURCE_PERMISSION_DENIED", 0, "permission_denied"),
+        ("retry_later", "UPSTREAM_REQUEST_TIMEOUT", 1, "partial"),
+    ],
+)
+async def test_grade_assignment_collection_gap(
+    bridge, owner, seeded, grade_data, monkeypatch, failure, reason, pages, state
+):
+    from canvas_bridge.canvas import CanvasClient, Collection
+    from canvas_bridge.domain import utcnow
+    from canvas_bridge.policy import Endpoint
+
+    original = CanvasClient.collection
+
+    async def collection(client, endpoint, **kwargs):
+        if endpoint == Endpoint.ASSIGNMENTS:
+            return Collection(
+                pages=pages,
+                failure=failure,
+                reason_code=reason,
+                page_receipts=[(0, {"source": "upstream", "retrieved_at": utcnow().isoformat()})]
+                * pages,
+            )
+        return await original(client, endpoint, **kwargs)
+
+    monkeypatch.setattr(CanvasClient, "collection", collection)
+    result = await grading_request(bridge, owner, seeded, grade_data, "calculate")
+    scopes = {c.resource: c for c in result.meta.coverage}
+    assignments = scopes["grade_assignments"]
+    assert assignments.state == state and assignments.reason_code == reason
+    assert assignments.pages_consumed == pages and not assignments.pagination_complete
+    assert scopes["grade_assignment_details"].state == "not_refreshed"
+    assert not result.data["coverage"]["visible_assignment_collection_complete"]
+    assert not result.data["calculation"]["basis"]["evidence_complete"]
+    assert scopes["grade_calculation_inputs"].state == "partial"
+    assert result.data["calculation"]["calculated_percentage"] is None
+    assert result.evidence[0]["coverage"] == [
+        scope.model_dump(mode="json")
+        for scope in result.meta.coverage
+        if scope.resource != "grade_calculation_inputs"
+    ]
+
+
+async def test_missing_enrollment_summary_is_separate_from_grade_inputs(
+    bridge, owner, seeded, grade_data, monkeypatch
+):
+    from canvas_bridge.canvas import CanvasClient, Collection
+    from canvas_bridge.policy import Endpoint
+
+    original = CanvasClient.collection
+
+    async def collection(client, endpoint, **kwargs):
+        # Entitlement is independently verified. Only the reported-grade source fails.
+        if endpoint == Endpoint.ENROLLMENTS and kwargs.get("record_page_receipts"):
+            return Collection(
+                failure="permission_denied",
+                reason_code="RESOURCE_PERMISSION_DENIED",
+                upstream_http_status=403,
+            )
+        return await original(client, endpoint, **kwargs)
+
+    monkeypatch.setattr(CanvasClient, "collection", collection)
+    result = await grading_request(bridge, owner, seeded, grade_data, "calculate")
+    scopes = {c.resource: c for c in result.meta.coverage}
+    assert scopes["own_grade_enrollments"].state == "permission_denied"
+    assert scopes["grade_calculation_inputs"].state == "complete"
+    assert result.data["canvas"]["reported_rows"] == []
+    assert result.data["calculation"]["calculated_percentage"] == "86.0000"
+    assert scopes["own_grade_enrollments"].model_dump(mode="json") in result.evidence[0]["coverage"]
+
+
+async def test_grade_input_with_missing_receipt_keeps_coverage_and_unknown_time(
+    bridge, owner, seeded, grade_data, monkeypatch
+):
+    from canvas_bridge.canvas import CanvasClient
+    from canvas_bridge.policy import Endpoint
+    from canvas_bridge.providers.canvas import AuthorizedCanvasProvider
+    from canvas_bridge.providers.canvas_grades import collect
+
+    original = CanvasClient.collection
+
+    async def collection(client, endpoint, **kwargs):
+        rows = await original(client, endpoint, **kwargs)
+        if endpoint == Endpoint.ASSIGNMENT_GROUPS:
+            rows.page_receipts.clear()
+        return rows
+
+    monkeypatch.setattr(CanvasClient, "collection", collection)
+    evidence = await collect(bridge, owner, seeded, grade_data)
+    assert evidence["complete"] and evidence["meta"].freshness == "unknown"
+    assert evidence["canvas_evidence"]["retrieved_at"] is None
+    assert evidence["sources"][0].uncertainty
+    provider = AuthorizedCanvasProvider(bridge, owner, seeded)
+    packet = provider.calculation_input(evidence, evidence["policy"])
+    dataset = provider.gateway.consume(packet)
+    assert dataset.assessments and dataset.complete
+    assert all(a.provenance.verified_at is None for a in dataset.assessments)
+    result = await grading_request(bridge, owner, seeded, grade_data, "audit", material_ids=[])
+    assert result.meta.freshness == "not_refreshed"
+    assert any("receipts" in warning for warning in result.meta.warnings)
+    assert result.data["canvas"]["retrieved_at"] is None
+
+
+async def test_syllabus_discovery_budget_preserves_indeterminate_audit(
+    bridge, owner, seeded, grade_data, monkeypatch
+):
+    cancelled = False
+
+    async def stalled(*args):
+        nonlocal cancelled
+        try:
+            await asyncio.sleep(10)
+        finally:
+            cancelled = True
+
+    monkeypatch.setattr("canvas_bridge.grade_audit.syllabus_documents", stalled)
+    monkeypatch.setattr("canvas_bridge.grade_audit.AUTOMATIC_SYLLABUS_SECONDS", 0.01)
+    result = await grading_request(bridge, owner, seeded, grade_data, "audit")
+    assert cancelled and result.status == "partial_data"
+    assert result.data["classification"] == "indeterminate"
+    assert result.data["reason_code"] == "TASK_BUDGET_EXCEEDED"
+    assert result.data["timeout_stage"] == "syllabus_discovery_and_read"
+    assert "material IDs" in result.data["next_action"]
+    assert "calculation" not in json.dumps(result.data)

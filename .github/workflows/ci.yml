@@ -13,7 +13,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Full-suite observations take 25-52 minutes before image/security checks.
+    timeout-minutes: 90
     services:
       postgres:
         image: postgres:17.11@sha256:b8faeff7712663c2773a190181e1246e37e364b887611c04658c28b44e2408fe
@@ -54,6 +55,11 @@ jobs:
           retention-days: 30
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: ui/page-reader
+      - name: Gate resumable public-path audit with synthetic fixtures
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix scripts/audit-png-runtime
+          npm audit --prefix scripts/audit-png-runtime
+          node --test tests/course_file_audit.test.mjs tests/course_file_audit_png.test.mjs tests/course_file_audit_checkpoint.test.mjs
       - run: npm run build && git diff --exit-code -- ../../src/canvas_bridge/assets
         working-directory: ui/page-reader
       - name: Validate governance registry, documentation and approved fictional fixtures
@@ -66,6 +72,7 @@ jobs:
       - name: Validate lock sources, license metadata and generate Python and Node SBOM
         run: |
           mkdir -p .local/security
+          npm sbom --prefix scripts/audit-png-runtime --sbom-format cyclonedx > .local/security/audit-png.cdx.json
           uv export --locked --all-groups --format cyclonedx1.5 --output-file .local/python-sbom.json > /dev/null
           uv run --locked python scripts/supply_chain.py --python-sbom .local/python-sbom.json --stage
       - name: Scan all Git history and current source for secrets

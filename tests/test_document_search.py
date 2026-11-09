@@ -68,7 +68,7 @@ async def test_T11_T12_T13_unread_pdf_search_returns_actual_scientific_passage(
     assert all(r.method == "GET" for r in bridge.synthetic.requests)
 
 
-async def test_T11_T25_page_and_file_continuation_never_redownloads_or_skips(
+async def test_T11_T25_page_and_file_continuation_fetches_only_missing_batches(
     bridge, owner, seeded, readable
 ):
     course, _ = readable
@@ -93,7 +93,9 @@ async def test_T11_T25_page_and_file_continuation_never_redownloads_or_skips(
         hits.extend(result.data["results"])
         responses += 1
     assert len(hits) == 6 and len({(h["file_id"], h["page"]) for h in hits}) == 6
-    assert len(downloads(bridge)) == 2
+    # Raw PDF bytes are request-scoped. Five pages require two batches; the
+    # second document requires one. Character/search continuations reuse pages.
+    assert len(downloads(bridge)) == 3
     assert result.data["pass_progress"]["completed_documents"] == 2
     assert result.data["text_coverage_complete_in_bounded_inventory"]
 
@@ -201,8 +203,8 @@ async def test_T13_T25_T26_incomplete_extraction_never_means_empty_success(
         bridge.synthetic.data["files"]["11"][0].pop("updated_at")
     else:
 
-        async def scanned(data, fmt, settings):
-            result = extract(data, fmt)
+        async def scanned(data, fmt, settings, page_range=None):
+            result = extract(data, fmt, page_range)
             result.update(
                 coverage="partial", warnings=["Scanned page: no text; OCR is unavailable."]
             )
@@ -413,9 +415,21 @@ async def test_T12_T25_T36_native_http_search_reads_unread_pdf(
                         "connection_id": seeded,
                         "course_id": course.id,
                         "query": "differentiation",
+                        "match_mode": "approximate",
                         "include_unread": True,
                     },
                 )
                 assert not result.isError and result.structuredContent["data"]["results"]
+                payload = result.structuredContent["data"]
+                assert payload["match_mode"] == "approximate"
+                hit = payload["results"][0]
+                assert (
+                    hit["match_type"] == "exact"
+                    and hit["matched_text"].lower() == "differentiation"
+                )
+                assert hit["visually_verified"] is False and hit["similarity"] == 1
                 assert result.structuredContent["data"]["unread_documents_searched"]
+                units = result.structuredContent["data"]["document_statuses"][0]["unit_coverage"]
+                assert units["unit_kind"] == "page" and units["units_with_usable_text"] > 0
+                assert units["remaining_unattempted"] == 0
                 assert result.structuredContent["evidence"]

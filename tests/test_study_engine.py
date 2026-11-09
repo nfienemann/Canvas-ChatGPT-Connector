@@ -513,7 +513,8 @@ async def test_mcp_feedback_and_opted_in_recording(
     async with httpx.AsyncClient(
         headers={
             "Authorization": f"Bearer {token_factory(scope='academic:read preferences:write')}"
-        }
+        },
+        timeout=httpx.Timeout(30, connect=5),
     ) as http:
         async with streamable_http_client(running + "/mcp", http_client=http) as streams:
             async with ClientSession(streams[0], streams[1]) as session:

@@ -187,7 +187,16 @@ def grade_inputs(graph):
 
 
 def deadline_graph(
-    *, scope, permission, restrictions, documents, items, report, timezone, complete
+    *,
+    scope,
+    permission,
+    restrictions,
+    documents,
+    items,
+    report,
+    timezone,
+    complete,
+    item_coverage=None,
 ):
     """Consume deadline_findings output. Never re-extract dates or fuzzy-match IDs."""
     builder = Builder(scope, complete=complete, limitations=report["limitations"])
@@ -223,7 +232,10 @@ def deadline_graph(
         if item.get("course_id") != scope.course_id:
             raise ValueError("Deadline item belongs to another course.")
         subject = entities[item["id"]] = builder.entity(E.ASSIGNMENT, item["id"])
-        source = observe(item["source"], extraction_complete=complete)
+        source = observe(
+            item["source"],
+            extraction_complete=complete if item_coverage is None else item_coverage[item["id"]],
+        )
         fact = builder.assert_fact(
             subject,
             "deadline",
@@ -235,15 +247,26 @@ def deadline_graph(
         temporal[fact] = item["effective_due"]
         builder.link(R.BELONGS_TO, subject, course, (fact,))
     # Match identities come only from the existing reconciliation function.
-    matches = {x["obligation_id"]: x["work_id"] for x in report["comparisons"]}
-    matches.update(
-        {x["obligation"]["id"]: x["work_id"] for x in report["findings"] if x.get("work_id")}
-    )
+    matches = {
+        occurrence["obligation_id"]: group["work_id"]
+        for group in report["obligation_groups"]
+        for occurrence in group["occurrences"]
+    }
+    replacements = {
+        o["id"]: o["replaces_obligation_id"]
+        for o in report["obligations"]
+        if "replaces_obligation_id" in o
+    }
+    matches.update({former: matches.get(new) for new, former in replacements.items()})
+    amended_facts = dict.fromkeys((*replacements, *replacements.values()))
     for obligation in report["obligations"]:
         evidence = obligation["evidence"]
+        locator = f"{evidence['locator']}; offset {evidence['offset']}"
+        if obligation["id"] in amended_facts:
+            locator += f"; date offset {obligation['date_offset']}"
         source = observe(
             evidence,
-            locator=f"{evidence['locator']}; offset {evidence['offset']}",
+            locator=locator,
             extraction_complete=evidence["extraction_status"] == "complete_text",
         )
         work = matches.get(obligation["id"])
@@ -257,10 +280,17 @@ def deadline_graph(
             "timestamp": obligation["date"] if obligation["precision"] == "timestamp" else None,
             "local_date": obligation["date"] if obligation["precision"] == "date" else None,
             "timezone": obligation.get("timezone"),
+            "raw_date": obligation.get("raw_date"),
+            "year": obligation.get("year"),
+            "month": obligation.get("month"),
+            "day": obligation.get("day"),
+            "clock": obligation.get("clock"),
+            "deadline_wording": obligation.get("deadline_wording"),
         }
+        historical = obligation.get("interpretation_status") == "historical"
         fact = builder.assert_fact(
             subject,
-            "deadline",
+            "historical_deadline" if historical else "deadline",
             value,
             sources=(source,),
             uncertainty=(
@@ -276,10 +306,15 @@ def deadline_graph(
         builder.link(R.DESCRIBES, passage, subject, (fact,))
         builder.link(R.BELONGS_TO, passage, doc, (passage_fact,))
         # Amendment wording is a candidate signal only; it does not change authority.
-        if work and re.search(
+        if obligation["id"] in amended_facts:
+            amended_facts[obligation["id"]] = fact
+        elif work and re.search(
             r"\b(?:extended|supersedes|replaces|amended)\b", evidence["passage"], re.I
         ):
             builder.link(R.SUPERSEDES, fact, facts[work], (fact,), status="candidate")
+    for new, former in replacements.items():
+        pair = (amended_facts[new], amended_facts[former])
+        builder.link(R.SUPERSEDES, *pair, pair)
     grouped = {}
     for fact in builder.assertions.values():
         if fact.predicate == "deadline":

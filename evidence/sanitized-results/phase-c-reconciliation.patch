@@ -1,0 +1,3227 @@
+--- /dev/null
++++ b/src/canvas_bridge/processes/change_impact.py
+@@ -0,0 +1,313 @@
++"""Criterion-local impact proofs and targeted assembly of the next readiness generation."""
++
++import re
++
++from canvas_bridge.processes import readiness as rd
++from canvas_bridge.processes.change_observation import bindings, sections
++from canvas_bridge.processes.state import failure
++
++
++def governing_sections(text):
++    return {
++        label.split()[0]: body
++        for label, body in sections(text).items()
++        if label and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*\d", label.split()[0])
++    }
++
++
++def scoped_amendment(before, after):
++    """Recognize explicitly limited amendments, while retaining other governing context."""
++    old, new = sections(before), sections(after)
++    if not old or not new:
++        return False
++    old_preamble = set(old[""].splitlines())
++    new_lines = [s for s in new[""].splitlines() if s and s not in old_preamble]
++    # Additional prose or instructions outside a recognized scope require a fresh review.
++    metadata = r"Brief version [\w-]+ applies to the [\w -]+\."
++    declaration = r"This complete (?:synthetic )?(?:instructor )?amendment (?:replaces only [\w-]+ from [\w-]+|changes only [\w-]+'s maximum from \d+ to \d+ seconds|retains [\w-]+ through [\w-]+ and adds [\w-]+|removes [\w-]+ from the required criterion set)\."
++    retained = r"[\w, -]+ (?:retain|maintain) their (?:existing )?criterion identity and wording\."
++    if not any(re.fullmatch(declaration, s) for s in new_lines):
++        return False
++    if not all(
++        any(re.fullmatch(p, s) for p in (metadata, declaration, retained)) for s in new_lines
++    ):
++        return False
++    return all(
++        not s or s in new[""].splitlines() or re.fullmatch(metadata, s)
++        for s in old[""].splitlines()
++    )
++
++
++def reference_proof(row, before, after):
++    """Narrow proofs for a structured reference packet. Unrecognized prose needs review."""
++    old, new = sections(before), sections(after)
++    if not old or not new or old.get("") != new.get(""):
++        return False
++    added = new.keys() - old.keys()
++    modified = {k for k in old.keys() & new.keys() if old[k].strip() != new[k].strip()}
++    if old.keys() - new.keys():
++        return False
++    if not modified and len(added) == 1:
++        heading = next(iter(added))
++        return bool(
++            heading.casefold().endswith("administrative contact")
++            and re.fullmatch(
++                r"The [\w -]+ contact label is [\w -]+\.\s+This contact label supplies administrative metadata for the reference packet\.",
++                new[heading].strip(),
++            )
++        )
++    if row["coverage_rule"] != "all_claims" or "source version" not in row["criterion"].lower():
++        return False
++    amendment = "Field-specific source amendment"
++    if amendment not in modified or len(added) != 1:
++        return False
++    # Versioned records describe data. An inserted instruction, qualification or
++    # changed historical sample cannot inherit a citation-resolution assessment.
++    added_id = next(iter(added))
++    lines = [line for line in new[added_id].splitlines() if line.strip()]
++    patterns = [
++        r"Record status is current\.",
++        r"(?:Synthetic )?issue date is [\d-]+\.",
++        r"The study recorded \d+ [\w ]+ in \d+ [\w ]+\.",
++        r"The reported [\w ]+ is [\d.]+%, calculated as [\d /\u00d7.]+\.",
++    ]
++    if len(lines) != len(patterns) or not all(
++        re.fullmatch(p, t, re.I) for p, t in zip(patterns, lines, strict=True)
++    ):
++        return False
++    changed_block = new[amendment].strip().splitlines()
++    if len(changed_block) != 3 or not (
++        re.fullmatch(
++            re.escape(added_id) + r" supersedes [\w-]+ only for the [\w-]+ field\.",
++            changed_block[0],
++        )
++        and re.fullmatch(
++            r"The archived [\w ,]+ sample values and source identities remain available for historical attribution\.",
++            changed_block[1],
++        )
++        and re.fullmatch(
++            r"[\w-]+ explicitly applies this source amendment to [\w-]+\.", changed_block[2]
++        )
++        and not changed_block[2].endswith(" " + row["requirement_id"] + ".")
++    ):
++        return False
++    return all(
++        old[h].replace("Record status is current.", "Record status is archived.").strip()
++        == new[h].strip()
++        for h in modified - {amendment}
++    )
++
++
++def assess_impacts(record, new_bindings, changes, old_entries, new_entries, partial):
++    previous = {b.logical_id: b for b in bindings(record.data)}
++    selected = {b.logical_id: b for b in new_bindings}
++    impacts = []
++    for row in record.data["requirements"]:
++        ident = row["requirement_id"]
++        deps = rd.dependencies(row, previous.values())
++        statuses = []
++        proofs = []
++        for d in changes:
++            name = d["logical_id"]
++            if name not in deps:
++                continue
++            kind = d["change_class"]
++            if name in partial:
++                parts = {
++                    a["part"] for a in [row["governing"], *row["evidence"]] if a["source"] == name
++                }
++                if (
++                    (
++                        d.get("proof_kind") == "all_native_parts"
++                        and row["coverage_rule"] == "recorded_run"
++                    )
++                    or row["coverage_rule"] in {"absence", "all_claims"}
++                    or not parts.issubset(partial[name])
++                ):
++                    statuses.append("unknown")
++                    continue
++            if kind in {"alias_only", "content_equivalent"}:
++                proofs.append(d["proof_id"])
++                continue
++            if kind in {"incomparable", "unavailable"}:
++                statuses.append(
++                    "affected"
++                    if row["coverage_rule"] == "recorded_run" and d["role"] == "artifact"
++                    else "unknown"
++                )
++                continue
++            if (
++                d["role"] == "brief"
++                and name in previous
++                and name in selected
++                and d["comparison_coverage"] == "complete"
++            ):
++                left, right = (
++                    e[b.document_id]["text"]
++                    for b, e in ((previous[name], old_entries), (selected[name], new_entries))
++                )
++                a, b = governing_sections(left), governing_sections(right)
++                other_changes = [
++                    h
++                    for h in d["changed_sections"]
++                    if h and h.split()[0] not in a.keys() | b.keys()
++                ]
++                if (
++                    not other_changes
++                    and scoped_amendment(left, right)
++                    and ident in a
++                    and a[ident] == b.get(ident)
++                ):
++                    proofs.append(d["proof_id"])
++                    continue
++            if (
++                d["role"] == "reference"
++                and d["comparison_coverage"] == "complete"
++                and name in previous
++                and name in selected
++            ):
++                left = old_entries[previous[name].document_id]
++                right = new_entries[selected[name].document_id]
++                if reference_proof(row, left["text"], right["text"]):
++                    proofs.append(d["proof_id"])
++                    continue
++            statuses.append("affected")
++        impact = "unknown" if "unknown" in statuses else "affected" if statuses else "unaffected"
++        impacts.append(
++            dict(
++                requirement_id=ident,
++                impact_status=impact,
++                dependency_ids=sorted(deps),
++                proof_ids=proofs,
++            )
++        )
++    known = {r["requirement_id"] for r in record.data["requirements"]}
++    for b in new_bindings:
++        if b.role != "brief" or not b.document_id:
++            continue
++        for ident in sorted(governing_sections(new_entries[b.document_id]["text"]).keys() - known):
++            impacts.append(
++                dict(
++                    requirement_id=ident,
++                    impact_status="affected",
++                    correspondence="new_criterion",
++                    dependency_ids=[b.logical_id],
++                    proof_ids=[],
++                )
++            )
++            known.add(ident)
++    return impacts
++
++
++def prior_input(row):
++    return rd.Criterion.model_validate(
++        {k: v for k, v in row.items() if k in rd.Criterion.model_fields}
++    )
++
++
++def pending_row(old, reason):
++    row = prior_input(old)
++    return row.model_copy(
++        update=dict(
++            assessment_status="unknown",
++            rationale="Current evidence requires targeted review.",
++            followup=reason,
++            evidence=(),
++            reviewed_extent=(),
++            coverage="unavailable",
++            measured_artifact_hash=None,
++            candidate_assessments=(),
++            action=None,
++            completion_condition=None,
++            gap_kind=None,
++        )
++    )
++
++
++def targeted_rows(record, stage, request, entries, by_key):
++    previous = {r["requirement_id"]: r for r in record.data["requirements"]}
++    updates = {r.requirement_id: r for r in request.assessments}
++    removed = {r.requirement_id: r for r in request.removals}
++    if (
++        len(updates) != len(request.assessments)
++        or len(removed) != len(request.removals)
++        or updates.keys() & removed.keys()
++        or removed.keys() - previous.keys()
++    ):
++        failure("READINESS_DUPLICATE_REQUIREMENT")
++    for ident, item in removed.items():
++        if (
++            not request.inventory_complete
++            or by_key.get(item.authority.source) is None
++            or by_key[item.authority.source].role != "brief"
++        ):
++            failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
++        source = by_key[item.authority.source]
++        if (
++            item.authority.source in stage["partial_parts"]
++            or not source.document_id
++            or not entries[source.document_id]["coverage"].complete
++        ):
++            failure("READINESS_EXTENT_INVALID")
++        rd.check_anchor(item.authority, by_key, entries)
++        if (
++            not re.search(
++                r"\b(?:remove[sd]?|retire[sd]?|withdraw[n]?|no longer required|not applicable)\b",
++                item.authority.quote,
++                re.I,
++            )
++            or ident not in item.authority.quote
++        ):
++            failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
++    rows = []
++    origins = {}
++    impacts = {r["requirement_id"]: r["impact_status"] for r in stage["impacts"]}
++    additions = {
++        r["requirement_id"]: r
++        for r in stage["impacts"]
++        if r.get("correspondence") == "new_criterion"
++    }
++    for ident in sorted(previous.keys() | updates.keys() | additions.keys()):
++        if ident in removed:
++            continue
++        if ident in updates:
++            row = updates[ident]
++            for extent in row.reviewed_extent:
++                allowed = stage["partial_parts"].get(extent.source)
++                if allowed is not None and set(extent.parts) - set(allowed):
++                    failure("READINESS_EXTENT_INVALID")
++            for a in [
++                row.governing,
++                *row.evidence,
++                *(a for c in row.candidate_assessments for a in c.evidence),
++            ]:
++                allowed = stage["partial_parts"].get(a.source)
++                if allowed is not None and a.part not in allowed:
++                    failure("READINESS_EXTENT_INVALID")
++            origins[ident] = "reassessed"
++        elif ident in additions:
++            name = additions[ident]["dependency_ids"][0]
++            section = governing_sections(entries[by_key[name].document_id]["text"])[ident]
++            quote = next(
++                (line.strip()[:1200] for line in section.splitlines() if line.strip()), None
++            )
++            if not quote:
++                failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
++            row = rd.Criterion(
++                requirement_id=ident,
++                criterion=quote,
++                governing=rd.Anchor(source=name, part=1, quote=quote),
++                applicability="unknown",
++                applicability_basis="New governing section awaits scope review.",
++                rationale="No current assessment has been supplied.",
++                followup="review_new_criterion",
++            )
++            origins[ident] = "pending"
++        elif impacts[ident] == "unaffected":
++            row = prior_input(previous[ident])
++            origins[ident] = "carried_forward"
++        else:
++            row = pending_row(previous[ident], "review_changed_source")
++            origins[ident] = "pending"
++        rows.append(row)
++    return rows, origins
+--- /dev/null
++++ b/src/canvas_bridge/processes/change_observation.py
+@@ -0,0 +1,151 @@
++"""Bounded, source-authorized comparisons for explicitly selected readiness versions."""
++
++import base64
++import hashlib
++import io
++import re
++import unicodedata
++import zlib
++from pathlib import PurePosixPath
++from zipfile import BadZipFile, ZipFile
++
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes.readiness import Binding
++from canvas_bridge.processes.requests import ProcessScope
++from canvas_bridge.processes.state import failure
++
++
++def source_entries(service, owner, record, selected):
++    ids = tuple(b.document_id for b in selected if b.document_id)
++    if not ids:
++        failure("READINESS_SOURCE_UNAVAILABLE")
++    entries = service.load(
++        owner,
++        ProcessScope(document_ids=ids, local_course=record.scope.course, term=record.scope.term),
++    )
++    from canvas_bridge.processes.readiness import bind
++
++    bind(entries, selected)
++    if any(entry["tag"].scope != record.scope for entry in entries.values()):
++        failure("PROCESS_SCOPE_MISMATCH")
++    return entries
++
++
++def native_manifest(raw):
++    """Compare every canonical part; ambiguous or oversized packages cannot prove equivalence."""
++    parts = {}
++    try:
++        with ZipFile(io.BytesIO(raw)) as package:
++            members = package.infolist()
++            if len(members) > 4096 or sum(i.file_size for i in members) > 64 * 1024 * 1024:
++                return None
++            for item in members:
++                name = item.filename
++                path = PurePosixPath(name)
++                if (
++                    item.orig_filename != name
++                    or not name
++                    or name.startswith("/")
++                    or ":" in name
++                    or "\x00" in name
++                    or "\\" in name
++                    or "%" in name
++                    or unicodedata.normalize("NFC", name) != name
++                    or path.as_posix() != name
++                    or ".." in path.parts
++                    or name.casefold() in parts
++                    or item.flag_bits & 1
++                ):
++                    return None
++                parts[name.casefold()] = (name, hashlib.sha256(package.read(item)).hexdigest())
++    except (BadZipFile, RuntimeError, ValueError, NotImplementedError, OSError, zlib.error):
++        return None
++    if "[content_types].xml" not in parts or "ppt/presentation.xml" not in parts:
++        return None
++    return parts
++
++
++def sections(text):
++    chunks = re.split(r"(?m)^## (.+?)\s*$", text)
++    result = {"": chunks[0]}
++    for label, body in zip(chunks[1::2], chunks[2::2], strict=True):
++        if label in result:
++            return {}
++        result[label] = body
++    return result
++
++
++def compare(service, owner, before, after):
++    """Use the imported bytes. An extracted quote never proves native package equivalence."""
++    row = service.bridge.independent.require
++    result = dict(
++        logical_id=after.logical_id,
++        role=after.role,
++        before_hash=before.content_hash if before else None,
++        after_hash=after.content_hash,
++        comparison_coverage="complete",
++        changed_sections=[],
++    )
++    if not after.document_id or not before or not before.document_id:
++        return result | dict(
++            change_class="unavailable" if not after.document_id else "content_changed",
++            comparison_coverage="unavailable",
++        )
++    if before.role != after.role:
++        return result | dict(change_class="incomparable", comparison_coverage="unavailable")
++    left, right = row(owner, before.document_id), row(owner, after.document_id)
++    if (left.version_hash, right.version_hash) != (before.content_hash, after.content_hash):
++        failure("READINESS_VERSION_MISMATCH")
++    if left.version_hash == right.version_hash:
++        return result | dict(change_class="alias_only", proof_id=left.version_hash)
++    lraw, rraw = (base64.b64decode(r.content["bytes"], validate=True) for r in (left, right))
++    if (
++        hashlib.sha256(lraw).hexdigest() != before.content_hash
++        or hashlib.sha256(rraw).hexdigest() != after.content_hash
++    ):
++        failure("READINESS_VERSION_MISMATCH")
++    if left.content["format"] == right.content["format"] == "pptx":
++        a, b = native_manifest(lraw), native_manifest(rraw)
++        if a is not None and a == b:
++            return result | dict(
++                change_class="content_equivalent",
++                proof_kind="all_native_parts",
++                proof_id=fingerprint(a),
++                part_count=len(a),
++            )
++        return result | dict(
++            change_class="content_changed" if a and b else "incomparable",
++            comparison_coverage="complete" if a and b else "partial",
++        )
++    try:
++        texts = [raw.decode("utf-8-sig").replace("\r\n", "\n") for raw in (lraw, rraw)]
++    except UnicodeDecodeError:
++        return result | dict(change_class="incomparable", comparison_coverage="partial")
++
++    # Preserve punctuation, case and word boundaries; allow blank-line-only remapping.
++    def clean(t):
++        return tuple(line for line in t.splitlines() if line.strip())
++
++    if (
++        all(len(t) <= 200_000 for t in texts)
++        and not any(re.search(r"(?m)^(?:    |\t|`{3}|~{3}|[<>|])", t) for t in texts)
++        and clean(texts[0]) == clean(texts[1])
++    ):
++        return result | dict(
++            change_class="content_equivalent",
++            proof_kind="nonblank_lines",
++            proof_id=fingerprint(clean(texts[0])),
++        )
++    if any(len(t) > 200_000 for t in texts):
++        return result | dict(change_class="content_changed", comparison_coverage="partial")
++    a, b = map(sections, texts)
++    changes = sorted(k for k in a.keys() | b.keys() if clean(a.get(k, "")) != clean(b.get(k, "")))
++    return result | dict(
++        change_class="content_changed",
++        changed_sections=changes if a and b else [],
++        proof_id=fingerprint([left.version_hash, right.version_hash]),
++    )
++
++
++def bindings(data):
++    return [Binding.model_validate(b) for b in data["bindings"]]
+--- /dev/null
++++ b/src/canvas_bridge/processes/change_service.py
+@@ -0,0 +1,600 @@
++"""Stage, apply and compensate a version-bound transition through the owned process journal."""
++
++from typing import Annotated, Literal
++
++from pydantic import Field
++
++from canvas_bridge.domain import Result
++from canvas_bridge.evidence import fingerprint
++from canvas_bridge.processes import readiness as rd
++from canvas_bridge.processes.change_impact import assess_impacts, targeted_rows
++from canvas_bridge.processes.change_observation import bindings, compare, source_entries
++from canvas_bridge.processes.change_work import reconcile
++from canvas_bridge.processes.models import Model, Ref
++from canvas_bridge.processes.state import failure
++
++
++class ChangeRequest(Model):
++    record_id: Ref
++    expected_revision: int = Field(ge=1)
++    idempotency_key: Ref
++
++
++class Observation(ChangeRequest):
++    selection_mode: Literal["explicit", "refresh"] = "explicit"
++    target: tuple[rd.Binding, ...] = Field(min_length=1, max_length=6)
++    advertised_hashes: dict[rd.Key, rd.Digest] = Field(default_factory=dict, max_length=6)
++    source_parents: dict[rd.Key, rd.Digest] = Field(default_factory=dict, max_length=6)
++    partial_parts: dict[rd.Key, list[Annotated[int, Field(ge=1, le=200)]]] = Field(
++        default_factory=dict, max_length=6
++    )
++
++
++class Removal(Model):
++    requirement_id: rd.Key
++    authority: rd.Anchor
++
++
++class Reassessment(ChangeRequest):
++    change_id: Ref
++    assessments: tuple[rd.Criterion, ...] = Field(default=(), max_length=40)
++    removals: tuple[Removal, ...] = Field(default=(), max_length=40)
++    inventory_complete: bool
++    material_changes: tuple[rd.Key, ...] = Field(default=(), max_length=40)
++
++
++class Compensation(ChangeRequest):
++    applied_revision: int = Field(ge=1)
++
++
++def commit(service, owner, request, build, effect_id=None, replaced_tags=()):
++    return service.repository.save_readiness(
++        owner,
++        request.record_id,
++        request.expected_revision,
++        request.idempotency_key,
++        fingerprint([type(request).__name__, request.model_dump(mode="json")]),
++        build,
++        replaced_tags=replaced_tags,
++        effect_id=effect_id
++        or fingerprint(
++            [type(request).__name__, request.model_dump(mode="json", exclude={"idempotency_key"})]
++        ),
++    )
++
++
++def base_for(service, owner, request):
++    service.enabled()
++    return rd.snapshot(service.repository, owner, request.record_id, request.expected_revision)
++
++
++def replaced_sources(record, target):
++    """Exact old versions lost to an in-place replacement; never read their cached text."""
++    new = {b.logical_id: b for b in target}
++    return {
++        b.logical_id
++        for b in bindings(record.data)
++        if b.document_id
++        and b.logical_id in new
++        and new[b.logical_id].document_id == b.document_id
++        and new[b.logical_id].content_hash != b.content_hash
++    }
++
++
++def replacement_tags(record, target, entries):
++    changed = replaced_sources(record, target)
++    ids = {b.document_id: b.content_hash for b in bindings(record.data) if b.logical_id in changed}
++    return {
++        t.key: entries[t.id]["tag"]
++        for t in record.sources
++        if t.id in ids and t.version == ids[t.id]
++    }
++
++
++async def observe(service, owner, request):
++    previous = base_for(service, owner, request)
++    old = bindings(previous.data)
++    replaced = replaced_sources(previous, request.target)
++    accessible = [b for b in old if b.logical_id not in replaced]
++    await rd.authorize_bindings(service.bridge, owner, accessible)
++    await rd.authorize_bindings(service.bridge, owner, request.target)
++    prior = {b.logical_id: b for b in old}
++    by_key = {b.logical_id: b for b in request.target}
++    if prior.keys() - by_key.keys():
++        failure(
++            "READINESS_SELECTION_INVALID",
++            "Keep a logical binding for explicitly unavailable replacements.",
++        )
++    old_entries = (
++        source_entries(service, owner, previous, accessible)
++        if any(b.document_id for b in accessible)
++        else {}
++    )
++    new_entries = source_entries(service, owner, previous, request.target)
++    for key, parts in request.partial_parts.items():
++        if (
++            key not in by_key
++            or not by_key[key].document_id
++            or not set(parts) <= new_entries[by_key[key].document_id]["coverage"].seen
++        ):
++            failure("READINESS_EXTENT_INVALID")
++    comparisons = [
++        dict(
++            logical_id=b.logical_id,
++            role=b.role,
++            before_hash=prior[b.logical_id].content_hash,
++            after_hash=b.content_hash,
++            comparison_coverage="unavailable",
++            changed_sections=[],
++            change_class="incomparable",
++            reason="prior_version_unavailable",
++        )
++        if b.logical_id in replaced
++        else compare(service, owner, prior.get(b.logical_id), b)
++        for b in request.target
++    ]
++    if (
++        request.source_parents.keys() - by_key.keys()
++        or request.advertised_hashes.keys() - by_key.keys()
++    ):
++        failure("READINESS_SELECTION_INVALID")
++    for c in comparisons:
++        logical = c["logical_id"]
++        if logical in request.advertised_hashes:
++            if c["after_hash"] and c["after_hash"] != request.advertised_hashes[logical]:
++                failure("READINESS_VERSION_MISMATCH")
++            c["advertised_hash"] = request.advertised_hashes[logical]
++        if logical in request.source_parents:
++            c["parent_hash"] = request.source_parents[logical]
++            if c["parent_hash"] != c["before_hash"] and c["comparison_coverage"] != "complete":
++                c.update(change_class="incomparable", comparison_coverage="partial")
++        if (
++            c["logical_id"] in request.partial_parts
++            and c.get("parent_hash")
++            and c["parent_hash"] != c["before_hash"]
++        ):
++            c["change_class"] = "incomparable"
++        if c["logical_id"] in request.partial_parts:
++            c["comparison_coverage"] = "partial"
++    if request.selection_mode == "refresh":
++        for comparison in comparisons:
++            if (
++                comparison.get("parent_hash")
++                and comparison["parent_hash"] != comparison["before_hash"]
++            ):
++                comparison.update(change_class="incomparable", comparison_coverage="partial")
++    impacts = assess_impacts(
++        previous, request.target, comparisons, old_entries, new_entries, request.partial_parts
++    )
++    for comparison in comparisons:
++        name = comparison["logical_id"]
++        if comparison.get("proof_kind") != "nonblank_lines":
++            continue
++        old_lines = old_entries[prior[name].document_id]["text"].splitlines()
++        new_lines = new_entries[by_key[name].document_id]["text"].splitlines()
++        remaps = []
++        for row in previous.data["requirements"]:
++            for anchor in (row["governing"], *row["evidence"]):
++                if anchor["source"] != name:
++                    continue
++                old_at = [i for i, line in enumerate(old_lines, 1) if anchor["quote"] in line]
++                new_at = [i for i, line in enumerate(new_lines, 1) if anchor["quote"] in line]
++                if len(old_at) == len(new_at) == 1 and old_at != new_at:
++                    remaps.append(
++                        dict(
++                            requirement_id=row["requirement_id"],
++                            before_line=old_at[0],
++                            after_line=new_at[0],
++                        )
++                    )
++        comparison["locator_remaps"] = remaps
++    target = [b.model_dump(mode="json") for b in request.target]
++    change_id = fingerprint(
++        [
++            previous.id,
++            previous.data["assessment_revision"],
++            sorted((b.logical_id, b.role, b.content_hash) for b in request.target),
++            request.partial_parts,
++            request.advertised_hashes,
++            request.source_parents,
++            request.selection_mode,
++        ]
++    )
++
++    current = rd.snapshot(service.repository, owner, request.record_id)
++    historical_parent = False
++    if request.selection_mode == "refresh":
++        logical_history = current.data.get("binding_history", {})
++        historical_parent = any(
++            c.get("parent_hash")
++            and c["parent_hash"] != c["before_hash"]
++            and c["after_hash"] in logical_history.get(c["logical_id"], [])
++            for c in comparisons
++        )
++    if (
++        historical_parent
++        or current.revision != request.expected_revision
++        and current.data.get("change_report", {}).get("change_id") != change_id
++        and current.data.get("pending_change", {}).get("change_id") != change_id
++    ):
++        receipt = service.repository.observe_historical(
++            owner,
++            request.record_id,
++            request.expected_revision,
++            request.idempotency_key,
++            fingerprint([type(request).__name__, request.model_dump(mode="json")]),
++            change_id,
++        )
++        return Result(
++            summary="Historical observation recorded against its original base.", data=receipt
++        )
++
++    def build(before, now):
++        stage = dict(
++            change_id=change_id,
++            processing_state="pending",
++            base_revision=previous.revision,
++            target=target,
++            comparisons=comparisons,
++            impacts=impacts,
++            partial_parts=request.partial_parts,
++            observed_at=now.isoformat(),
++            selection_mode=request.selection_mode,
++        )
++        sources = {t.key: t for t in previous.sources if t.id in {b.document_id for b in old}}
++        sources.update({e["tag"].key: e["tag"] for e in new_entries.values()})
++        return before.model_copy(
++            update=dict(
++                revision=before.revision + 1,
++                updated_at=now,
++                sources=tuple(sources.values()),
++                data=before.data | {"pending_change": stage},
++            )
++        )
++
++    receipt = commit(
++        service,
++        owner,
++        request,
++        build,
++        replaced_tags=replacement_tags(previous, request.target, new_entries),
++        effect_id=fingerprint(["observe", previous.id, request.expected_revision, change_id]),
++    )
++    return Result(summary="Change observation saved.", data=receipt | dict(change_id=change_id))
++
++
++async def apply_change(service, owner, request):
++    previous = base_for(service, owner, request)
++    stage = previous.data.get("pending_change")
++    if not stage or stage["change_id"] != request.change_id:
++        failure("PROCESS_REVISION_MISMATCH")
++    if any(
++        c.get("parent_hash")
++        and c["parent_hash"] != c["before_hash"]
++        and c["comparison_coverage"] != "complete"
++        for c in stage["comparisons"]
++    ):
++        failure("CHANGE_PARENT_UNRESOLVED")
++    target = tuple(rd.Binding.model_validate(b) for b in stage["target"])
++    replaced = replaced_sources(previous, target)
++    await rd.authorize_bindings(
++        service.bridge, owner, [b for b in bindings(previous.data) if b.logical_id not in replaced]
++    )
++    await rd.authorize_bindings(service.bridge, owner, target)
++    entries = source_entries(service, owner, previous, target)
++    rows, origins = targeted_rows(
++        previous, stage, request, entries, {b.logical_id: b for b in target}
++    )
++    for index, row in enumerate(rows):
++        # The old measurement remains historical when a selected replacement has no verified bytes.
++        if row.coverage_rule == "recorded_run" and any(
++            c["role"] == "artifact" and not c["after_hash"] for c in stage["comparisons"]
++        ):
++            rows[index] = row.model_copy(
++                update=dict(
++                    assessment_status="unknown",
++                    coverage="unavailable",
++                    followup="review_changed_source",
++                    gap_kind=None,
++                    action=None,
++                    completion_condition=None,
++                )
++            )
++    if set(request.material_changes) - {r.requirement_id for r in request.assessments}:
++        failure("READINESS_SELECTION_INVALID")
++    review = rd.Review(
++        assignment_id=previous.data["assignment_id"],
++        course=previous.scope.course,
++        term=previous.scope.term,
++        expected_revision=request.expected_revision,
++        idempotency_key=request.idempotency_key,
++        review_scope=previous.data["review_scope"],
++        membership_complete=request.inventory_complete,
++        bindings=target,
++        requirements=rows,
++        requested_work=[
++            r["requirement_id"]
++            for r in previous.data["requirements"]
++            if r.get("work_item", {}).get("work_basis") == "explicit_user_request"
++            and r["requirement_id"] in origins
++            and origins[r["requirement_id"]] == "carried_forward"
++        ],
++    )
++    # Newly enumerated governing criteria cannot silently inherit an old complete inventory.
++    from canvas_bridge.processes.change_impact import governing_sections
++
++    recognized = set().union(
++        *(
++            governing_sections(entries[b.document_id]["text"]).keys()
++            for b in target
++            if b.role == "brief" and b.document_id
++        )
++    )
++    if recognized - {r.requirement_id for r in rows}:
++        review = review.model_copy(update={"membership_complete": False})
++    equivalences = {}
++    for c in stage["comparisons"]:
++        if c["role"] != "artifact" or c["comparison_coverage"] != "complete":
++            continue
++        if c.get("proof_kind") == "all_native_parts":
++            equivalences[(c["before_hash"], c["after_hash"])] = c["proof_id"]
++        if c.get("proof_kind") == "all_native_parts" or c["change_class"] == "alias_only":
++            for saved_row in previous.data["requirements"]:
++                proof = saved_row.get("measurement_equivalence")
++                if proof and proof["selected_hash"] == c["before_hash"]:
++                    equivalences[(saved_row["measured_artifact_hash"], c["after_hash"])] = (
++                        fingerprint([proof, c["proof_id"]])
++                    )
++    key, prepare = rd.prepare_review(service, owner, review, equivalent_payloads=equivalences)
++    if key != previous.id:
++        failure("PROCESS_SCOPE_MISMATCH")
++    old = {r["requirement_id"]: r for r in previous.data["requirements"]}
++
++    # The new generation may outlive access to its predecessor. Never copy old-only
++    # heading text into a report released under the target sources' permissions.
++    permitted_comparisons = []
++    for c in stage["comparisons"]:
++        b = next(b for b in target if b.logical_id == c["logical_id"])
++        text = entries[b.document_id]["text"] if b.document_id else ""
++        permitted_comparisons.append(
++            c
++            | {
++                "changed_sections": [
++                    h if h in text else fingerprint(h) for h in c["changed_sections"]
++                ]
++            }
++        )
++
++    def build(before, now):
++        record = prepare(before, now)
++        data = record.data
++        for row in data["requirements"]:
++            ident = row["requirement_id"]
++            alias_only = all(c["change_class"] == "alias_only" for c in stage["comparisons"])
++            row["assessment_origin"] = (
++                "unchanged"
++                if alias_only and origins[ident] == "carried_forward"
++                else origins[ident]
++            )
++            if origins[ident] == "pending" and old.get(ident, {}).get("measured_artifact_hash"):
++                row["historical_measurement_hash"] = old[ident]["measured_artifact_hash"]
++            if origins[ident] == "carried_forward":
++                row["original_assessor_basis"] = old[ident].get(
++                    "original_assessor_basis", old[ident]["basis"]
++                )
++                row["carry_forward_validated_at"] = now.isoformat()
++                row["original_assessed_at"] = old[ident].get(
++                    "original_assessed_at", before.data["assessed_at"]
++                )
++                row["original_assessment_revision"] = old[ident].get(
++                    "original_assessment_revision", before.data["assessment_revision"]
++                )
++                evidence = next(i for i in stage["impacts"] if i["requirement_id"] == ident)
++                row["carry_forward_proof"] = fingerprint(evidence)
++            for (measured, selected), proof in equivalences.items():
++                if row.get("measured_artifact_hash") == measured:
++                    row["measurement_equivalence"] = dict(
++                        measured_hash=measured, selected_hash=selected, proof_id=proof
++                    )
++        material = set(request.material_changes)
++        for comparison in stage["comparisons"]:
++            if comparison["role"] == "brief":
++                for label in comparison["changed_sections"]:
++                    parts = label.split()
++                    if (
++                        parts
++                        and parts[0] in old
++                        and parts[0] in origins
++                        and origins[parts[0]] == "reassessed"
++                    ):
++                        rid = parts[0]
++                        updated = next(
++                            r for r in data["requirements"] if r["requirement_id"] == rid
++                        )
++                        if updated["governing"]["quote"] != old[rid]["governing"]["quote"]:
++                            material.add(rid)
++        history, progress, actions, fields = reconcile(before, record, stage, material)
++        lineage = dict(before.data.get("binding_history", {}))
++        for c in stage["comparisons"]:
++            seq = list(lineage.get(c["logical_id"], []))
++            for version in (c["before_hash"], c["after_hash"]):
++                if version and (not seq or seq[-1] != version):
++                    seq.append(version)
++            lineage[c["logical_id"]] = seq[-32:]
++        if (
++            all(c["change_class"] == "alias_only" for c in stage["comparisons"])
++            and not request.assessments
++            and not request.removals
++        ):
++            data.update(
++                assessment_revision=before.data["assessment_revision"],
++                assessed_at=before.data["assessed_at"],
++            )
++        data.update(
++            work_history=history,
++            binding_history=lineage,
++            personal_fields=fields,
++            progress=progress,
++            change_report=dict(
++                change_id=stage["change_id"],
++                base_revision=stage["base_revision"],
++                applied_revision=record.revision,
++                processing_state="applied",
++                impacts=stage["impacts"]
++                + [
++                    dict(
++                        requirement_id=k, impact_status="affected", dependency_ids=[], proof_ids=[]
++                    )
++                    for k in sorted(
++                        origins.keys() - {i["requirement_id"] for i in stage["impacts"]}
++                    )
++                ],
++                comparisons=permitted_comparisons,
++                work_actions=actions,
++                removed_requirement_ids=[r.requirement_id for r in request.removals],
++            ),
++        )
++        return record
++
++    return Result(
++        summary="Reconciled readiness generation committed.",
++        data=commit(
++            service,
++            owner,
++            request,
++            build,
++            replaced_tags=replacement_tags(previous, target, entries),
++        ),
++    )
++
++
++async def report(service, owner, record_id):
++    service.enabled()
++    record = rd.snapshot(service.repository, owner, record_id)
++    stage = record.data.get("pending_change")
++    saved = stage or record.data.get("change_report")
++    if not saved:
++        failure("PROCESS_RECORD_UNAVAILABLE")
++    selected = [rd.Binding.model_validate(b) for b in stage["target"]] if stage else []
++    lost = replaced_sources(record, selected)
++    await rd.authorize_bindings(
++        service.bridge, owner, [b for b in bindings(record.data) if b.logical_id not in lost]
++    )
++    if stage:
++        await rd.authorize_bindings(
++            service.bridge, owner, [rd.Binding.model_validate(b) for b in stage["target"]]
++        )
++    from collections import Counter
++
++    saved = dict(saved)
++    impacts = saved.get("impacts", [])
++    actions = saved.get("work_actions", [])
++    saved["impact_counts"] = dict(Counter(i["impact_status"] for i in impacts))
++    saved["action_counts"] = dict(Counter(a["work_action"] for a in actions))
++    data = dict(record_id=record.id, revision=record.revision, change_report=saved)
++    data["attempts"] = service.repository.observation_attempts(owner, record.id)
++    if stage:
++        statuses = {
++            r["requirement_id"]: r["assessment_status"] for r in record.data["requirements"]
++        }
++        pending = [
++            r
++            | {
++                "assessment_status": statuses[r["requirement_id"]]
++                if r["impact_status"] == "unaffected"
++                else "unknown"
++            }
++            for r in stage["impacts"]
++        ]
++        data["current_selection"] = pending
++        stored = {r["requirement_id"]: r for r in record.data["requirements"]}
++        inventory_known = record.data["membership_complete"] and not any(
++            c["role"] == "brief" and c["change_class"] not in {"alias_only", "content_equivalent"}
++            for c in stage["comparisons"]
++        )
++        data["pending_projection"] = rd.summarize(
++            [
++                stored.get(p["requirement_id"], {"required": True, "applicability": "unknown"})
++                | {"assessment_status": p["assessment_status"]}
++                for p in pending
++            ],
++            inventory_known,
++        )
++
++    return Result(
++        summary="Saved change and work reconciliation.",
++        data=data,
++        sources=service.citations(
++            owner,
++            [
++                t
++                for t in record.sources
++                if not any(
++                    b.logical_id in lost and b.document_id == t.id and b.content_hash == t.version
++                    for b in bindings(record.data)
++                )
++            ],
++        ),
++    )
++
++
++async def compensate(service, owner, request):
++    current = base_for(service, owner, request)
++    applied = rd.snapshot(service.repository, owner, current.id, request.applied_revision)
++    change = applied.data.get("change_report", {})
++    if (
++        current.data.get("pending_change")
++        or change.get("applied_revision") != applied.revision
++        or current.data.get("change_report", {}).get("applied_revision") != request.applied_revision
++        or current.data.get("assessment_revision") != applied.data["assessment_revision"]
++        or change.get("processing_state") != "applied"
++    ):
++        failure("PROCESS_REVISION_MISMATCH")
++    prior = rd.snapshot(service.repository, owner, current.id, change["base_revision"])
++    await rd.authorize_bindings(service.bridge, owner, bindings(current.data))
++    await rd.authorize_bindings(service.bridge, owner, bindings(prior.data))
++
++    def build(before, now):
++        restored = dict(prior.data["progress"])
++        actions = {
++            a["current_occurrence_id"]: a
++            for a in change["work_actions"]
++            if a["current_occurrence_id"]
++        }
++        for key, state in before.data["progress"].items():
++            if state == applied.data["progress"].get(key):
++                continue
++            action = actions.get(key)
++            if not action or action["work_action"] not in {"keep", "update"}:
++                failure(
++                    "PROCESS_REVISION_MISMATCH",
++                    "Later progress applies to a changed episode; review before compensating.",
++                )
++            restored[action["prior_occurrence_id"]] = state
++        personal = dict(prior.data.get("personal_fields", {}))
++        for key, values in before.data.get("personal_fields", {}).items():
++            if values == applied.data.get("personal_fields", {}).get(key, {}):
++                continue
++            action = actions.get(key)
++            if not action or action["work_action"] not in {"keep", "update"}:
++                failure("PROCESS_REVISION_MISMATCH")
++            personal[action["prior_occurrence_id"]] = values
++        data = prior.data | dict(
++            progress=restored,
++            personal_fields=personal,
++            change_report=dict(
++                change_id=change["change_id"],
++                processing_state="compensated",
++                compensated_revision=applied.revision,
++                base_revision=prior.revision,
++                applied_revision=before.revision + 1,
++            ),
++        )
++        return prior.model_copy(
++            update=dict(data=data, revision=before.revision + 1, updated_at=now)
++        )
++
++    return Result(
++        summary="Scoped reconciliation compensation committed.",
++        data=commit(service, owner, request, build),
++    )
+--- /dev/null
++++ b/src/canvas_bridge/processes/change_work.py
+@@ -0,0 +1,137 @@
++"""Reconcile version-bound work occurrences without treating progress as artifact evidence."""
++
++from canvas_bridge.evidence import fingerprint
++
++
++def reconcile(before, after, stage, material_changes):
++    old = {r["requirement_id"]: r for r in before.data["requirements"]}
++    new = {r["requirement_id"]: r for r in after.data["requirements"]}
++    history = {k: dict(v) for k, v in before.data.get("work_history", {}).items()}
++    actions = []
++    progress = {}
++    fields = {}
++    alias_only = all(c["change_class"] == "alias_only" for c in stage["comparisons"])
++    for ident in sorted(old.keys() | new.keys()):
++        previous = old.get(ident, {})
++        current = new.get(ident, {})
++        prior = previous.get("work_item")
++        work = current.get("work_item")
++        lineage = history.get(ident)
++        if prior:
++            lineage = dict(
++                lineage or {},
++                lineage_id=prior.get(
++                    "lineage_id", fingerprint([before.id, ident, previous["gap_kind"]])
++                ),
++                episode_id=prior.get(
++                    "episode_id", fingerprint([before.id, prior["work_id"], "episode"])
++                ),
++                occurrence_id=prior["work_id"],
++                gap_kind=previous["gap_kind"],
++                state="active",
++                prior_progress=before.data["progress"].get(prior["work_id"], "unknown"),
++            )
++        if not lineage and not work:
++            continue
++        if not work:
++            if not prior and (not lineage or lineage["state"] != "pending"):
++                continue
++            if not current or current.get("applicability") == "not_applicable":
++                action = "retire"
++            elif current["assessment_status"] == "satisfied":
++                action = "resolve"
++            else:
++                action = "review_needed"
++            lineage["state"] = {
++                "resolve": "resolved",
++                "retire": "retired",
++                "review_needed": "pending",
++            }[action]
++        else:
++            if not lineage:
++                action = "create"
++                lineage = dict(lineage_id=fingerprint([before.id, ident, current["gap_kind"]]))
++            elif (
++                lineage["state"] in {"resolved", "retired"}
++                or ident in material_changes
++                or lineage.get("gap_kind") != current["gap_kind"]
++            ):
++                action = "reopen"
++            elif prior and (
++                previous["action"] != current["action"]
++                or previous["completion_condition"] != current["completion_condition"]
++                or before.data["requirement_set_revision"] != after.data["requirement_set_revision"]
++                or any(
++                    c.get("proof_kind") == "nonblank_lines"
++                    and c["logical_id"] in {a["source"] for a in previous["evidence"]}
++                    for c in stage["comparisons"]
++                )
++            ):
++                action = "update"
++            else:
++                action = "keep"
++            fresh = action in {"create", "reopen"}
++            if fresh:
++                lineage["episode_id"] = fingerprint(
++                    [lineage["lineage_id"], stage["change_id"], ident]
++                )
++            state = "not_started" if fresh else lineage.get("prior_progress", "unknown")
++            occurrence = (
++                fingerprint([work["work_id"], lineage["episode_id"]])
++                if fresh or not prior
++                else (
++                    prior["work_id"]
++                    if alias_only or before.data["bindings"] == after.data["bindings"]
++                    else fingerprint([work["work_id"], lineage["episode_id"]])
++                )
++            )
++            work.update(
++                work_id=occurrence,
++                lineage_id=lineage["lineage_id"],
++                episode_id=lineage["episode_id"],
++                progress_basis="system_default"
++                if fresh or state in {"unknown", "not_started"}
++                else "user_declaration",
++            )
++            progress[occurrence] = state
++            if not fresh:
++                original_fields = before.data.get("personal_fields", {}).get(
++                    prior["work_id"] if prior else lineage.get("occurrence_id"), {}
++                )
++                fields[occurrence] = dict(original_fields)
++            if (
++                fresh
++                and prior
++                and before.data.get("personal_fields", {}).get(prior["work_id"], {}).get("effort")
++            ):
++                work["effort_review_needed"] = True
++                work["historical_estimate_revision"] = stage["base_revision"]
++            lineage.update(
++                state="active",
++                occurrence_id=occurrence,
++                gap_kind=current["gap_kind"],
++                prior_progress=state,
++            )
++        history[ident] = lineage
++        actions.append(
++            dict(
++                requirement_id=ident,
++                work_action=action,
++                lineage_id=lineage["lineage_id"],
++                episode_id=lineage["episode_id"],
++                prior_occurrence_id=prior["work_id"] if prior else None,
++                current_occurrence_id=work["work_id"] if work else None,
++            )
++        )
++    reasons = {
++        "keep": "same_fulfillment_scope",
++        "update": "continuing_gap_rebound",
++        "reopen": "recurrence_or_new_fulfillment",
++        "resolve": "current_satisfaction",
++        "retire": "supported_scope_exclusion",
++        "create": "new_supported_gap",
++        "review_needed": "insufficient_current_evidence",
++    }
++    for decision in actions:
++        decision["action_reason"] = reasons[decision["work_action"]]
++    return history, progress, actions, fields
+--- a/src/canvas_bridge/processes/privacy.py
++++ b/src/canvas_bridge/processes/privacy.py
+@@ -2,7 +2,21 @@
+ 
+ FIELDS = frozenset(
+     """
+-candidate_assessments candidate_id claim plan revision progress_state applicability_basis_kind reference_validation affected_sources version_match plan_as_of selected_bindings rereview_needed work_basis payload_type membership_complete logical_id governing criterion assessment_status applicability applicability_basis
++pending_observation action_reason impact_counts action_counts affected unaffected keep update resolve retire create reopen review_needed
++historical_measurement_hash correspondence original_assessor_basis carry_forward_validated_at
++measured_hash selected_hash attempts attempt_id selection_mode pending_projection locator_remaps
++before_line after_line personal_note personal_title declaration_id progress_basis
++effort_review_needed historical_estimate_revision parent_hash advertised_hash effect_id change_id
++change_report base_revision applied_revision compensated_revision partial_parts pending_change
++work_actions work_action processing_state comparisons impacts dependency_ids proof_ids impact_status
++proof_kind proof_id changed_sections before_hash after_hash comparison_coverage change_class
++observation_id current_selection target part_count observed_at remaining_work original_assessed_at
++original_assessment_revision carry_forward_proof assessment_origin measurement_equivalence
++lineage_id episode_id prior_occurrence_id current_occurrence_id removed_requirement_ids
++candidate_assessments candidate_id claim plan revision progress_state applicability_basis_kind
++reference_validation affected_sources version_match plan_as_of selected_bindings rereview_needed
++work_basis payload_type membership_complete logical_id governing criterion assessment_status
++applicability applicability_basis
+ rationale coverage_rule reviewed_extent surface quote followup gap_kind action completion_condition measured_artifact_hash
+ work_item definition_version summary_status applicable_required not_applicable_required unknown_applicability_required
+ requirement_id requirement_ids requirement_set_revision assessment_revision assessed_at view_mode review_scope
+@@ -20,7 +34,9 @@
+ event_id correlation_id component_version category sharing_status contains_coursework schema_version
+ classification reschedule_proposed deadline_seconds external_action approval_required_for_external_write
+ signals collisions merge_allowed confirmation_required proposal_id originals_preserved permission_union
+-reviewed_parent deadline_assertions child_work_ids calendar_projection proposal_count canonical_inventory reviewed_association identity_signal_basis canonical_id aliases permission_mode reversible external_id course_code section start_date
++reviewed_parent deadline_assertions child_work_ids calendar_projection proposal_count
++canonical_inventory reviewed_association identity_signal_basis canonical_id aliases permission_mode
++reversible external_id course_code section start_date
+ assignment_id stage archived next_step integrity_decision observed kind minimum_minutes maximum_minutes
+ prerequisites maximum_minutes work_id cases case shortfall_minutes effort_minutes capacity_minutes_before_breaks
+ calendar_changed external_write_requires_separate_preview_and_consent assumptions blocks
+--- a/src/canvas_bridge/processes/readiness.py
++++ b/src/canvas_bridge/processes/readiness.py
+@@ -4,6 +4,7 @@
+ 
+ from pydantic import Field, model_validator
+ 
++from canvas_bridge.domain import Effort
+ from canvas_bridge.evidence import fingerprint
+ from canvas_bridge.processes.models import Model, Ref
+ from canvas_bridge.processes.state import failure
+@@ -162,7 +163,7 @@
+         )
+ 
+ 
+-def assess(row, bindings, entries):
++def assess(row, bindings, entries, *, equivalent_payloads=()):
+     if row.governing.source not in bindings or bindings[row.governing.source].role != "brief":
+         failure("READINESS_REQUIREMENT_SOURCE_REQUIRED")
+     check_anchor(row.governing, bindings, entries)
+@@ -219,7 +220,10 @@
+         ):
+             failure("READINESS_MEASUREMENT_UNBOUND")
+         if any(
+-            b.role == "artifact" and b.content_hash and b.content_hash != row.measured_artifact_hash
++            b.role == "artifact"
++            and b.content_hash
++            and b.content_hash != row.measured_artifact_hash
++            and (row.measured_artifact_hash, b.content_hash) not in equivalent_payloads
+             for b in bindings.values()
+         ):
+             status, reason = "unknown", "supporting_artifact_version_mismatch"
+@@ -295,6 +299,7 @@
+             work.append(
+                 {
+                     **row["work_item"],
++                    **data.get("personal_fields", {}).get(row["work_item"]["work_id"], {}),
+                     "rereview_needed": data["progress"].get(row["work_item"]["work_id"])
+                     == "student_marked_done"
+                     and status == "needs_work",
+@@ -354,8 +359,8 @@
+     return unavailable
+ 
+ 
+-def save(service, owner, review):
+-    from canvas_bridge.domain import Result
++def prepare_review(service, owner, review, *, equivalent_payloads=()):
++    """Validate outside the transaction and return the existing journal record builder."""
+     from canvas_bridge.processes.models import AcademicRecord
+     from canvas_bridge.processes.requests import ProcessScope
+ 
+@@ -375,7 +380,10 @@
+         failure("PROCESS_SCOPE_MISMATCH")
+     key = record_key(scope, review.assignment_id)
+     rows = sorted(
+-        [assess(r, bindings, entries) for r in review.requirements],
++        [
++            assess(r, bindings, entries, equivalent_payloads=equivalent_payloads)
++            for r in review.requirements
++        ],
+         key=lambda r: r["requirement_id"],
+     )
+     if len({r["requirement_id"] for r in rows}) != len(rows):
+@@ -437,6 +445,11 @@
+             bindings=[b.model_dump(mode="json") for b in review.bindings],
+             requirements=rows,
+             progress=progress,
++            personal_fields={
++                k: v for k, v in before.data.get("personal_fields", {}).items() if k in work_ids
++            }
++            if before
++            else {},
+         )
+         return AcademicRecord(
+             id=key,
+@@ -448,6 +461,13 @@
+             updated_at=now,
+         )
+ 
++    return key, build
++
++
++def save(service, owner, review):
++    from canvas_bridge.domain import Result
++
++    key, build = prepare_review(service, owner, review)
+     receipt = service.repository.save_readiness(
+         owner,
+         key,
+@@ -579,6 +599,12 @@
+             for b in bindings
+         ],
+     )
++    if pending := data.get("pending_change"):
++        output["pending_observation"] = {
++            "change_id": pending["change_id"],
++            "processing_state": "pending",
++            "next_step": "get_assignment_change",
++        }
+     if plan is not None:
+         items = [
+             WorkItem(
+@@ -587,7 +613,8 @@
+                 institution_id="independent",
+                 course_id=record.scope.course,
+                 source_id=ident,
+-                title=w["action"],
++                title=w.get("personal_title") or w["action"],
++                effort_remaining=Effort.model_validate(w["effort"]) if w.get("effort") else None,
+                 source=next(iter(available.values())),
+                 personal_progress=w["progress_state"],
+                 independent_personal_work=True,
+@@ -612,7 +639,16 @@
+     work_id: Ref
+     expected_revision: int = Field(ge=1)
+     idempotency_key: Ref
+-    progress_state: Literal["not_started", "in_progress", "student_marked_done"]
++    progress_state: Literal["not_started", "in_progress", "student_marked_done"] | None = None
++    personal_title: Text | None = None
++    personal_note: Text | None = None
++    effort: Effort | None = None
++
++    @model_validator(mode="after")
++    def declares_change(self):
++        if not any((self.progress_state, self.personal_title, self.personal_note, self.effort)):
++            raise ValueError("Supply personal progress, a task edit, or a scoped effort estimate.")
++        return self
+ 
+ 
+ def update_progress(service, owner, request):
+@@ -625,9 +661,26 @@
+             r["work_item"]["work_id"] for r in before.data["requirements"] if "work_item" in r
+         }:
+             failure("READINESS_WORK_UNAVAILABLE")
+-        data = before.data | {
+-            "progress": before.data["progress"] | {request.work_id: request.progress_state}
+-        }
++        data = dict(before.data)
++        fields = dict(data.get("personal_fields", {}))
++        personal = dict(fields.get(request.work_id, {}))
++        personal.update(
++            request.model_dump(
++                mode="json",
++                include={"personal_title", "personal_note", "effort"},
++                exclude_none=True,
++            )
++        )
++        if request.progress_state:
++            data["progress"] = data["progress"] | {request.work_id: request.progress_state}
++            personal.update(
++                declaration_id=fingerprint(
++                    [owner, request.record_id, request.work_id, request.idempotency_key]
++                ),
++                progress_basis="user_declaration",
++            )
++        fields[request.work_id] = personal
++        data["personal_fields"] = fields
+         return before.model_copy(
+             update=dict(data=data, revision=before.revision + 1, updated_at=now)
+         )
+--- a/src/canvas_bridge/processes/reasons.py
++++ b/src/canvas_bridge/processes/reasons.py
+@@ -17,6 +17,8 @@
+ )
+ # Public diagnostics use fixed remedies. Never echo host quotes or document identifiers.
+ READINESS_MESSAGES = {
++    "CHANGE_SCOPED_RECOVERY_REQUIRED": "Retrieve the assignment change and use compensate_assignment_change with the applied and current revisions.",
++    "CHANGE_PARENT_UNRESOLVED": "Retrieve the missing parent version or establish a complete direct comparison before selecting this target.",
+     "READINESS_QUOTE_MISMATCH": "Read the selected part and surface again and supply its exact passage.",
+     "READINESS_LOCATOR_INVALID": "Choose a part number returned for the selected source version.",
+     "READINESS_SELECTION_INVALID": "Bind each selected document once to its logical source and byte hash.",
+--- a/src/canvas_bridge/processes/state.py
++++ b/src/canvas_bridge/processes/state.py
+@@ -58,6 +58,14 @@
+             for k in before.data.keys() | after.data.keys()
+             if before.data.get(k) != after.data.get(k)
+         }
++        if (
++            changes == {"pending_change"}
++            and before.data.get("payload_type") == "assignment_readiness"
++            and before.depends_on == after.depends_on
++        ):
++            # Staging adds independently authorized comparison inputs. Only a published
++            # change to the saved assessment should invalidate its downstream records.
++            return ()
+         same_sources = {s.key for s in before.sources} == {s.key for s in after.sources}
+         if changes <= {"title"} and same_sources and before.depends_on == after.depends_on:
+             return ()
+@@ -345,6 +353,12 @@
+             revision = next((r for r in state.revisions if r.id == revision_id), None)
+             if not revision or not revision.before:
+                 failure("PROCESS_ROLLBACK_UNAVAILABLE")
++            if (
++                revision.after
++                and revision.after.data.get("change_report", {}).get("applied_revision")
++                == revision.after.revision
++            ):
++                failure("CHANGE_SCOPED_RECOVERY_REQUIRED")
+             old = revision.before
+             current = state.records.get(old.id)
+             if not current:
+@@ -459,7 +473,56 @@
+                 "external_transfer": False,
+             }
+ 
+-    def save_readiness(self, owner, record_id, expected_revision, replay_key, intent, build):
++    def observe_historical(self, owner, record_id, expected_revision, key, intent, change_id):
++        """Keep a content-free arrival receipt without selecting an obsolete version."""
++        key = fingerprint(["assignment-readiness", owner, key])
++        with self.store.transaction() as session:
++            self.store.principal(session, owner)
++            row, state = self._load(session, owner)
++            current = state.records.get(record_id)
++            if not current or current.revision < expected_revision:
++                failure("PROCESS_REVISION_MISMATCH")
++            prior = state.receipts.get(key)
++            if prior:
++                if prior["request_hash"] != intent:
++                    failure("PROCESS_IDEMPOTENCY_CONFLICT")
++                return prior
++            receipt = dict(
++                record_id=record_id,
++                revision=current.revision,
++                base_revision=expected_revision,
++                request_hash=intent,
++                change_id=change_id,
++                processing_state="superseded",
++                observed_at=self.clock().isoformat(),
++                external_writes=False,
++            )
++            receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
++            self._save(session, owner, row, state.model_copy(update={"receipts": receipts}))
++            return receipt
++
++    def observation_attempts(self, owner, record_id):
++        with self.store.transaction() as session:
++            _, state = self._load(session, owner)
++            return [
++                dict(attempt_id=k, **v)
++                for k, v in state.receipts.items()
++                if v.get("record_id") == record_id
++                and (v.get("effect_id") or v.get("processing_state") == "superseded")
++            ][-50:]
++
++    def save_readiness(
++        self,
++        owner,
++        record_id,
++        expected_revision,
++        replay_key,
++        intent,
++        build,
++        *,
++        effect_id=None,
++        replaced_tags=(),
++    ):
+         """Commit one reviewed assignment update under the same principal lock as ordinary saves."""
+         key = fingerprint(["assignment-readiness", owner, replay_key])
+         with self.store.transaction() as session:
+@@ -470,6 +533,15 @@
+                 if prior["request_hash"] != intent:
+                     failure("PROCESS_IDEMPOTENCY_CONFLICT")
+                 return prior
++            if effect_id:
++                confirmed = next(
++                    (v for v in state.receipts.values() if v.get("effect_id") == effect_id), None
++                )
++                if confirmed:
++                    receipt = confirmed | {"request_hash": intent}
++                    receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
++                    self._save(session, owner, row, state.model_copy(update={"receipts": receipts}))
++                    return receipt
+             before = state.records.get(record_id)
+             if expected_revision != (before.revision if before else 0):
+                 failure(
+@@ -480,9 +552,27 @@
+                 before.state != "valid" or before.data.get("payload_type") != "assignment_readiness"
+             ):
+                 failure("PROCESS_RECORD_NOT_VALID")
++
++            def require_writable(record):
++                # Replaced historical tags remain attached to the stored before-image.
++                # Only the commit check substitutes the independently verified current
++                # version of the very same source. Ordinary reads still check every tag.
++                check = (
++                    record.model_copy(
++                        update={
++                            "sources": tuple(replaced_tags.get(t.key, t) for t in record.sources)
++                        }
++                    )
++                    if replaced_tags
++                    else record
++                )
++                self._require(session, owner, check, "write")
++
++            if effect_id and before:
++                require_writable(before)
+             now = self.clock()
+             after = build(before, now)
+-            self._require(session, owner, after, "write")
++            require_writable(after)
+             change = preview(
+                 state, owner, record_id, after, "correction" if before else "create", now=now
+             )
+@@ -494,6 +584,8 @@
+                 revision=after.revision,
+                 external_writes=False,
+             )
++            if effect_id:
++                receipt["effect_id"] = effect_id
+             receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
+             self._save(session, owner, row, updated.model_copy(update={"receipts": receipts}))
+             return receipt
+--- a/src/canvas_bridge/processes/surfaces.py
++++ b/src/canvas_bridge/processes/surfaces.py
+@@ -9,10 +9,14 @@
+ 
+ TOOLS = frozenset(
+     {
++        "get_assignment_change",
+         "get_assignment_readiness",
+         "evaluate_academic_process",
+         "preview_academic_process_change",
+         "confirm_academic_process_change",
++        "observe_assignment_change",
++        "reconcile_assignment_change",
++        "compensate_assignment_change",
+         "save_assignment_readiness",
+         "record_readiness_progress",
+         "get_academic_process_records",
+@@ -25,6 +29,9 @@
+ SAFE_RECEIPTS = frozenset(
+     {
+         "confirm_academic_process_change",
++        "observe_assignment_change",
++        "reconcile_assignment_change",
++        "compensate_assignment_change",
+         "save_assignment_readiness",
+         "record_readiness_progress",
+         "get_academic_support_report",
+--- a/src/canvas_bridge/processes/tools.py
++++ b/src/canvas_bridge/processes/tools.py
+@@ -7,15 +7,35 @@
+ from canvas_bridge.auth import request_identity
+ from canvas_bridge.domain import DomainError, Result
+ from canvas_bridge.planning import PlanRequest
+-from canvas_bridge.processes import readiness
++from canvas_bridge.processes import change_service, readiness
+ from canvas_bridge.processes.models import Ref
+ from canvas_bridge.processes.requests import EvaluationRequest, SaveRequest
+ 
+ 
+ def register_tools(register, bridge):
+     @register(write=True)
++    async def observe_assignment_change(request: change_service.Observation) -> Result:
++        """Compare the selected replacement imports with a saved readiness record. Stage the observed source versions and criterion impacts, then retrieve the change before targeted reassessment."""
++        return await change_service.observe(bridge.processes, request_identity().owner, request)
++
++    @register()
++    async def get_assignment_change(record_id: Ref) -> Result:
++        """Retrieve the saved observation, pending criterion scope or applied work decisions for an assignment."""
++        return await change_service.report(bridge.processes, request_identity().owner, record_id)
++
++    @register(write=True)
++    async def reconcile_assignment_change(request: change_service.Reassessment) -> Result:
++        """Commit the staged transition. Supply grounded criterion assessments only for changed requirements; unchanged assessments carry from their proofs. Cite explicit removals. A material fulfillment change starts a new work episode. Use the observed revision and replay key."""
++        return await change_service.apply_change(bridge.processes, request_identity().owner, request)
++
++    @register(write=True, destructive=True)
++    async def compensate_assignment_change(request: change_service.Compensation) -> Result:
++        """Explicitly reverse one applied reconciliation at the current revision, preserving compatible later progress. Returns a new revision receipt."""
++        return await change_service.compensate(bridge.processes, request_identity().owner, request)
++
++    @register(write=True)
+     async def save_assignment_readiness(review: readiness.Review) -> Result:
+-        """Remember the requested review of independent materials. Bind each source by logical ID, document ID and SHA-256. Cite exact passages for each criterion and finding. For absence/all_claims include inspected artifact parts. Use expected_revision=0 to create. Returns confirmed record ID and revision; read it to show the projection."""
++        """Remember the requested review of independent materials. For a changed saved assignment, observe_assignment_change and reconcile_assignment_change preserve its work episodes. Bind each source by logical ID, document ID and SHA-256. Cite exact passages for each criterion and finding. For absence/all_claims include inspected artifact parts. Use expected_revision=0 to create. Returns confirmed record ID and revision; read it to show the projection."""
+         owner = request_identity().owner
+         bridge.processes.enabled()
+         await readiness.authorize_bindings(bridge, owner, review.bindings)
+--- /dev/null
++++ b/tests/test_phase_c_reconciliation.py
+@@ -0,0 +1,1284 @@
++"""Phase C exercises the real independent source adapter and owned readiness journal."""
++
++import json
++import os
++from pathlib import Path
++from zipfile import ZipFile
++
++import pytest
++
++from canvas_bridge.domain import DomainError
++from canvas_bridge.processes import change_service as cs
++from canvas_bridge.processes import readiness as rd
++from tests.test_independent_intelligence import independent_recipient as independent_recipient
++from tests.test_phase_b_readiness import authored_review, import_case
++from tests.test_recovery_independence import parsed_locally as parsed_locally
++
++BUNDLE = Path(__file__).resolve().parents[1] / "benchmarks/academic/phase-c/specs.zip"
++OUTPUT = os.getenv("BRIDGE_PHASE_C_OUTPUT")
++
++
++def member(name):
++    with ZipFile(BUNDLE) as z:
++        return z.read("phase_c_reconciliation/" + name)
++
++
++def fixture(name):
++    return json.loads(member("fixtures/" + name + ".json"))
++
++
++def write(name, value):
++    if OUTPUT:
++        path = Path(OUTPUT) / name
++        path.parent.mkdir(parents=True, exist_ok=True)
++        path.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", "utf8")
++
++
++async def target_packet(bridge, owner, scenario):
++    versions = {v["source_version_id"]: v for v in fixture("change_inputs")["source_versions"]}
++    roles = {
++        "assignment_brief": "brief",
++        "reference_packet": "reference",
++        "recorded_rehearsal": "measurement",
++        "student_artifact": "artifact",
++    }
++    values = []
++    for f in scenario["model_input_files"]:
++        role = roles[versions[f["source_version_id"]]["role"]]
++        name = (
++            scenario.get("alias_name", Path(f["path"]).name)
++            if role == "artifact"
++            else Path(f["path"]).name
++        )
++        mime = {
++            ".md": "text/markdown",
++            ".txt": "text/plain",
++            ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++        }[Path(name).suffix]
++        ident = await bridge.independent.ingest(
++            owner,
++            member(f["path"]),
++            name,
++            mime,
++            course="BenchLink",
++            own_material=True,
++            share_text=True,
++            allow_academic_analysis=True,
++        )
++        assert bridge.independent.require(owner, ident).version_hash == f["sha256"]
++        values.append(dict(logical_id=role, role=role, document_id=ident, content_hash=f["sha256"]))
++    if not any(b["role"] == "artifact" for b in values):
++        values.append(
++            dict(logical_id="artifact", role="artifact", document_id=None, content_hash=None)
++        )
++    return values
++
++
++def authored_rows(scenario, packet):
++    label = scenario["reassessment_input_id"]
++    if not label:
++        return []
++    c = fixture("reassessment_inputs")
++    source = json.loads(member("reference/phase_b_fixture/fixtures/readiness_inputs.json"))
++    ver = {v["source_version_id"]: v for v in fixture("change_inputs")["source_versions"]}
++    roles = {
++        "assignment_brief": "brief",
++        "reference_packet": "reference",
++        "recorded_rehearsal": "measurement",
++        "student_artifact": "artifact",
++    }
++    all_refs = {r["evidence_id"]: r for r in source["evidence_catalog"] + c["new_evidence"]}
++
++    def anchor(ref):
++        r = all_refs[ref]
++        loc = r.get("locator", {})
++        return dict(
++            source=roles[ver[r["source_version_id"]]["role"]],
++            part=loc.get("slide_number", 1),
++            surface={"slide": "slide", "native_notes": "notes"}.get(loc.get("surface"), "text"),
++            quote=r["quote"],
++        )
++
++    rows = []
++    for r in next(a for a in c["assessments"] if a["assessment_id"] == label)["rows"]:
++        ident = r["requirement_id"]
++        refs = [anchor(i) for i in r["evidence_refs"]]
++        governing = next((a for a in refs if a["source"] == "brief"), None) or anchor("EV-" + ident)
++        status = r["assessment_status"]
++        rule = {"PA-R03": "all_claims", "PA-R04": "recorded_run", "PA-R05": "absence"}.get(
++            ident, "passage"
++        )
++        if ident == "PA-R01" and status == "needs_work":
++            rule = "absence"
++        rows.append(
++            dict(
++                requirement_id=ident,
++                criterion=governing["quote"],
++                governing=governing,
++                applicability_basis="Explicit in the governing brief.",
++                assessment_status=status,
++                rationale=r["rationale"],
++                evidence=refs,
++                coverage_rule=rule,
++                coverage=r["evidence_coverage"],
++                reviewed_extent=[dict(source="artifact", parts=list(range(1, 8)))]
++                if rule in {"all_claims", "absence"}
++                else [],
++                followup="matching_rehearsal" if status == "unknown" else None,
++                gap_kind=r.get("gap_kind"),
++                action="Revise this criterion" if r.get("gap_kind") else None,
++                completion_condition=governing["quote"] if r.get("gap_kind") else None,
++                measured_artifact_hash=next(
++                    b["content_hash"] for b in packet if b["role"] == "artifact"
++                )
++                if rule == "recorded_run" and status != "unknown"
++                else None,
++            )
++        )
++    return rows
++
++
++@pytest.mark.parametrize("number", range(1, 17))
++async def test_transition(number, bridge, owner, parsed_locally, independent_recipient):
++    bridge.settings.process_features_enabled = True
++    service = bridge.processes
++    scenarios = fixture("scenarios")["scenarios"]
++    sc = scenarios[number - 1]
++    case = sc["id"]
++    calls = []
++
++    async def run(name, request):
++        result = await getattr(cs, name)(service, owner, request)
++        calls.append(
++            dict(operation=name, arguments=request.model_dump(mode="json"), response=result.data)
++        )
++        return result.data
++
++    first = await import_case(bridge, owner, "baseline")
++    receipt = rd.save(service, owner, authored_review(first, "BASELINE")).data
++    ident = receipt["record_id"]
++
++    def head():
++        return service.repository.read(owner, ident)
++
++    def mark(task):
++        r = head()
++        w = next(
++            row["work_item"]["work_id"]
++            for row in r.data["requirements"]
++            if row["requirement_id"] == task
++        )
++        rd.update_progress(
++            service,
++            owner,
++            rd.Progress(
++                record_id=ident,
++                expected_revision=r.revision,
++                work_id=w,
++                idempotency_key="done-" + task,
++                progress_state="student_marked_done",
++            ),
++        )
++
++    async def change(s, label):
++        packet = await target_packet(bridge, owner, s)
++        obs = cs.Observation(
++            record_id=ident,
++            expected_revision=head().revision,
++            target=packet,
++            idempotency_key=label + "-observe",
++            partial_parts={"artifact": [1, 2, 3, 4, 5]} if s["id"] == "PHC-S10" else {},
++        )
++        staged = await run("observe", obs)
++        removed = []
++        if s["id"] == "PHC-S07":
++            removed = [
++                dict(
++                    requirement_id="PA-R01",
++                    authority=dict(
++                        source="brief",
++                        part=1,
++                        quote="This complete synthetic amendment removes PA-R01 from the required criterion set.",
++                    ),
++                )
++            ]
++        args = cs.Reassessment(
++            record_id=ident,
++            expected_revision=staged["revision"],
++            change_id=staged["change_id"],
++            idempotency_key=label + "-apply",
++            assessments=authored_rows(s, packet),
++            removals=removed,
++            inventory_complete=True,
++            material_changes=s["material_fulfillment_change_ids"],
++        )
++        return obs, args
++
++    if number in {12, 13}:
++        mark("PA-R02")
++    if sc["initial_snapshot_id"] in {"C-STATE-CORRECTED", "C-STATE-RESOLVED-WITH-DONE-HISTORY"}:
++        _, warm = await change(scenarios[2], "prior")
++        await run("apply_change", warm)
++    if number == 16:
++        mark("PA-R01")
++        _, transition = await change(scenarios[2], "before-rollback")
++        applied = await run("apply_change", transition)
++        # Progress on independent work after the reconciliation is outside its compensation scope.
++        other = authored_review(first, "BASELINE").model_copy(
++            update=dict(assignment_id="separate-assignment", idempotency_key="other")
++        )
++        other_id = rd.save(service, owner, other).data["record_id"]
++        work = rd.view(service, owner, other_id).data["remaining_work"][0]
++        rd.update_progress(
++            service,
++            owner,
++            rd.Progress(
++                record_id=other_id,
++                expected_revision=1,
++                work_id=work["work_id"],
++                idempotency_key="unrelated-later",
++                progress_state="student_marked_done",
++                personal_note="Retain this unrelated later progress.",
++            ),
++        )
++        undo = cs.Compensation(
++            record_id=ident,
++            expected_revision=head().revision,
++            applied_revision=applied["revision"],
++            idempotency_key="undo",
++        )
++        comp = await run("compensate", undo)
++        assert await run("compensate", undo) == comp
++        assert (
++            rd.view(service, owner, ident).data["remaining_work"][0]["progress_state"]
++            == "student_marked_done"
++        )
++        assert (
++            rd.view(service, owner, other_id).data["remaining_work"][0]["personal_note"]
++            == "Retain this unrelated later progress."
++        )
++    else:
++        obs, args = await change(sc, case)
++        if number in {14, 15}:
++            duplicate = await run(
++                "observe", obs.model_copy(update={"idempotency_key": "another-observer"})
++            )
++            assert duplicate["revision"] == args.expected_revision
++        if number == 15:
++            mark("PA-R01")
++            with pytest.raises(DomainError):
++                await run("apply_change", args)
++            args = args.model_copy(
++                update=dict(expected_revision=head().revision, idempotency_key="rebased")
++            )
++        receipt = await run("apply_change", args)
++        assert await run("apply_change", args) == receipt
++    result = rd.view(service, owner, ident).data
++    report = (await cs.report(service, owner, ident)).data
++    write(case + ".json", dict(calls=calls, view=result, report=report))
++    expected = fixture("expected_transitions")["results"][number - 1]
++    assert {
++        r["requirement_id"]: r["assessment_status"] for r in result["requirements"]
++    } == expected["row_statuses"]
++    assert (
++        result["summary_status"] == expected["readiness"]
++        and len(result["review_followups"]) == expected["review_followup_count"]
++    )
++    if number != 16:
++        assert {
++            a["requirement_id"]: a["impact_status"] for a in report["change_report"]["impacts"]
++        } == expected["impacts"]
++        assert {
++            a["requirement_id"]: a["work_action"] for a in report["change_report"]["work_actions"]
++        } == {a["requirement_id"]: a["action"] for a in expected["work_actions"]}
++
++
++@pytest.mark.skipif(
++    not os.environ.get("BRIDGE_PHASE_C_HOST"), reason="Opt-in native synthetic host journey"
++)
++async def test_native_journeys(settings, owner, token_factory, tmp_path):
++    import contextlib
++
++    from tests.conftest import bridge as bridge_fixture
++    from tests.test_permission_consistency_contract import client_session
++    from tests.test_phase_a_benchmark import review_host
++    from tests.test_phase_b_readiness import running
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "state.db")
++    settings.process_features_enabled = settings.file_reading_enabled = True
++    settings.parser_root = settings.parser_runtime_root = (
++        Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++    )
++    tools = [
++        "get_assignment_readiness",
++        "read_local_document",
++        "get_local_document_status",
++        "observe_assignment_change",
++        "get_assignment_change",
++        "reconcile_assignment_change",
++        "compensate_assignment_change",
++    ]
++    workdir = tmp_path / "host"
++    workdir.mkdir()
++    instruction = (
++        "Use only the coursework MCP tools. No filesystem, shell or external tools. Retrieve the saved readiness. If the selected context contains a staged change_id, resume it directly using get_assignment_change. Otherwise for a refresh, observe the provided target bindings at the current record revision, get the change, read selected current sources through continuations, then reconcile the staged change using its returned revision and change ID. Use exact source quotes and requested brief IDs. Supply targeted assessments only for affected criteria where supported. Unavailable branches can remain pending. Retrieve both the change report and the readiness after any write. For recovery compensate the specified applied revision. Use an original idempotency key per operation. Tool argument schemas: "
++        + json.dumps(
++            {
++                model.__name__: model.model_json_schema()
++                for model in [cs.Observation, cs.Reassessment, cs.Compensation]
++            }
++        )
++    )
++
++    async def host(name, prompt, ctx):
++        out = Path(OUTPUT) / "native" / name
++        out.mkdir(parents=True)
++        ans = await review_host(
++            settings.resource_url,
++            token_factory(),
++            member("prompts/" + prompt + ".md").decode() + "\nSelected context: " + json.dumps(ctx),
++            workdir,
++            out,
++            "host",
++            tools=tools,
++            instructions=instruction,
++        )
++        assert ans
++
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        first = await import_case(bridge, owner, "baseline")
++        # Rebind the real, frozen Phase B host assessment to the same canonical source bytes.
++        with ZipFile(
++            BUNDLE.parents[3] / "evidence/sanitized-results/phase-b-readiness-receipts.zip"
++        ) as z:
++            events = [
++                json.loads(line)
++                for line in z.read("baseline/save/native-events.jsonl").decode().splitlines()
++            ]
++        review = next(
++            e["item"]["arguments"]["review"]
++            for e in reversed(events)
++            if e["type"] == "item.completed"
++            and e["item"].get("tool") == "save_assignment_readiness"
++            and e["item"].get("result")
++            and json.loads(e["item"]["result"]["content"][0]["text"]).get("status") == "ok"
++        )
++        assert {x["content_hash"] for x in review["bindings"]} == {x["content_hash"] for x in first}
++        key = rd.save(
++            bridge.processes,
++            owner,
++            rd.Review.model_validate(review | dict(bindings=first, course="BenchLink")),
++        ).data["record_id"]
++
++        def head():
++            return bridge.processes.repository.read(owner, key)
++
++        original = head()
++        task = next(
++            r["work_item"]["work_id"]
++            for r in original.data["requirements"]
++            if r["requirement_id"] == "PA-R01"
++        )
++        rd.update_progress(
++            bridge.processes,
++            owner,
++            rd.Progress(
++                record_id=key,
++                expected_revision=original.revision,
++                idempotency_key="declared",
++                work_id=task,
++                progress_state="student_marked_done",
++                personal_note="Keep the dated review note.",
++            ),
++        )
++        async with running(settings) as pid:
++            async with client_session(settings.resource_url, token_factory()) as session:
++                write(
++                    "native/schemas.json",
++                    [
++                        t.model_dump(mode="json")
++                        for t in (await session.list_tools()).tools
++                        if t.name in tools
++                    ],
++                )
++            corrected = await target_packet(bridge, owner, fixture("scenarios")["scenarios"][2])
++            await host(
++                "corrected",
++                "review_changes",
++                dict(record_id=key, expected_revision=head().revision, target=corrected),
++            )
++            assert head().data.get("change_report", {}).get("processing_state") == "applied"
++            write("native/corrected-state.json", head().data)
++            amended = await target_packet(bridge, owner, fixture("scenarios")["scenarios"][3])
++            observation = cs.Observation(
++                record_id=key,
++                expected_revision=head().revision,
++                idempotency_key="stage-amendment",
++                target=amended,
++            )
++            async with client_session(settings.resource_url, token_factory()) as session:
++                staged = (
++                    await session.call_tool(
++                        "observe_assignment_change",
++                        {"request": observation.model_dump(mode="json")},
++                    )
++                ).structuredContent
++                assert staged["status"] == "ok"
++                write(
++                    "native/pre-restart.json",
++                    dict(observation=observation.model_dump(mode="json"), result=staged),
++                )
++        async with running(settings) as pid2:
++            write("native/restart.json", dict(before=pid, after=pid2))
++            await host(
++                "amendment",
++                "review_changes",
++                dict(
++                    record_id=key,
++                    expected_revision=head().revision,
++                    target=amended,
++                    change_id=staged["data"]["change_id"],
++                ),
++            )
++            write("native/amendment-state.json", head().data)
++            await host(
++                "recurrence",
++                "recurring_work",
++                dict(record_id=key, expected_revision=head().revision, target=first),
++            )
++            write("native/recurrence-state.json", head().data)
++            assert head().data["change_report"]["applied_revision"] == head().revision
++            missing = [
++                b if b["role"] != "artifact" else b | dict(document_id=None, content_hash=None)
++                for b in first
++            ]
++            await host(
++                "missing",
++                "replacement_unavailable",
++                dict(record_id=key, expected_revision=head().revision, target=missing),
++            )
++            write("native/missing-state.json", head().data)
++            await host(
++                "compensate",
++                "restore_reconciliation",
++                dict(
++                    record_id=key,
++                    applied_revision=head().data["change_report"]["applied_revision"],
++                    expected_revision=head().revision,
++                ),
++            )
++            write("native/restored-state.json", head().data)
++            if head().data["change_report"]["processing_state"] != "compensated":
++                events = (Path(OUTPUT) / "native/compensate/host-events.jsonl").read_text("utf8")
++                assert (
++                    "MCP tool call requires approval" in events
++                    and "approval policy is never" in events
++                )
++                write(
++                    "native/compensation-boundary.json",
++                    dict(
++                        status="blocked_by_native_host",
++                        receipt=None,
++                        observed_revision=head().revision,
++                        evidence="compensate/host-events.jsonl",
++                    ),
++                )
++
++
++async def test_controls_and_failed_commit(
++    bridge, owner, parsed_locally, independent_recipient, monkeypatch
++):
++    import io
++
++    from canvas_bridge.processes.change_observation import native_manifest
++
++    bridge.settings.process_features_enabled = True
++    service = bridge.processes
++    initial = await import_case(bridge, owner, "baseline")
++    key = rd.save(service, owner, authored_review(initial, "BASELINE")).data["record_id"]
++    base = service.repository.read(owner, key)
++    item = base.data["requirements"][0]["work_item"]["work_id"]
++    rd.update_progress(
++        service,
++        owner,
++        rd.Progress(
++            record_id=key,
++            work_id=item,
++            expected_revision=1,
++            idempotency_key="edit",
++            progress_state="student_marked_done",
++            personal_note="Check my measurements",
++            personal_title="My targeted rehearsal",
++            effort=dict(minimum_minutes=10, maximum_minutes=20, origin="student_estimate"),
++        ),
++    )
++    scenarios = fixture("scenarios")["scenarios"]
++    packet = await target_packet(bridge, owner, scenarios[11])
++    obs = cs.Observation(
++        record_id=key, expected_revision=2, idempotency_key="observe", target=packet
++    )
++    staged = (await cs.observe(service, owner, obs)).data
++    apply = cs.Reassessment(
++        record_id=key,
++        expected_revision=staged["revision"],
++        change_id=staged["change_id"],
++        idempotency_key="apply",
++        inventory_complete=True,
++    )
++
++    assert (
++        rd.view(service, owner, key).data["pending_observation"]["change_id"] == staged["change_id"]
++    )
++
++    def fail_after_flush(*args):
++        persist(*args)
++        raise RuntimeError("synthetic failure after staging write")
++
++    persist = service.repository._save
++    with monkeypatch.context() as patch:
++        patch.setattr(service.repository, "_save", fail_after_flush)
++        with pytest.raises(RuntimeError, match="synthetic failure"):
++            await cs.apply_change(service, owner, apply)
++    assert service.repository.read(owner, key).revision == staged["revision"]
++    receipt = (await cs.apply_change(service, owner, apply)).data
++    assert (await cs.apply_change(service, owner, apply)).data == receipt
++    with pytest.raises(DomainError) as legacy:
++        service.repository.rollback_preview(owner, receipt["revision_id"])
++    assert legacy.value.reason_code == "CHANGE_SCOPED_RECOVERY_REQUIRED"
++    task = rd.view(service, owner, key).data["remaining_work"][0]
++    assert (
++        task["personal_note"] == "Check my measurements"
++        and task["progress_state"] == "student_marked_done"
++    )
++    assert task["effort"]["origin"] == "student_estimate" and task["declaration_id"]
++    rd.update_progress(
++        service,
++        owner,
++        rd.Progress(
++            record_id=key,
++            expected_revision=receipt["revision"],
++            work_id=task["work_id"],
++            idempotency_key="later",
++            personal_note="Preserve this later note",
++        ),
++    )
++    rollback = (
++        await cs.compensate(
++            service,
++            owner,
++            cs.Compensation(
++                record_id=key,
++                expected_revision=receipt["revision"] + 1,
++                applied_revision=receipt["revision"],
++                idempotency_key="undo",
++            ),
++        )
++    ).data
++    restored = rd.view(service, owner, key).data
++    assert restored["remaining_work"][0]["personal_note"] == "Preserve this later note"
++    # A newly arrived historical observation has its own receipt and leaves today's head alone.
++    historical = (
++        await cs.observe(
++            service,
++            owner,
++            obs.model_copy(
++                update=dict(
++                    target=tuple(map(rd.Binding.model_validate, initial)), idempotency_key="late"
++                )
++            ),
++        )
++    ).data
++    assert (
++        historical["processing_state"] == "superseded"
++        and historical["revision"] == rollback["revision"]
++    )
++    # An automatic refresh cannot skip an unproved parent; explicit direct comparisons are separate.
++    target = await target_packet(bridge, owner, scenarios[2])
++    pending = (
++        await cs.observe(
++            service,
++            owner,
++            cs.Observation(
++                record_id=key,
++                expected_revision=rollback["revision"],
++                target=target,
++                idempotency_key="missing-parent",
++                selection_mode="refresh",
++                source_parents={"artifact": "0" * 64},
++            ),
++        )
++    ).data
++    with pytest.raises(DomainError) as missing:
++        await cs.apply_change(
++            service,
++            owner,
++            apply.model_copy(
++                update=dict(
++                    expected_revision=pending["revision"],
++                    change_id=pending["change_id"],
++                    idempotency_key="skip-parent",
++                )
++            ),
++        )
++    assert missing.value.reason_code == "CHANGE_PARENT_UNRESOLVED"
++    # Duplicate native part aliases must never be elevated to a complete payload proof.
++    raw = io.BytesIO()
++    with ZipFile(raw, "w") as z:
++        for name in ("[Content_Types].xml", "ppt/presentation.xml", "PPT/presentation.xml"):
++            z.writestr(name, b"x")
++    assert native_manifest(raw.getvalue()) is None
++    write(
++        "transaction-controls.json",
++        dict(
++            staged=staged,
++            recovered=receipt,
++            restored=restored,
++            rollback=rollback,
++            historical=historical,
++            parent_block=missing.value.reason_code,
++        ),
++    )
++
++
++async def test_live_replaced_alias(bridge, owner, parsed_locally, independent_recipient):
++    bridge.settings.process_features_enabled = True
++    initial = await import_case(bridge, owner, "baseline")
++    service = bridge.processes
++    key = rd.save(service, owner, authored_review(initial, "BASELINE")).data["record_id"]
++    old = next(b for b in initial if b["role"] == "artifact")
++    raw = member("reference/phase_b_fixture/reference/phase_a_fixture/cases/corrected/deck.pptx")
++    ident = await bridge.independent.ingest(
++        owner,
++        raw,
++        "deck.pptx",
++        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++        course="BenchLink",
++        own_material=True,
++        share_text=True,
++        allow_academic_analysis=True,
++        replace_id=old["document_id"],
++        expected_hash=old["content_hash"],
++    )
++    target = [
++        b
++        if b != old
++        else b
++        | dict(
++            document_id=ident, content_hash=bridge.independent.require(owner, ident).version_hash
++        )
++        for b in initial
++    ]
++    receipt = (
++        await cs.observe(
++            service,
++            owner,
++            cs.Observation(
++                record_id=key, expected_revision=1, target=target, idempotency_key="in-place"
++            ),
++        )
++    ).data
++    change = (await cs.report(service, owner, key)).data
++    assert (
++        next(c for c in change["change_report"]["comparisons"] if c["role"] == "artifact")[
++            "change_class"
++        ]
++        == "incomparable"
++    )
++    assert rd.view(service, owner, key).data["summary_status"] == "unknown"
++    applied = (
++        await cs.apply_change(
++            service,
++            owner,
++            cs.Reassessment(
++                record_id=key,
++                expected_revision=receipt["revision"],
++                change_id=receipt["change_id"],
++                inventory_complete=True,
++                idempotency_key="review-later",
++            ),
++        )
++    ).data
++    assert rd.view(service, owner, key).data["counts"]["unknown"] == 4
++    write("in-place.json", dict(observation=receipt, pending=change, apply=applied))
++
++
++async def test_hidden_context_and_order_controls(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    import io
++
++    from canvas_bridge.processes.change_observation import native_manifest
++
++    bridge.settings.process_features_enabled = True
++    service = bridge.processes
++    packet = await import_case(bridge, owner, "baseline")
++    initial = authored_review(packet, "BASELINE")
++    key = rd.save(service, owner, initial).data["record_id"]
++    other = rd.save(
++        service,
++        owner,
++        initial.model_copy(update=dict(assignment_id="second", idempotency_key="separate")),
++    ).data
++    first = rd.view(service, owner, key).data
++    second = rd.view(service, owner, other["record_id"]).data
++    assert key != other["record_id"] and {w["work_id"] for w in first["remaining_work"]}.isdisjoint(
++        w["work_id"] for w in second["remaining_work"]
++    )
++    scenarios = fixture("scenarios")["scenarios"]
++
++    def revision():
++        return service.repository.read(owner, key).revision
++
++    async def observe(target, label, **kwargs):
++        return (
++            await cs.observe(
++                service,
++                owner,
++                cs.Observation(
++                    expected_revision=revision(),
++                    record_id=key,
++                    target=target,
++                    idempotency_key=label,
++                    **kwargs,
++                ),
++            )
++        ).data
++
++    corrected = await target_packet(bridge, owner, scenarios[2])
++    staged = await observe(corrected, "first-corrected")
++    args = cs.Reassessment(
++        expected_revision=staged["revision"],
++        record_id=key,
++        change_id=staged["change_id"],
++        assessments=authored_rows(scenarios[2], corrected),
++        inventory_complete=True,
++        idempotency_key="corrected",
++    )
++    await cs.apply_change(service, owner, args)
++    # The prior head is not reselected when an old automatic notification arrives last.
++    hashes = {b["role"]: b["content_hash"] for b in packet}
++    late = await observe(
++        packet, "older", selection_mode="refresh", source_parents={"artifact": "1" * 64}
++    )
++    assert late["processing_state"] == "superseded" and revision() == late["revision"]
++    limited = await target_packet(bridge, owner, scenarios[6])
++    st = await observe(limited, "incomplete-inventory")
++    removal = cs.Removal(
++        requirement_id="PA-R01",
++        authority=rd.Anchor(
++            source="brief",
++            part=1,
++            quote="This complete synthetic amendment removes PA-R01 from the required criterion set.",
++        ),
++    )
++    with pytest.raises(DomainError):
++        await cs.apply_change(
++            service,
++            owner,
++            cs.Reassessment(
++                expected_revision=st["revision"],
++                record_id=key,
++                change_id=st["change_id"],
++                removals=[removal],
++                inventory_complete=False,
++                idempotency_key="unsafe-retire",
++            ),
++        )
++    # Identical extracted visible slide text is insufficient when an uninspected native part differs.
++    raw = member("reference/phase_b_fixture/reference/phase_a_fixture/cases/corrected/deck.pptx")
++    changed = io.BytesIO()
++    with ZipFile(io.BytesIO(raw)) as src, ZipFile(changed, "w") as dest:
++        for part in src.namelist():
++            content = src.read(part)
++            if part == "ppt/notesSlides/notesSlide7.xml":
++                content = content.replace(
++                    b"</p:notes>", b"<!-- additional native context --></p:notes>"
++                )
++                assert content != src.read(part)
++            dest.writestr(part, content)
++    assert native_manifest(raw) != native_manifest(changed.getvalue())
++    changed_id = await bridge.independent.ingest(
++        owner,
++        changed.getvalue(),
++        "changed-notes.pptx",
++        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
++        course="BenchLink",
++        own_material=True,
++        share_text=True,
++        allow_academic_analysis=True,
++    )
++    fresh = [
++        b
++        if b["role"] != "artifact"
++        else b
++        | dict(
++            document_id=changed_id,
++            content_hash=bridge.independent.require(owner, changed_id).version_hash,
++        )
++        for b in corrected
++    ]
++    pending = await observe(fresh, "hidden-context", partial_parts={"artifact": [1, 2, 3, 4, 5]})
++    projected = (await cs.report(service, owner, key)).data
++    assert (
++        next(c for c in projected["change_report"]["comparisons"] if c["role"] == "artifact")[
++            "change_class"
++        ]
++        == "content_changed"
++    )
++    assert (
++        next(r for r in projected["current_selection"] if r["requirement_id"] == "PA-R03")[
++            "assessment_status"
++        ]
++        == "unknown"
++    )
++    assert (
++        next(r for r in projected["current_selection"] if r["requirement_id"] == "PA-R04")[
++            "assessment_status"
++        ]
++        == "unknown"
++    )
++    # Summary precedence for known required conflict/work is the very same projection used in pending reports.
++    rows = [
++        dict(required=True, applicability="applicable", assessment_status=x)
++        for x in ("unknown", "needs_work")
++    ]
++    assert rd.summarize(rows, False)["summary_status"] == "needs_work"
++    assert (
++        rd.summarize(rows + [rows[0] | {"assessment_status": "conflict"}], False)["summary_status"]
++        == "conflict"
++    )
++    write(
++        "dependency-controls.json",
++        dict(
++            late=late,
++            selected=hashes,
++            partial_observation=pending,
++            pending=projected,
++            isolated_record=other,
++        ),
++    )
++
++
++async def test_real_concurrent_progress(
++    settings, owner, tmp_path, parsed_locally, independent_recipient
++):
++    import asyncio
++    import contextlib
++    import threading
++
++    from tests.conftest import bridge as bridge_fixture
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "race.db")
++    settings.process_features_enabled = True
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        service = bridge.processes
++        packet = await import_case(bridge, owner, "baseline")
++        key = rd.save(service, owner, authored_review(packet, "BASELINE")).data["record_id"]
++        target = await target_packet(bridge, owner, fixture("scenarios")["scenarios"][11])
++        obs = await cs.observe(
++            service,
++            owner,
++            cs.Observation(
++                record_id=key, expected_revision=1, idempotency_key="stage", target=target
++            ),
++        )
++        args = cs.Reassessment(
++            record_id=key,
++            expected_revision=obs.data["revision"],
++            change_id=obs.data["change_id"],
++            inventory_complete=True,
++            idempotency_key="apply",
++        )
++        work = rd.view(service, owner, key).data["remaining_work"][0]
++        progress = rd.Progress(
++            record_id=key,
++            expected_revision=args.expected_revision,
++            work_id=work["work_id"],
++            idempotency_key="mark",
++            progress_state="student_marked_done",
++        )
++        wait = threading.Barrier(2)
++
++        def compete(op):
++            wait.wait(timeout=10)
++            try:
++                result = (
++                    asyncio.run(cs.apply_change(service, owner, args))
++                    if op == "apply"
++                    else rd.update_progress(service, owner, progress)
++                )
++                return result.data
++            except DomainError as exc:
++                return {"reason_code": exc.reason_code}
++
++        results = await asyncio.gather(
++            *(asyncio.to_thread(compete, name) for name in ("apply", "progress"))
++        )
++        assert sum(r.get("revision") == 3 for r in results) == 1
++        assert sum(r.get("reason_code") == "PROCESS_REVISION_MISMATCH" for r in results) == 1
++        if "reason_code" in results[0]:
++            await cs.apply_change(
++                service,
++                owner,
++                args.model_copy(update=dict(expected_revision=3, idempotency_key="apply-again")),
++            )
++            assert (
++                rd.view(service, owner, key).data["remaining_work"][0]["progress_state"]
++                == "student_marked_done"
++            )
++        write(
++            "concurrent-writers.json", dict(results=results, view=rd.view(service, owner, key).data)
++        )
++
++
++async def test_protocol_compensation(settings, bridge, owner, token_factory, parsed_locally):
++    from tests.test_mcp_contract import running as serve
++    from tests.test_permission_consistency_contract import client_session
++
++    settings.process_features_enabled = True
++    packet = await import_case(bridge, owner, "baseline")
++    key = rd.save(bridge.processes, owner, authored_review(packet, "BASELINE")).data["record_id"]
++    target = await target_packet(bridge, owner, fixture("scenarios")["scenarios"][11])
++    receipts = []
++    async for url in serve.__wrapped__(bridge, settings, None):
++        async with client_session(url, token_factory(), read_timeout=90) as session:
++
++            async def call(name, arguments):
++                out = (await session.call_tool(name, arguments)).structuredContent
++                receipts.append(dict(tool=name, arguments=arguments, result=out))
++                assert out["status"] == "ok", (name, out["summary"])
++                return out["data"]
++
++            obs = await call(
++                "observe_assignment_change",
++                dict(
++                    request=dict(
++                        record_id=key, target=target, expected_revision=1, idempotency_key="observe"
++                    )
++                ),
++            )
++            commit = await call(
++                "reconcile_assignment_change",
++                dict(
++                    request=dict(
++                        record_id=key,
++                        change_id=obs["change_id"],
++                        expected_revision=obs["revision"],
++                        inventory_complete=True,
++                        idempotency_key="apply",
++                    )
++                ),
++            )
++            published = await call("get_assignment_change", dict(record_id=key))
++            assert published["change_report"]["action_counts"] == {"keep": 2, "update": 1}
++            assert published["change_report"]["impact_counts"] == {"unaffected": 4}
++            assert all(a["action_reason"] for a in published["change_report"]["work_actions"])
++            state = await call("get_assignment_readiness", dict(record_id=key))
++            w = next(w for w in state["remaining_work"] if w["requirement_id"] == "PA-R04")
++            update = await call(
++                "record_readiness_progress",
++                dict(
++                    request=dict(
++                        record_id=key,
++                        work_id=w["work_id"],
++                        expected_revision=commit["revision"],
++                        progress_state="in_progress",
++                        personal_note="Preserve this later progress",
++                        idempotency_key="late-edit",
++                    )
++                ),
++            )
++            args = dict(
++                request=dict(
++                    record_id=key,
++                    applied_revision=commit["revision"],
++                    expected_revision=update["revision"],
++                    idempotency_key="compensate",
++                )
++            )
++            restored = await call("compensate_assignment_change", args)
++            assert await call("compensate_assignment_change", args) == restored
++            current = await call("get_assignment_readiness", dict(record_id=key))
++            assert any(
++                w.get("personal_note") == "Preserve this later progress"
++                for w in current["remaining_work"]
++            )
++        write("compensation-protocol.json", receipts)
++
++
++@pytest.mark.skipif(
++    not os.environ.get("BRIDGE_PHASE_C_HOST"), reason="Opt-in native synthetic amendment"
++)
++@pytest.mark.parametrize("number", [5, 6])
++async def test_native_scoped_amendments(
++    number, settings, owner, token_factory, tmp_path, independent_recipient
++):
++    import contextlib
++
++    from tests.conftest import bridge as bridge_fixture
++    from tests.test_phase_a_benchmark import review_host
++    from tests.test_phase_b_readiness import running
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "isolated.db")
++    settings.process_features_enabled = settings.file_reading_enabled = True
++    settings.parser_root = settings.parser_runtime_root = (
++        Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++    )
++    out = Path(OUTPUT) / "native" / ("duration" if number == 5 else "added")
++    out.mkdir(parents=True)
++    workdir = tmp_path / "empty"
++    workdir.mkdir()
++    scenarios = fixture("scenarios")["scenarios"]
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        first = await import_case(bridge, owner, "baseline")
++        key = rd.save(bridge.processes, owner, authored_review(first, "BASELINE")).data["record_id"]
++        corrected = await target_packet(bridge, owner, scenarios[2])
++        # Establish a committed previous corrected state. Only the following target review earns host credit.
++        obs = await cs.observe(
++            bridge.processes,
++            owner,
++            cs.Observation(
++                record_id=key, expected_revision=1, idempotency_key="seed", target=corrected
++            ),
++        )
++        receipt = await cs.apply_change(
++            bridge.processes,
++            owner,
++            cs.Reassessment(
++                record_id=key,
++                expected_revision=obs.data["revision"],
++                change_id=obs.data["change_id"],
++                assessments=authored_rows(scenarios[2], corrected),
++                inventory_complete=True,
++                idempotency_key="seed-review",
++            ),
++        )
++        target = await target_packet(bridge, owner, scenarios[number - 1])
++        context = dict(record_id=key, expected_revision=receipt.data["revision"], target=target)
++        tools = [
++            "get_assignment_readiness",
++            "get_assignment_change",
++            "observe_assignment_change",
++            "reconcile_assignment_change",
++            "read_local_document",
++            "get_local_document_status",
++        ]
++        instructions = (
++            "Use only the coursework tools. Observe the selected change, inspect the returned change report, read current sources for impacted criteria including continuations and native notes; assess them from the brief and artifact, then reconcile and retrieve the confirmed change and readiness. Use precise source quotes and actual reviewed extent. Leave proven unaffected rows to carry automatically. Tool argument models: "
++            + json.dumps([c.model_json_schema() for c in (cs.Observation, cs.Reassessment)])
++        )
++        async with running(settings):
++            answer = await review_host(
++                settings.resource_url,
++                token_factory(),
++                member("prompts/review_changes.md").decode()
++                + "\nSelected assignment/target: "
++                + json.dumps(context),
++                workdir,
++                out,
++                "host",
++                tools=tools,
++                instructions=instructions,
++            )
++            assert answer
++        state = bridge.processes.repository.read(owner, key)
++        write("native/" + out.name + "-state.json", state.data)
++        assert state.data["assessment_revision"] > receipt.data["revision"]
++        task = "PA-R04" if number == 5 else "PA-R05"
++        assert (
++            next(r for r in state.data["requirements"] if r["requirement_id"] == task)[
++                "assessment_status"
++            ]
++            == "needs_work"
++        )
++
++
++async def test_episode_scoped_effort(bridge, owner, parsed_locally, independent_recipient):
++    from canvas_bridge.planning import PlanRequest
++
++    bridge.settings.process_features_enabled = True
++    service = bridge.processes
++    first = await import_case(bridge, owner, "baseline")
++    key = rd.save(service, owner, authored_review(first, "BASELINE")).data["record_id"]
++    original = next(
++        w
++        for w in rd.view(service, owner, key).data["remaining_work"]
++        if w["requirement_id"] == "PA-R02"
++    )
++    rd.update_progress(
++        service,
++        owner,
++        rd.Progress(
++            record_id=key,
++            expected_revision=1,
++            idempotency_key="my-estimate",
++            work_id=original["work_id"],
++            effort=dict(minimum_minutes=12, maximum_minutes=20, origin="student_estimate"),
++            progress_state="student_marked_done",
++            personal_note="This was the earlier version.",
++        ),
++    )
++    scenario = fixture("scenarios")["scenarios"][13]
++    target = await target_packet(bridge, owner, scenario)
++    staged = (
++        await cs.observe(
++            service,
++            owner,
++            cs.Observation(
++                record_id=key,
++                expected_revision=2,
++                target=target,
++                idempotency_key="changed-fulfillment",
++            ),
++        )
++    ).data
++    applied = (
++        await cs.apply_change(
++            service,
++            owner,
++            cs.Reassessment(
++                record_id=key,
++                expected_revision=staged["revision"],
++                idempotency_key="apply",
++                change_id=staged["change_id"],
++                inventory_complete=True,
++                assessments=authored_rows(scenario, target),
++                material_changes=["PA-R02"],
++            ),
++        )
++    ).data
++    view = rd.view(service, owner, key, plan=PlanRequest()).data
++    task = view["remaining_work"][0]
++    assert task["requirement_id"] == "PA-R02" and task["work_id"] != original["work_id"]
++    assert (
++        task["progress_state"] == "not_started"
++        and task["progress_basis"] == "system_default"
++        and not task.get("declaration_id")
++    )
++    assert task["effort_review_needed"] and "effort" not in task
++    assert task["work_id"] in view["plan"]["effort_summary"]["unknown_effort_work_ids"]
++    before = rd.view(service, owner, key, revision=2).data
++    past = next(w for w in before["remaining_work"] if w["requirement_id"] == "PA-R02")
++    assert (
++        past["effort"]["maximum_minutes"] == 20 and past["declaration_id"] and past["personal_note"]
++    )
++    write("planner-delta.json", dict(prior=before, applied=applied, current=view))
++
++
++@pytest.mark.skipif(
++    not os.environ.get("BRIDGE_PHASE_C_HOST"), reason="Opt-in host recall of a staged change"
++)
++async def test_native_pending_recall(
++    settings, owner, token_factory, tmp_path, independent_recipient
++):
++    import contextlib
++
++    from tests.conftest import bridge as bridge_fixture
++    from tests.test_phase_a_benchmark import review_host
++    from tests.test_phase_b_readiness import running
++
++    settings.database_url = "sqlite:///" + str(tmp_path / "state.db")
++    settings.process_features_enabled = settings.file_reading_enabled = True
++    settings.parser_root = settings.parser_runtime_root = (
++        Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
++    )
++    out = Path(OUTPUT) / "native" / "pending-recall"
++    out.mkdir(parents=True)
++    workdir = tmp_path / "empty"
++    workdir.mkdir()
++    with contextlib.contextmanager(bridge_fixture.__wrapped__)(settings) as bridge:
++        base = await import_case(bridge, owner, "baseline")
++        key = rd.save(bridge.processes, owner, authored_review(base, "BASELINE")).data["record_id"]
++        packet = await target_packet(bridge, owner, fixture("scenarios")["scenarios"][2])
++        stage = await cs.observe(
++            bridge.processes,
++            owner,
++            cs.Observation(
++                record_id=key, target=packet, expected_revision=1, idempotency_key="staged"
++            ),
++        )
++        async with running(settings):
++            answer = await review_host(
++                settings.resource_url,
++                token_factory(),
++                f"Recall my saved assignment {key}. Is an updated file selection awaiting review? Tell me what was actually saved and what is pending.",
++                workdir,
++                out,
++                "host",
++                tools=["get_assignment_readiness", "get_assignment_change"],
++                instructions="Use only the two coursework tools for this synthetic saved review. Retrieve the readiness first and check any pending observation.",
++            )
++        assert (
++            answer
++            and bridge.processes.repository.read(owner, key).revision == stage.data["revision"]
++        )
++        events = [
++            json.loads(line) for line in (out / "host-events.jsonl").read_text("utf8").splitlines()
++        ]
++        completed = [
++            e["item"]
++            for e in events
++            if e["type"] == "item.completed" and e["item"]["type"] == "mcp_tool_call"
++        ]
++        assert {"get_assignment_readiness", "get_assignment_change"} == {
++            i["tool"] for i in completed
++        }
++        assert any("pending_observation" in json.dumps(i.get("result")) for i in completed)
++
++
++async def test_dependency_publication_boundary(
++    bridge, owner, parsed_locally, independent_recipient
++):
++    from canvas_bridge.processes.models import AcademicRecord
++
++    bridge.settings.process_features_enabled = True
++    svc = bridge.processes
++    before = await import_case(bridge, owner, "baseline")
++    key = rd.save(svc, owner, authored_review(before, "BASELINE")).data["record_id"]
++    base = svc.repository.read(owner, key)
++    child = AcademicRecord(
++        id="derived-work",
++        kind="plan",
++        scope=base.scope,
++        data={"title": "Dependent plan"},
++        sources=base.sources,
++        depends_on=(key,),
++        updated_at=bridge.retention.clock(),
++    )
++    preview = svc.repository.propose(owner, child.id, child, "create")
++    svc.repository.commit(owner, preview, confirmed=True, idempotency_key="child")
++    case = fixture("scenarios")["scenarios"][2]
++    target = await target_packet(bridge, owner, case)
++    obs = await cs.observe(
++        svc,
++        owner,
++        cs.Observation(record_id=key, target=target, expected_revision=1, idempotency_key="stage"),
++    )
++    assert svc.repository.read(owner, child.id).state == "valid"
++    applied = await cs.apply_change(
++        svc,
++        owner,
++        cs.Reassessment(
++            record_id=key,
++            expected_revision=obs.data["revision"],
++            change_id=obs.data["change_id"],
++            idempotency_key="apply",
++            inventory_complete=True,
++            assessments=authored_rows(case, target),
++        ),
++    )
++    assert applied.data["revision"] > obs.data["revision"]
++    with pytest.raises(DomainError) as invalid:
++        svc.repository.read(owner, child.id)
++    assert invalid.value.reason_code == "PROCESS_RECORD_NOT_VALID"
++    write(
++        "dependency-publication.json",
++        dict(
++            parent=key,
++            child=child.id,
++            pending=obs.data,
++            child_state_while_pending="valid",
++            applied=applied.data,
++            after=invalid.value.reason_code,
++        ),
++    )
+--- /dev/null
++++ b/scripts/audit_phase_c.py
+@@ -0,0 +1,237 @@
++"""Recompute Phase C measurements from the captured product and host evidence."""
++
++import argparse
++import hashlib
++import json
++from collections import Counter
++from pathlib import Path
++from zipfile import ZipFile
++
++
++def read(path):
++    return json.loads(path.read_text(encoding="utf8"))
++
++
++def check_scenarios(root, bundle):
++    expected = json.loads(bundle.read("phase_c_reconciliation/fixtures/expected_transitions.json"))
++    results = {}
++    for case in expected["results"]:
++        key = case["scenario_id"]
++        data = read(root / (key + ".json"))
++        view = data["view"]
++        report = data["report"]["change_report"]
++        rows = {r["requirement_id"]: r for r in view["requirements"]}
++        assert {k: r["assessment_status"] for k, r in rows.items()} == case["row_statuses"], key
++        assert (
++            view["summary_status"] == case["readiness"]
++            and len(view["review_followups"]) == case["review_followup_count"]
++        )
++        assert set(case["counts"].items()) <= set(view["counts"].items())
++        assert len(view["remaining_work"]) == case["work_counts"]["active"]
++        assert (
++            sum(w["progress_state"] == "student_marked_done" for w in view["remaining_work"])
++            == case["work_counts"]["current_done"]
++        )
++        actions = {a["requirement_id"]: a["work_action"] for a in report.get("work_actions", [])}
++        assert actions == {a["requirement_id"]: a["action"] for a in case["work_actions"]}
++        impacts = {r["requirement_id"]: r["impact_status"] for r in report.get("impacts", [])}
++        if report["processing_state"] == "applied":
++            assert impacts == case["impacts"], key
++            for r in rows.values():
++                if r["assessment_origin"] in {"carried_forward", "unchanged"}:
++                    assert (
++                        r["original_assessed_at"]
++                        and r["original_assessor_basis"]
++                        and r["carry_forward_proof"]
++                        and r["carry_forward_validated_at"]
++                    )
++        else:
++            assert key == "PHC-S16" and report["processing_state"] == "compensated"
++        results[key] = dict(
++            criterion_status_checks=len(rows),
++            impact_checks=len(impacts),
++            work_actions=dict(Counter(actions.values())),
++            declared_done=case["work_counts"]["current_done"],
++            work_eligible=[
++                w["work_id"]
++                for w in view["remaining_work"]
++                if w["progress_state"] != "student_marked_done"
++            ],
++            carried_checks=sum(
++                r.get("assessment_origin") in {"carried_forward", "unchanged"}
++                for r in rows.values()
++            ),
++            report_ref=key + ".json",
++            revision=view["revision"],
++            summary=view["summary_status"],
++        )
++    return results
++
++
++def check_host(root, name):
++    folder = root / "native" / name
++    events = [
++        json.loads(line) for line in (folder / "host-events.jsonl").read_text("utf8").splitlines()
++    ]
++    items = [e["item"] for e in events if e["type"] == "item.completed"]
++    assert all(
++        i["type"] in {"agent_message", "mcp_tool_call", "reasoning", "plan_update"} for i in items
++    )
++    answer = (folder / "host-answer.txt").read_bytes()
++    sha = hashlib.sha256(answer).hexdigest()
++    assert sha == read(folder / "host-status.json")["final_answer_sha256"]
++    assert [i["text"] for i in items if i["type"] == "agent_message"][
++        -1
++    ].strip() == answer.decode().strip()
++    calls = []
++    for i in (i for i in items if i["type"] == "mcp_tool_call"):
++        assert i["server"] == "coursework"
++        body = {}
++        if i.get("result"):
++            try:
++                body = json.loads(i["result"]["content"][0]["text"])
++            except (IndexError, KeyError, ValueError):
++                pass
++        calls.append(
++            dict(
++                tool=i["tool"],
++                arguments=i["arguments"],
++                status=body.get("status"),
++                data=body.get("data", {}),
++                event_id=i["id"],
++                error=i.get("error"),
++            )
++        )
++    state = read(root / "native" / (("restored" if name == "compensate" else name) + "-state.json"))
++    observed = state["change_report"]
++    commits = [
++        c
++        for c in calls
++        if c["tool"] in {"reconcile_assignment_change", "compensate_assignment_change"}
++        and c["status"] == "ok"
++    ]
++    if name == "compensate" and not commits:
++        assert (root / "native/compensation-boundary.json").is_file()
++        assert any("requires approval" in str(c["error"]) for c in calls)
++    else:
++        assert commits and commits[-1]["data"]["revision"] == observed["applied_revision"]
++    views = [
++        c["data"] for c in calls if c["tool"] == "get_assignment_readiness" and c["status"] == "ok"
++    ]
++    assert views and views[-1]["revision"] == observed["applied_revision"]
++    new_requests = [
++        c for c in calls if c["tool"] == "reconcile_assignment_change" and c["status"] == "ok"
++    ]
++    return dict(
++        answer_sha256=sha,
++        host_version=read(folder / "host-status.json")["host_version"],
++        tool_attempts=len(calls),
++        confirmed_writes=[
++            c["data"]
++            for c in calls
++            if c["status"] == "ok"
++            and c["tool"]
++            in {
++                "reconcile_assignment_change",
++                "observe_assignment_change",
++                "compensate_assignment_change",
++            }
++        ],
++        reassessed_criteria=[
++            r["requirement_id"]
++            for c in new_requests
++            for r in c["arguments"]["request"].get("assessments", [])
++        ],
++        admitted_source_parts=[
++            dict(
++                document_id=c["arguments"]["document_id"],
++                parts=[p["part"] for p in c["data"].get("parts", [])],
++            )
++            for c in calls
++            if c["tool"] == "read_local_document" and c["status"] == "ok"
++        ],
++        final_readiness=views[-1]["summary_status"],
++        counts=views[-1]["counts"],
++        revision=observed["applied_revision"],
++        decisions=observed.get("action_counts", {}),
++        source="native/" + name + "/host-events.jsonl",
++        host_recovery_blocked=name == "compensate" and not commits,
++    )
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument("directory", type=Path)
++    args = parser.parse_args()
++    package = Path(__file__).resolve().parents[1] / "benchmarks/academic/phase-c/specs.zip"
++    with ZipFile(package) as bundle:
++        results = check_scenarios(args.directory, bundle)
++    native = {
++        n: check_host(args.directory, n)
++        for n in (
++            "corrected",
++            "amendment",
++            "duration",
++            "added",
++            "recurrence",
++            "missing",
++            "compensate",
++        )
++    }
++    recall = args.directory / "native/pending-recall"
++    if recall.is_dir():
++        events = [
++            json.loads(line)
++            for line in (recall / "host-events.jsonl").read_text("utf8").splitlines()
++        ]
++        items = [e["item"] for e in events if e["type"] == "item.completed"]
++        assert all(
++            i["type"] in {"agent_message", "mcp_tool_call", "reasoning", "plan_update"}
++            for i in items
++        )
++        tools = [i for i in items if i["type"] == "mcp_tool_call"]
++        assert {i["tool"] for i in tools} == {
++            "get_assignment_readiness",
++            "get_assignment_change",
++        } and all(i["server"] == "coursework" for i in tools)
++        snapshots = {
++            i["tool"]: json.loads(i["result"]["content"][0]["text"])["data"]
++            for i in tools
++            if i.get("result")
++        }
++        assert (
++            snapshots["get_assignment_readiness"]["pending_observation"]["change_id"]
++            == snapshots["get_assignment_change"]["change_report"]["change_id"]
++        )
++        answer = (recall / "host-answer.txt").read_bytes()
++        assert [i["text"] for i in items if i["type"] == "agent_message"][
++            -1
++        ].strip() == answer.decode().strip()
++        sha = hashlib.sha256(answer).hexdigest()
++        assert sha == read(recall / "host-status.json")["final_answer_sha256"]
++        native["pending-recall"] = dict(
++            answer_sha256=sha,
++            tool_attempts=len(tools),
++            confirmed_writes=[],
++            reassessed_criteria=[],
++            admitted_source_parts=[],
++            revision=snapshots["get_assignment_readiness"]["revision"],
++            final_readiness=snapshots["get_assignment_change"]["pending_projection"][
++                "summary_status"
++            ],
++            source="native/pending-recall/host-events.jsonl",
++            host_recovery_blocked=False,
++        )
++    restart = read(args.directory / "native/restart.json")
++    assert restart["before"] != restart["after"]
++    output = dict(
++        scenarios=results,
++        native=native,
++        real_process_restarts=1,
++        host_attempts=sum(n["tool_attempts"] for n in native.values()),
++    )
++    (args.directory / "audit.json").write_text(json.dumps(output, indent=2) + "\n", encoding="utf8")
++
++
++if __name__ == "__main__":
++    main()
+--- a/scripts/validate_phase_a.py
++++ b/scripts/validate_phase_a.py
+@@ -13,11 +13,15 @@
+ def main():
+     parser = argparse.ArgumentParser()
+     parser.add_argument("output", type=Path)
+-    parser.add_argument("--phase", choices=["a", "b"], default="a")
++    parser.add_argument("--phase", choices=["a", "b", "c"], default="a")
+     options = parser.parse_args()
+     output = options.output.resolve()
+     output.mkdir(exist_ok=True, parents=True)
+     packages = {
++        "c": (
++            "phase_c_reconciliation",
++            "406a1f7f0451efd8a5aee0155c552d8ddf99aa64b9c59ca2018e2804eca9e126",
++        ),
+         "a": (
+             "phase_a_baseline",
+             "99350fab359158a14c471a8f8b028badcd5ccc3b4b7e96f7814a51a1a496d899",
+@@ -41,7 +45,7 @@
+             ("fixtures/validate_fixtures.py", "fixture"),
+         ]:
+             path = root / relative
+-            args = [sys.executable, "-B", str(path)]
++            args = [sys.executable, "-X", "utf8", "-B", str(path)]
+             if os.name == "nt" and report == "package":
+                 # Adapt only the inventory path spelling. All digests still cover canonical bytes.
+                 source = path.read_text("utf-8").replace(
+@@ -49,6 +53,8 @@
+                 )
+                 args = [
+                     sys.executable,
++                    "-X",
++                    "utf8",
+                     "-B",
+                     "-c",
+                     "import sys\n__file__=sys.argv.pop(1)\n" + source,
+--- /dev/null
++++ b/benchmarks/academic/phase-c/README.md
+@@ -0,0 +1,32 @@
++# Phase C change impact and remaining-work reconciliation
++
++Use this workflow for a saved assignment whose independently imported sources have changed. The academic process feature and its ordinary source-sharing permissions must be enabled. The workflow runs on demand. It uses the existing encrypted process journal, source readers and planner.
++
++## Review an update
++
++1. Select the saved assignment and current target imports. Keep each source’s logical ID and role stable. Bind an available target using its imported document ID and SHA-256. For an unavailable replacement, leave those two fields null. Supply a known advertised hash separately so it cannot be mistaken for verified bytes.
++2. Call `observe_assignment_change` with the current record revision, target bindings and an idempotency key. A refresh can supply source-parent hashes and actual partial part coverage. The service compares the selected sources and persists the pending observation. A stale historical arrival cannot move the current head.
++3. `get_assignment_change` returns the observation, its revision, impact by criterion, comparison coverage and current-selection limits. Resume here after a restart. The existing saved readiness remains tied to its own assessed versions. Store revisions and assessment revisions are separate: staging advances the journal, while an identical-byte alias retains its assessment.
++4. Read affected material through the ordinary document tools, following their continuation. Submit source-grounded assessments to `reconcile_assignment_change` with the staged change ID and current record revision. Omit rows whose carry-forward proof is sufficient. Include explicit source-supported removals and materially changed fulfillment obligations. A rejected write leaves the last confirmed generation available. After a conflict, retrieve the pending change and the latest progress before submitting a rebased request.
++5. Read the confirmed change and readiness. The change report accounts for each work transition, and the readiness projection returns the active work for the selected versions. Use the existing planner through `get_assignment_readiness`. An old completed occurrence or an estimate for a different fulfillment obligation remains historical. A continuing episode retains compatible personal progress, notes and scoped effort.
++6. For an explicit recovery request, call `compensate_assignment_change` with the applied and current revisions. Compatible later edits survive. A conflicting later edit requires review. Compensation creates a journal revision, and repeating its idempotency key returns the confirmed receipt. This tool carries the destructive-operation hint and remains subject to the host’s approval policy.
++
++## What the comparisons establish
++
++A byte match identifies an alias. For a repackaged PowerPoint, a timing-equivalence proof requires a bounded native ZIP comparison, unique canonical member names and identical uncompressed bytes for every part. A changed note, relationship, embedded object or presentation-order part defeats that proof. Historical measurements retain their recorded artifact hash.
++
++The text adapter can prove narrowly scoped changes in structured Markdown, including a numbered criterion amendment, a reference locator remap, or administrative contact metadata. Unrecognized prose, unavailable predecessor bytes and incomplete coverage require targeted review. In-place replacements whose old bytes are no longer available produce an incomparable branch; the historical source authorization still applies.
++
++## Reproduce the integration checks
++
++The canonical ZIP is `benchmarks/academic/phase-c/specs.zip`. Run these PowerShell commands from the repository root with locked dependencies. Use a fresh output directory for each execution.
++
++```powershell
++$env:BRIDGE_PHASE_C_OUTPUT = Join-Path $PWD '.local/phase-c-replay'
++.\.venv\Scripts\python scripts/validate_phase_a.py --phase c $env:BRIDGE_PHASE_C_OUTPUT
++.\.venv\Scripts\python -m pytest -q tests/test_phase_c_reconciliation.py -k 'not native'
++```
++
++The opt-in host checks also need the trusted Windows parser, a signed-in Codex CLI and the original Phase B synthetic receipts. Set `BRIDGE_PHASE_C_HOST=1` and run the same test module with `-k native`. The host receives neutral tasks, actual tool schemas, selected source bindings and the saved context. Fixture-authored reassessments are confined to adapter tests and labeled initial-state setup. The main host sequence starts from a genuine saved Phase B host assessment rebound to the exact source bytes.
++
++The release report and receipt archive are under `evidence/sanitized-results/phase-c-reconciliation*`. Use `report.json` inside the archive for per-case verdicts and links to the Phase D handoff.

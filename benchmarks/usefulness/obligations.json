@@ -1,0 +1,17 @@
+{
+  "scope": "Twelve fictional reviewed-state scenarios; no institutional or student outcome claims.",
+  "cases": [
+    {"id": "required-lab", "work": {"activity_kind": "lab", "requirement": "required"}, "expected": "actionable"},
+    {"id": "optional-reading", "work": {"activity_kind": "reading", "requirement": "optional"}, "expected": "optional"},
+    {"id": "unclear-module", "work": {"activity_kind": "module", "requirement": "unresolved"}, "expected": "unresolved"},
+    {"id": "chosen-personal-task", "work": {"activity_kind": "personal", "requirement": "student_chosen"}, "expected": "actionable"},
+    {"id": "submitted-not-graded", "work": {"reported_status": "submitted"}, "expected": "excluded"},
+    {"id": "graded-no-revision", "work": {"reported_status": "graded"}, "expected": "excluded"},
+    {"id": "student-reports-excused", "work": {"reported_status": "excused"}, "expected": "excluded"},
+    {"id": "graded-revision-required", "work": {"activity_kind": "revision", "reported_status": "graded", "revision_requested": true}, "expected": "actionable"},
+    {"id": "student-marked-done", "work": {"progress": "student_marked_done"}, "expected": "excluded"},
+    {"id": "own-role-unassigned", "work": {"activity_kind": "lab", "responsibility": "group_unassigned"}, "expected": "unresolved"},
+    {"id": "submission-unknown", "work": {"reported_status": "unknown", "activity_kind": "peer_review"}, "expected": "actionable"},
+    {"id": "two-of-three-selected", "work": {}, "group": true, "expected": "optional"}
+  ]
+}

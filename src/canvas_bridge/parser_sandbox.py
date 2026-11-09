@@ -4,8 +4,10 @@ import asyncio
 import hashlib
 import json
 import os
+import py_compile
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import zipfile
@@ -21,11 +23,13 @@ import pypdfium2_raw
 
 from canvas_bridge import ocr_runtime
 from canvas_bridge.document_policy import source_limit
-from canvas_bridge.domain import DomainError
+from canvas_bridge.domain import DomainError, WorkerDeadline
 from canvas_bridge.parser_worker import MAX_TEXT, PARSER
 from canvas_bridge.worker_storage import job_directory, sweep_orphans
 
 _slot = threading.Lock()
+_pdf_waiter = threading.Lock()
+PDF_QUEUE_WAIT_SECONDS = 3.0
 
 
 def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
@@ -43,6 +47,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     worker = Path(__file__).with_name("parser_worker.py")
+    safety_worker = Path(__file__).with_name("library_safety_worker.py")
     spreadsheet = Path(__file__).with_name("spreadsheet_worker.py")
     scientific = Path(__file__).with_name("scientific_structure.py")
     presentation = Path(__file__).with_name("presentation_worker.py")
@@ -56,6 +61,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
     ocr = Path(__file__).with_name("ocr_worker.py")
     digest = hashlib.sha256(
         worker.read_bytes()
+        + safety_worker.read_bytes()
         + spreadsheet.read_bytes()
         + scientific.read_bytes()
         + presentation.read_bytes()
@@ -69,7 +75,7 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         + PIL.__version__.encode()
         + ocr.read_bytes()
         + ocr_runtime.version(ocr_root)
-        + b"runtime-with-pdfium-cfg-v1"
+        + b"runtime-with-trusted-pdf-bytecode-v1"
         + str(pypdfium2.PYPDFIUM_INFO).encode()
         + str(pypdfium2.PDFIUM_INFO).encode()
         + sys.version.encode()
@@ -98,18 +104,32 @@ def ensure_runtime(root: Path, ocr_root: Path | None = None) -> Path:
         "ensurepip",
         "turtledemo",
     }
-    with zipfile.ZipFile(runtime / "stdlib.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-        for source in library.rglob("*.py"):
-            relative = source.relative_to(library)
-            if not excluded.intersection(relative.parts):
-                archive.write(source, relative.as_posix())
-    shutil.copytree(
-        Path(pypdf.__file__).parent,
-        runtime / "site/pypdf",
-        dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-    )
+    # AppContainer startup is part of the 15-second worker budget. Ship bytecode
+    # compiled here from trusted sources, with logical paths and no host caches.
+    with (
+        tempfile.TemporaryDirectory() as temp,
+        zipfile.ZipFile(runtime / "stdlib.zip", "w") as archive,
+    ):
+        compiled = Path(temp) / "module.pyc"
+        for package, prefix in ((library, Path()), (Path(pypdf.__file__).parent, Path("pypdf"))):
+            for directory, folders, files in package.walk():
+                folders[:] = [folder for folder in folders if folder not in excluded]
+                for name in files:
+                    if not name.endswith(".py"):
+                        continue
+                    source = directory / name
+                    relative = (prefix / source.relative_to(package)).as_posix()
+                    archive.write(source, relative, compress_type=zipfile.ZIP_DEFLATED)
+                    py_compile.compile(
+                        str(source),
+                        str(compiled),
+                        relative,
+                        doraise=True,
+                        invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+                    )
+                    archive.write(compiled, relative + "c")
     shutil.copy2(worker, runtime / "worker.py")
+    shutil.copy2(safety_worker, runtime / "library_safety_worker.py")
     shutil.copy2(privacy, runtime / "privacy_text.py")
     shutil.copy2(spreadsheet, runtime / "spreadsheet_worker.py")
     shutil.copy2(scientific, runtime / "scientific_structure.py")
@@ -168,6 +188,21 @@ def validate_result(result: dict, data: bytes) -> dict:
             "invalid_pptx_archive",
         }
         details = {}
+        if reason == "corrupt_or_unreadable":
+            category = result.get("details", {}).get("parser_error_type")
+            if category in {
+                "PdfReadError",
+                "PdfStreamError",
+                "EmptyFileError",
+                "ValueError",
+                "TypeError",
+                "KeyError",
+                "AttributeError",
+                "RecursionError",
+                "OverflowError",
+                "UnicodeError",
+            }:
+                details["parser_error_type"] = category
         if reason == "pptx_expansion_limit":
             supplied = result.get("details", {})
             if supplied.get("budget") not in {
@@ -284,6 +319,58 @@ def validate_result(result: dict, data: bytes) -> dict:
     return document_privacy(parsed)
 
 
+def pdf_progress(output, page_range, interrupted, cpu_limit):
+    """Consume only complete progress records from a stopped worker."""
+    marker = b'{"stage":"text_extraction"}\n'
+    entered_extraction = output.startswith(marker)
+    if not entered_extraction and interrupted is None:
+        # Normal, structured errors use the shared worker error envelope.
+        error = json.loads(output)
+        if error.get("ok") is not False:
+            raise ValueError("Missing PDF progress header")
+        return error
+    output = output.removeprefix(marker)
+    pages = []
+    parsed = None
+    identity = None
+    for index, line in enumerate(output.splitlines(keepends=True)):
+        if index > page_range[1] - page_range[0]:
+            raise ValueError("Too many PDF progress records")
+        if not line.endswith(b"\n"):
+            break
+        record = json.loads(line)
+        parsed = record["extraction"]
+        source = (parsed["content_hash"], parsed["parser"], parsed["page_count"])
+        if parsed.get("format") != "pdf" or (identity is not None and source != identity):
+            raise ValueError("Inconsistent PDF progress records")
+        identity = source
+        pages.extend(parsed["pages"])
+    if parsed is None and interrupted is not None:
+        first, last = page_range
+        advice = (
+            f"Retry page {first} alone."
+            if first != last
+            else f"Use render_course_file_page for page {first}, or resume at page {first + 1}."
+        )
+        raise DomainError(
+            "retry_later",
+            f"PDF pages {first} to {last}: no completed pages within {interrupted} seconds. {advice}",
+            reason_code="DOCUMENT_WORKER_CPU_LIMIT" if cpu_limit else "DOCUMENT_WORKER_TIMEOUT",
+            processing_stage="worker_execution",
+            details={
+                "timeout_stage": "text_extraction" if entered_extraction else "runtime_setup",
+                "deadline_seconds": interrupted,
+                "operation_state": "stopped",
+                "page_start": first,
+                "page_end": last,
+                "completed_pages": [],
+            },
+        )
+    if parsed is None or (interrupted is None and record["complete"] is not True):
+        raise ValueError("Incomplete PDF worker result")
+    return {"ok": True, "extraction": {**parsed, "pages": pages}}
+
+
 def extract_isolated(
     data: bytes,
     kind: str,
@@ -293,6 +380,7 @@ def extract_isolated(
     visual: dict | None = None,
     ocr_root: Path | None = None,
     presentation_root: Path | None = None,
+    page_range=None,
 ) -> dict:
     if (
         visual is not None
@@ -373,34 +461,51 @@ def extract_isolated(
                 )
             (work / "input.bin").write_bytes(data)
             (work / "request.json").write_text(
-                json.dumps(visual if visual is not None else {"kind": kind}), encoding="utf-8"
+                json.dumps(
+                    visual if visual is not None else {"kind": kind, "page_range": page_range}
+                ),
+                encoding="utf-8",
             )
             stage = "worker_execution"
-            worker_usage = (
-                run(
-                    runtime,
-                    work,
-                    script="presentation_render_worker.py",
-                    timeout=75,
-                    presentation=True,
-                )
-                if visual is not None and kind == "pptx"
-                else run(
-                    runtime,
-                    work,
-                    script="visual_worker.py" if visual is not None else "worker.py",
-                    **(
-                        {"memory_mb": visual.get("memory_mb", 384)}
-                        if visual is not None and kind == "pdf"
-                        else {}
-                    ),
-                )
-                or {}
-            )
-            stage = "result_read"
             path = work / "result.json"
-            with path.open("rb") as stream:
-                output = stream.read(2_000_001)
+            interrupted = None
+            cpu_limit = False
+            try:
+                worker_usage = (
+                    run(
+                        runtime,
+                        work,
+                        script="presentation_render_worker.py",
+                        timeout=75,
+                        presentation=True,
+                    )
+                    if visual is not None and kind == "pptx"
+                    else run(
+                        runtime,
+                        work,
+                        script="visual_worker.py" if visual is not None else "worker.py",
+                        **(
+                            {"memory_mb": visual.get("memory_mb", 384)}
+                            if visual is not None and kind == "pdf"
+                            else {}
+                        ),
+                    )
+                    or {}
+                )
+            except (WorkerDeadline, DomainError) as exc:
+                cpu_limit = (
+                    isinstance(exc, DomainError) and exc.reason_code == "DOCUMENT_WORKER_CPU_LIMIT"
+                )
+                if not page_range or not (
+                    cpu_limit or isinstance(exc, WorkerDeadline) and exc.stopped
+                ):
+                    raise
+                interrupted = 10 if cpu_limit else exc.seconds
+            stage = "result_read"
+            output = b""
+            if interrupted is None or path.exists():
+                with path.open("rb") as stream:
+                    output = stream.read(2_000_001)
             if len(output) > 2_000_000:
                 raise DomainError(
                     "unsupported_feature",
@@ -438,7 +543,26 @@ def extract_isolated(
                         "worker_output_bytes": len(output),
                     }
                 return rendered
-            parsed = validate_result(json.loads(output), data)
+            decoded = (
+                pdf_progress(output, page_range, interrupted, cpu_limit)
+                if page_range
+                else json.loads(output)
+            )
+            parsed = validate_result(decoded, data)
+            if page_range:
+                first, last = page_range
+                numbers = [page["page"] for page in parsed["pages"]]
+                if numbers != list(range(first, first + len(numbers))) or any(
+                    n > last for n in numbers
+                ):
+                    raise ValueError("Invalid PDF page range in worker result")
+                if interrupted is not None:
+                    if not numbers:
+                        raise ValueError("Empty PDF checkpoint")
+                    parsed["warnings"].append(
+                        f"PDF pages {first} to {last}: text extraction stopped at {interrupted} seconds "
+                        f"after completing pages {first} to {numbers[-1]}. Resume at page {numbers[-1] + 1}."
+                    )
             if kind == "pptx":
                 parsed["resource_usage"] = {
                     **parsed.get("resource_usage", {}),
@@ -463,6 +587,22 @@ def extract_isolated(
             "Document processing timed out; no complete result was returned.",
             reason_code="DOCUMENT_WORKER_TIMEOUT",
             processing_stage=stage,
+            details={
+                "deadline_seconds": exc.seconds if isinstance(exc, WorkerDeadline) else None,
+                "operation_state": "stopped"
+                if isinstance(exc, WorkerDeadline) and exc.stopped
+                else "unknown",
+                "timeout_stage": "runtime_setup"
+                if stage in {"runtime_setup", "job_setup"}
+                else "pptx_conversion"
+                if kind == "pptx" and visual is not None
+                else "ocr"
+                if visual is not None and visual.get("ocr")
+                else "page_rendering"
+                if visual is not None
+                else "text_extraction",
+                "elapsed_ms": round((time.perf_counter() - started) * 1000),
+            },
         ) from exc
     except Exception as exc:
         raise DomainError(
@@ -481,28 +621,59 @@ def extract_isolated(
         _slot.release()
 
 
-async def extract_document(data: bytes, kind: str, settings) -> dict:
+async def extract_document(data: bytes, kind: str, settings, page_range=None) -> dict:
     if not settings.file_reading_enabled or settings.parser_root is None:
         raise DomainError(
-            "unsupported_feature", "Isolated file extraction is not enabled on this server."
+            "unsupported_feature",
+            "Isolated file extraction is not enabled on this server.",
+            reason_code="EXTRACTION_RUNTIME_UNCONFIGURED",
         )
+
     # Each OS worker always has its own wall/CPU limit, even if this awaiting
     # task is cancelled. It cannot survive the bounded job cleanup.
-    parsed = await asyncio.to_thread(
-        extract_isolated,
-        data,
-        kind,
-        settings.parser_root,
-        runtime_root=settings.parser_runtime_root,
-        # Embedded text never needs OCR. Optional OCR setup must not break it.
-        ocr_root=None,
-    )
+    async def extract_text():
+        return await asyncio.to_thread(
+            extract_isolated,
+            data,
+            kind,
+            settings.parser_root,
+            runtime_root=settings.parser_runtime_root,
+            # Embedded text never needs OCR. Optional OCR setup must not break it.
+            ocr_root=None,
+            **({"page_range": page_range} if page_range else {}),
+        )
+
+    try:
+        parsed = await extract_text()
+    except DomainError as exc:
+        if (
+            kind != "pdf"
+            or exc.reason_code != "DOCUMENT_WORKER_BUSY"
+            or exc.processing_stage != "worker_queue"
+            or not _pdf_waiter.acquire(blocking=False)
+        ):
+            raise
+        # Wait outside the executor. Cancellation drops the waiter without
+        # scheduling a worker. The retry must still acquire the normal slot.
+        try:
+            async with asyncio.timeout(PDF_QUEUE_WAIT_SECONDS):
+                while _slot.locked():  # noqa: ASYNC110 - sync worker lock shared across event loops
+                    await asyncio.sleep(0.05)
+        except TimeoutError:
+            raise exc from None
+        finally:
+            _pdf_waiter.release()
+        parsed = await extract_text()
 
     if kind != "pdf" or settings.ocr_root is None:
         return parsed
     attempted = 0
     for page in parsed["pages"]:
-        if len(page["text"].strip()) >= 40 or page["state"] in {"truncated", "resource_limit"}:
+        sparse_scan = bool(page.get("sparse_image_text"))
+        if (len(page["text"].strip()) >= 40 and not sparse_scan) or page["state"] in {
+            "truncated",
+            "resource_limit",
+        }:
             continue
         if attempted >= 4:
             page["ocr_status"] = "skipped_budget"
@@ -526,7 +697,10 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
             page["ocr_confidence"] = recognition["mean_confidence"]
             text = recognition["text"].strip()
             budget = MAX_TEXT - sum(len(p["text"]) + 2 for p in parsed["pages"])
-            if text and len(text) <= budget and recognition["mean_confidence"] >= 50:
+            # Do not replace existing short embedded text with a poorer OCR result.
+            richer = not sparse_scan or len(text) > len(page["text"].strip())
+            if text and richer and len(text) <= budget and recognition["mean_confidence"] >= 50:
+                page.pop("structure", None)
                 page.update(
                     text=text,
                     state="ocr_extracted",
@@ -540,6 +714,7 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
                     w
                     for w in parsed["warnings"]
                     if not w.startswith(f"Page {page['page']}: no text layer")
+                    and not w.startswith(f"Page {page['page']}: sparse text layer")
                     and not w.startswith("No readable text was extracted.")
                 ]
             else:
@@ -549,7 +724,16 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
                 )
         except DomainError as exc:
             page["ocr_status"] = "failed"
-            page["ocr_failure"] = {"status": exc.status, **exc.data}
+            from canvas_bridge.document_diagnostics import safe_ocr_failure
+
+            page["ocr_failure"] = safe_ocr_failure(
+                {
+                    "status": exc.status,
+                    **exc.data,
+                    "page_start": page["page"],
+                    "page_end": page["page"],
+                }
+            )
             parsed["warnings"].append(
                 f"Page {page['page']}: OCR unavailable, failed or exceeded isolation limits. Visual reading may still work."
             )
@@ -566,8 +750,14 @@ async def extract_document(data: bytes, kind: str, settings) -> dict:
                 failure.get("status", "retry_later"),
                 "OCR failed and no usable document text is available; this is not a zero-match result.",
                 reason_code=failure.get("reason_code") or "OCR_EXTRACTION_FAILED",
-                processing_stage=failure.get("processing_stage") or "ocr",
+                processing_stage="ocr",
+                details={
+                    k: v
+                    for k, v in failure.items()
+                    if k in {"deadline_seconds", "timeout_stage", "page_start", "page_end"}
+                },
             )
     from canvas_bridge.privacy_text import document_privacy
+    from canvas_bridge.scientific_structure import enrich
 
-    return document_privacy(parsed)
+    return document_privacy(enrich(parsed))

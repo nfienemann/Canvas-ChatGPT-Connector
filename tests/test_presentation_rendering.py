@@ -11,6 +11,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from canvas_bridge.domain import DomainError
+from canvas_bridge.presentation_derivatives import validate_derivative
 from canvas_bridge.presentation_render_worker import convert
 from canvas_bridge.visual_files import render_file, validate_rendering
 from canvas_bridge.visual_worker import render
@@ -35,7 +36,8 @@ def test_office_install_parent_is_public_without_granting_private_cache(tmp_path
     (private / "secret.txt").write_text("synthetic private canary")
     grants = []
     monkeypatch.setattr(
-        "canvas_bridge.windows_sandbox.acl", lambda path, *args: grants.append(path)
+        "canvas_bridge.windows_sandbox.acl",
+        lambda path, *args, **kwargs: grants.append((path, kwargs)),
     )
 
     installed = prepare(runtime, source)
@@ -43,7 +45,8 @@ def test_office_install_parent_is_public_without_granting_private_cache(tmp_path
     assert installed.parent.parent == private
     assert (installed / "program/soffice.bin").is_file()
     assert len(grants) == 1
-    assert Path(str(grants[0]).removeprefix("\\\\?\\")) == installed.parent
+    assert Path(str(grants[0][0]).removeprefix("\\\\?\\")) == installed.parent
+    assert grants[0][1] == {"timeout": 90}
     assert not (installed.parent / "secret.txt").exists()
     assert prepare(runtime, source) == installed
     assert len(grants) == 1
@@ -172,12 +175,16 @@ def synthetic_render_transport(bridge, monkeypatch):
     bridge.settings.pptx_renderer_root = Path("synthetic-unused-public-runtime")
     bridge.settings.parser_root = Path("synthetic-unused-parser")
 
-    from canvas_bridge.presentation_derivatives import validate_derivative
     from canvas_bridge.presentation_render_worker import CONVERTER
 
     async def fixture(data, settings, slide):
         if slide > 17:
-            validate_derivative({"ok": False, "reason": "page_limit_or_range"}, data, b"", slide)
+            validate_derivative(
+                {"ok": False, "reason": "document_range_out_of_bounds", "page_count": 17},
+                data,
+                b"",
+                slide,
+            )
         pdf = scientific_pdf([f"Synthetic transport slide {slide}"])
         result = {
             "converter": CONVERTER,
@@ -232,6 +239,25 @@ async def test_real_mcp_image_transport_has_slide_evidence_and_revokes_access(
                 assert result.structuredContent["sources"][0]["locator"] == "Slide 2"
                 assert any(block.type == "image" for block in result.content)
                 assert "office_root" not in json.dumps(result.structuredContent)
+                for tool, args in (
+                    ("render_course_slide", {"slide": 18}),
+                    ("read_course_file", {"page_start": 17, "page_end": 18}),
+                ):
+                    error = await session.call_tool(
+                        tool, {"connection_id": seeded, "file_id": presentation, **args}
+                    )
+                    response = error.structuredContent
+                    assert response["status"] == "needs_input" and not response["sources"]
+                    assert "within 1 to 17" in response["summary"]
+                    detail = response["data"]
+                    assert detail["reason_code"] == "DOCUMENT_RANGE_OUT_OF_BOUNDS"
+                    assert detail["diagnostic"]["category"] == "validation"
+                    assert (detail["page_start"], detail["page_end"], detail["page_count"]) == (
+                        args.get("page_start", 18),
+                        18,
+                        17,
+                    )
+                    assert not any(block.type == "image" for block in error.content)
                 bridge.synthetic.data["files"]["11"][0]["hidden_for_user"] = True
                 denied = await session.call_tool(
                     "render_course_file_page", {"connection_id": seeded, "file_id": presentation}
@@ -260,3 +286,46 @@ async def test_render_rechecks_version_after_worker_and_rejects_old_hash(
     with pytest.raises(DomainError) as stale:
         await render_file(bridge, owner, seeded, presentation)
     assert stale.value.status == "source_changed"
+
+
+def test_pptx_worker_range_discovered_before_conversion(tmp_path, monkeypatch):
+    from canvas_bridge import presentation_render_worker as worker
+    from tests.test_presentation_subset import fixture_bytes
+
+    source = fixture_bytes()
+    (tmp_path / "input.bin").write_bytes(source)
+    (tmp_path / "request.json").write_text(
+        json.dumps(dict(page=4, rotation=0, conversion_only=True, office_root="SECRET"))
+    )
+    monkeypatch.setattr(worker.sys, "argv", ["worker", str(tmp_path)])
+    worker.main()
+    result = json.loads((tmp_path / "result.json").read_bytes())
+    assert result == dict(ok=False, reason="document_range_out_of_bounds", page_count=3)
+    with pytest.raises(DomainError) as caught:
+        validate_derivative(result, source, b"", 4)
+    assert caught.value.data == dict(
+        reason_code="DOCUMENT_RANGE_OUT_OF_BOUNDS", page_start=4, page_end=4, page_count=3
+    )
+
+
+async def test_worker_discovered_range_withdrawn_on_revocation(
+    bridge, owner, seeded, presentation, synthetic_render_transport, monkeypatch
+):
+    from canvas_bridge.presentation_pipeline import render_slide
+
+    async def revoked_while_counting(data, settings, slide):
+        bridge.synthetic.data["files"]["11"][0]["hidden_for_user"] = True
+        validate_derivative(
+            {"ok": False, "reason": "document_range_out_of_bounds", "page_count": 17},
+            data,
+            b"",
+            slide,
+        )
+
+    monkeypatch.setattr(
+        "canvas_bridge.presentation_pipeline.convert_document", revoked_while_counting
+    )
+    with pytest.raises(DomainError) as denied:
+        await render_slide(bridge, owner, seeded, presentation, slide=18)
+    assert denied.value.status == "permission_denied"
+    assert not {"page_count", "page_start", "page_end", "text", "slides"} & denied.value.data.keys()

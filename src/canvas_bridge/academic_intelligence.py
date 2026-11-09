@@ -4,6 +4,7 @@ import asyncio
 import re
 from copy import deepcopy
 from datetime import timedelta
+from time import monotonic
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from canvas_bridge.academic_rules import (
@@ -19,18 +20,24 @@ from canvas_bridge.evidence import attach, fingerprint, reconcile_states
 from canvas_bridge.material_discovery import discovery_outcome, schedule_candidates
 from canvas_bridge.normalize import (
     assignment_requirements,
+    canonical_id,
     fact_date,
     normalize_assignment,
     plain_text,
 )
 from canvas_bridge.policy import Endpoint, source_id
+from canvas_bridge.privacy_text import WITHHELD
 from canvas_bridge.retrieval import fetch_material, outline
 from canvas_bridge.storage import Material, aware
 
+EXAM_TITLE = re.compile(r"\b(?:quiz|exam|test|midterm|final)\b", re.I)
 MAX_ASSIGNMENTS = 30
 MAX_DOCUMENTS = 3
 MATERIAL_SECONDS = 35
 MATERIAL_READ_SECONDS = 15
+EXAM_BATCH_SECONDS = 20
+EXAM_FIRST_FILE_SETUP_SECONDS = 25
+THOROUGH_BATCH_LIMIT = 20
 
 
 def document(source, text, locator="HTML text", *, complete=True, parts=None):
@@ -71,7 +78,16 @@ def source_for(course, origin, kind, key, title, text, updated=None):
 
 
 async def collect_course(
-    bridge, owner, ref, course_ref, material_ids=None, purpose=None, work_id=None
+    bridge,
+    owner,
+    ref,
+    course_ref,
+    material_ids=None,
+    purpose=None,
+    work_id=None,
+    *,
+    review_mode="standard",
+    task_deadline=None,
 ):
     await bridge.refresh_course_access(owner, ref)
     conn, courses = bridge.selected(owner, ref, [course_ref])
@@ -113,8 +129,30 @@ async def collect_course(
                 ),
             )
         )
-        for raw in assignments.items[:MAX_ASSIGNMENTS]:
+        assignment_candidates = assignments.items[:MAX_ASSIGNMENTS]
+        if purpose == "integrity" or (purpose == "exam" and work_id):
+            # Course policy discovery needs only this assessment's instructions,
+            # not detail requests for every unrelated assignment in the course.
+            assignment_candidates = [
+                raw
+                for raw in assignments.items
+                if work_id
+                and canonical_id(
+                    owner, ref, "assignment", f"{course.source_id}:{source_id(raw['id'])}"
+                )
+                == work_id
+            ][:1]
+            bundle["limitations"].append(
+                "Assessment-specific discovery inspects details only for the requested assessment; unrelated assignment instructions were not read."
+            )
+        elif purpose == "exam":
+            assignment_candidates = [
+                raw for raw in assignments.items if EXAM_TITLE.search(str(raw.get("name", "")))
+            ][:MAX_ASSIGNMENTS]
+        descriptions = {}
+        for raw in assignment_candidates:
             if raw.get("published") is False or raw.get("locked_for_user") is True:
+                bundle["assignments_complete"] = False
                 bundle["limitations"].append(
                     "A restricted assessment was omitted; no hidden content was retrieved."
                 )
@@ -137,6 +175,7 @@ async def collect_course(
                 if str(fresh.get("id")) != str(raw["id"]):
                     raise DomainError("partial_data", "Assignment identity mismatch.")
                 if fresh.get("published") is False or fresh.get("locked_for_user") is True:
+                    bundle["assignments_complete"] = False
                     bundle["limitations"].append(
                         "An assessment became inaccessible during retrieval."
                     )
@@ -145,6 +184,7 @@ async def collect_course(
                 if exc.status in {"reconnect_required", "permission_denied"}:
                     if exc.status == "reconnect_required":
                         raise
+                    bundle["assignments_complete"] = False
                     bundle["limitations"].append(
                         "An assignment detail was inaccessible; its contents were omitted."
                     )
@@ -218,6 +258,8 @@ async def collect_course(
                 and isinstance(rubric_raw, list)
                 and len(rubric_raw) <= 50,
             )
+            if purpose == "exam" and not work_id:
+                descriptions[current.id] = fresh.get("description")
             bundle["items"].append(current.model_dump(mode="json"))
             bundle["sources"].extend([current.source, rubric_source])
             bundle["assignments"][current.id] = {
@@ -238,6 +280,13 @@ async def collect_course(
                 if isinstance(fresh.get("allowed_extensions"), list)
                 else None,
             }
+        if purpose == "exam" and not work_id:
+            selected_exam, _ = select_exam(bundle)
+            if selected_exam:
+                work_id = selected_exam["id"]
+                bundle["assignments"][work_id]["linked_materials"] = await resolve_links(
+                    bridge, owner, ref, course, client, descriptions[work_id]
+                )
         try:
             raw_course = await client.one(
                 Endpoint.COURSE, course=course.source_id, course_content="syllabus"
@@ -367,7 +416,7 @@ async def collect_course(
                 {"material_id": r["id"], "discovery_basis": ["policy_filename_hint_not_evidence"]}
                 for r in resources
                 if POLICY_NAMES.search(r.get("title", ""))
-            ] + candidates
+            ]
         linked = bundle["assignments"].get(work_id, {}).get("linked_materials", {})
         explicit = [
             {
@@ -379,47 +428,64 @@ async def collect_course(
             for link in linked.get("references", [])
             if link["state"] == "resolved"
         ]
+        nearby = []
+        if purpose == "exam":
+            exam, _ = select_exam(bundle, work_id)
+            nearby = [
+                {**reading, "discovery_basis": [reading["basis"]]}
+                for reading in module_readings(bundle, exam)
+            ]
         unique_candidates = {}
-        for candidate in [*explicit, *candidates]:
+        for candidate in [*explicit, *nearby, *candidates]:
             unique_candidates.setdefault(candidate["material_id"], candidate)
         candidates = list(unique_candidates.values())
-        targets = [c["material_id"] for c in candidates]
-        if purpose == "exam":
-            chosen = exam_pack(bundle, work_id)
-            # Same-module evidence identifies candidate readings, never proves
-            # exam coverage. Fetch text so ChatGPT has more than filenames.
-            targets = list(
-                dict.fromkeys(
-                    [c["material_id"] for c in chosen.get("candidate_readings", [])] + targets
-                )
-            )
+        targets = list(unique_candidates)
     else:
         targets = list(dict.fromkeys(material_ids))
         candidates = [
             {"material_id": target, "discovery_basis": ["explicit_selection"]} for target in targets
         ]
+    thorough = purpose == "exam" and review_mode == "thorough"
+    document_limit = (12 if thorough else 6) if purpose == "exam" else MAX_DOCUMENTS
+    seconds = (90 if thorough else 60) if purpose == "exam" else MATERIAL_SECONDS
     discovery = {
         "mode": "automatic" if material_ids is None else "explicit",
         "candidate_count": len(targets),
-        "document_limit": MAX_DOCUMENTS,
-        "time_budget_seconds": MATERIAL_SECONDS,
+        "document_limit": document_limit,
+        "time_budget_seconds": seconds,
         "inventory_complete": listing.status == "ok",
         "documents": [],
     }
     bundle["material_discovery"] = discovery
     hints = {c["material_id"]: c for c in candidates}
-    if len(targets) > MAX_DOCUMENTS:
+    if len(targets) > document_limit:
         bundle["limitations"].append(
-            "Only three source documents can be read in one request; additional versions remain unchecked."
+            f"At most {document_limit} candidate documents are attempted per pass."
         )
-    deadline = asyncio.get_running_loop().time() + MATERIAL_SECONDS
-    for index, material_id in enumerate(targets):
-        record = {**hints.get(material_id, {"material_id": material_id}), "state": "pending"}
-        discovery["documents"].append(record)
-        if index >= MAX_DOCUMENTS:
-            record.update(state="skipped", reason_code="MATERIAL_DOCUMENT_LIMIT")
+    started = monotonic()
+    deadline = min(started + seconds, task_deadline or float("inf"))
+    # Queue one batch per candidate before spending any spare slots on PDF depth.
+    queue = [(target, None) for target in targets]
+    records = {}
+    cold_allowance = purpose == "exam"
+    blocked = None
+    batches = 0
+    for material_id, resume in queue:
+        if resume is None:
+            record = {**hints.get(material_id, {"material_id": material_id}), "state": "pending"}
+            discovery["documents"].append(record)
+            records[material_id] = record
+            if len(records) > document_limit:
+                record.update(state="skipped", reason_code="MATERIAL_DOCUMENT_LIMIT")
+                continue
+        else:
+            record = records[material_id]
+            if batches >= THOROUGH_BATCH_LIMIT or blocked or monotonic() >= deadline:
+                continue
+        if blocked:
+            record.update(state="skipped", reason_code=blocked)
             continue
-        remaining = deadline - asyncio.get_running_loop().time()
+        remaining = deadline - monotonic()
         if remaining <= 0:
             record.update(state="skipped", reason_code="MATERIAL_TIME_BUDGET")
             continue
@@ -428,9 +494,26 @@ async def collect_course(
             if row.course_id != course_ref:
                 raise DomainError("permission_denied", "Document is outside the requested course.")
         try:
-            async with asyncio.timeout(min(remaining, MATERIAL_READ_SECONDS)):
-                fetched = await fetch_material(bridge, owner, ref, material_id, length=1000)
-            bundle["sources"].extend(fetched.sources[:1])
+            allowance = MATERIAL_READ_SECONDS
+            if purpose == "exam":
+                # One cold file gets setup headroom. Each later batch has its own slice.
+                allowance = EXAM_BATCH_SECONDS
+                if cold_allowance and row.kind == "file":
+                    allowance += EXAM_FIRST_FILE_SETUP_SECONDS
+                    cold_allowance = False
+                # When discovery ran long, leave other candidates a turn.
+                if resume is None and len(records) < min(document_limit, len(targets)):
+                    allowance = min(allowance, remaining / 2)
+            batches += 1
+            async with asyncio.timeout(min(remaining, allowance)):
+                if resume:
+                    from canvas_bridge.course_files import read_file
+
+                    fetched = await read_file(bridge, owner, ref, material_id, **resume)
+                else:
+                    fetched = await fetch_material(bridge, owner, ref, material_id, length=1000)
+            if not resume:
+                bundle["sources"].extend(fetched.sources[:1])
             if not fetched.data.get("content_hash"):
                 raise DomainError(
                     "unsupported_feature", "No extracted document content is available."
@@ -467,28 +550,50 @@ async def collect_course(
                     extraction_status=fetched.data.get("coverage", "unknown"),
                     source_updated_at=fact_date(row.file_state, "source_updated_at").timestamp,
                 )
+                withheld = purpose == "exam" and any(WITHHELD in p["text"] for p in parts)
+                if withheld:
+                    for part in parts:
+                        if WITHHELD in part["text"]:
+                            part["text"] = ""
                 doc = document(
                     src,
                     row.text,
                     parts=parts,
-                    complete=fetched.data.get("coverage") == "text_only",
+                    complete=fetched.data.get("coverage") == "text_only" and not withheld,
                 )
                 doc["source_version"] = row.file_state.get("version")
+                if resume:
+                    bundle["documents"] = [d for d in bundle["documents"] if d["id"] != material_id]
                 bundle["documents"].append(doc)
-                usable = bool(row.text.strip())
+                usable = any(p["text"].strip() for p in parts)
                 record.update(
                     state="reviewed"
                     if doc["complete"] and usable
                     else "partially_reviewed"
                     if usable
                     else "unreadable",
-                    reason_code=None if usable else "MATERIAL_NO_USABLE_TEXT",
+                    reason_code="MATERIAL_CONTENT_WITHHELD"
+                    if withheld
+                    else None
+                    if usable
+                    else "MATERIAL_NO_USABLE_TEXT",
                     source_version=doc["source_version"],
                     content_hash=row.version_hash,
-                    extraction_coverage=fetched.data.get("coverage"),
+                    extraction_coverage="partial" if withheld else fetched.data.get("coverage"),
                     locators=[p["locator"] for p in parts],
                 )
+                if purpose == "exam":
+                    next_batch = extraction_progress(row, doc, record, ref)
+                    if (
+                        thorough
+                        and next_batch
+                        and (not resume or next_batch["page_start"] > resume["page_start"])
+                    ):
+                        queue.append((material_id, next_batch))
         except TimeoutError:
+            if resume:
+                record.update(reason_code="MATERIAL_READ_TIMEOUT")
+                continue
             record.update(state="failed", status="retry_later", reason_code="MATERIAL_READ_TIMEOUT")
             bundle["limitations"].append(
                 "A selected material exceeded its read budget; it was not reviewed."
@@ -496,6 +601,29 @@ async def collect_course(
         except DomainError as exc:
             if exc.status in {"reconnect_required", "source_changed"}:
                 raise
+            if purpose == "exam" and exc.reason_code in {
+                "TASK_BUDGET_EXCEEDED",
+                "UPSTREAM_THROTTLED",
+                "RATE_LIMITED",
+                "OWNER_RATE_LIMITED",
+                "WORKFLOW_BUDGET_EXHAUSTED",
+                "UPSTREAM_BUDGET_EXHAUSTED",
+            }:
+                blocked = exc.reason_code
+            if resume and exc.status != "permission_denied":
+                record.update(reason_code=exc.reason_code or "MATERIAL_READ_FAILED")
+                continue
+            if resume:
+                bundle["documents"] = [d for d in bundle["documents"] if d["id"] != material_id]
+                record.pop("extraction_continuation", None)
+                for key in (
+                    "total_extracted_characters",
+                    "extracted_pages",
+                    "usable_pages",
+                    "locators",
+                    "extraction_coverage",
+                ):
+                    record.pop(key, None)
             record.update(
                 state="inaccessible" if exc.status == "permission_denied" else "failed",
                 status=exc.status,
@@ -511,6 +639,32 @@ async def collect_course(
                     "reason_code": exc.reason_code or "MATERIAL_READ_FAILED",
                     "next_action": "Check access or use a supported source; do not infer the document contents.",
                 }
+            )
+    if purpose == "exam":
+        discovery.update(
+            review_mode=review_mode,
+            batches_attempted=batches,
+            batch_limit=THOROUGH_BATCH_LIMIT if thorough else document_limit,
+            elapsed_seconds=round(monotonic() - started, 3),
+        )
+        if pending := [
+            d["material_id"]
+            for d in records.values()
+            if d["state"] == "skipped"
+            or (
+                d["state"] == "failed"
+                and (
+                    d.get("status") == "retry_later"
+                    or (blocked is not None and d.get("reason_code") == blocked)
+                )
+            )
+        ]:
+            discovery["continuation"] = dict(
+                connection_id=ref,
+                course_id=course_ref,
+                work_id=work_id,
+                material_ids=pending[:document_limit],
+                review_mode=review_mode,
             )
     current, _ = bridge.selected(owner, ref, [course_ref])
     if current.epoch != conn.epoch:
@@ -550,6 +704,23 @@ def related_documents(bundle, item):
     return result
 
 
+def linked_reading_outcomes(bundle, assignment):
+    links = deepcopy(assignment.get("linked_materials", {"references": [], "truncated": False}))
+    readings = {
+        r["material_id"]: r for r in bundle.get("material_discovery", {}).get("documents", [])
+    }
+    for link in links["references"]:
+        reading = readings.get(link.get("material_id"))
+        link["reading_state"] = reading["state"] if reading else "not_reviewed"
+        link["content_reviewed"] = bool(
+            reading and reading["state"] in {"reviewed", "partially_reviewed"}
+        )
+        if reading and reading.get("reason_code"):
+            link["reading_reason_code"] = reading["reason_code"]
+    links["linked_content_reviewed"] = any(link["content_reviewed"] for link in links["references"])
+    return links
+
+
 def instruction_report(bundle, work_id, draft=None):
     item = next((i for i in bundle["items"] if i["id"] == work_id), None)
     if item is None:
@@ -558,19 +729,7 @@ def instruction_report(bundle, work_id, draft=None):
         )
     assignment = bundle["assignments"][work_id]
     docs = [assignment["instructions"], assignment["rubric"], *related_documents(bundle, item)]
-    links = deepcopy(assignment.get("linked_materials", {"references": [], "truncated": False}))
-    readings = {
-        r["material_id"]: r for r in bundle.get("material_discovery", {}).get("documents", [])
-    }
-    for link in links["references"]:
-        reading = readings.get(link["material_id"])
-        link["reading_state"] = reading["state"] if reading else "not_reviewed"
-        link["content_reviewed"] = bool(
-            reading and reading["state"] in {"reviewed", "partially_reviewed"}
-        )
-        if reading and reading.get("reason_code"):
-            link["reading_reason_code"] = reading["reason_code"]
-    links["linked_content_reviewed"] = any(link["content_reviewed"] for link in links["references"])
+    links = linked_reading_outcomes(bundle, assignment)
     linked_ids = {
         link["material_id"] for link in links["references"] if link["state"] == "resolved"
     }
@@ -598,12 +757,15 @@ def instruction_report(bundle, work_id, draft=None):
     )
     # Deadline contradictions use the same dated-obligation engine.
     result["deadline_comparison"] = deadline_findings(
-        related_documents(bundle, item), [item], bundle["timezone"], bundle["assignments_complete"]
+        related_documents(bundle, item),
+        bundle["items"],
+        bundle["timezone"],
+        bundle["assignments_complete"],
     )
     return result
 
 
-def exam_pack(bundle, work_id=None):
+def select_exam(bundle, work_id=None):
     from canvas_bridge.domain import WorkItem
     from canvas_bridge.planning import is_actionable
 
@@ -611,8 +773,7 @@ def exam_pack(bundle, work_id=None):
     eligible = [
         i
         for i in bundle["items"]
-        if re.search(r"\b(?:quiz|exam|test|midterm|final)\b", i["title"], re.I)
-        and is_actionable(WorkItem.model_validate(i))
+        if EXAM_TITLE.search(i["title"]) and is_actionable(WorkItem.model_validate(i))
     ]
     if work_id:
         exam = next((i for i in bundle["items"] if i["id"] == work_id), None)
@@ -626,33 +787,17 @@ def exam_pack(bundle, work_id=None):
             and fact_date({"due": i["effective_due"]["timestamp"]}, "due").timestamp > now
         ]
         exam = min(future, key=lambda i: i["effective_due"]["timestamp"]) if future else None
-    if exam is None:
-        return {
-            "status": "needs_input",
-            "assessment": None,
-            "candidates": [
-                {"work_id": i["id"], "title": i["title"], "date": i["effective_due"]}
-                for i in eligible
-            ],
-            "reason": "No reliably dated next assessment; choose an assessment. Undated or old records were not assumed upcoming.",
-        }
-    docs = bundle["documents"]
-    assigned, candidates, objectives = [], [], []
-    instructions = bundle["assignments"][exam["id"]]["instructions"]
-    for doc in [instructions, *related_documents(bundle, exam)]:
-        for part in doc["parts"]:
-            for line in part["text"].splitlines():
-                if re.search(
-                    r"\b(?:covers|coverage|includes|read|reading|required|study)\b", line, re.I
-                ):
-                    assigned.append(citation(doc, part, line))
-                if re.search(
-                    r"\b(?:objective|learn|explain|compare|describe|analyze)\b", line, re.I
-                ):
-                    objectives.append(citation(doc, part, line))
+    return exam, eligible
+
+
+def module_readings(bundle, exam):
+    candidates = []
+    if not exam:
+        return candidates
     for module in (bundle["outline"] or {}).get("modules", []):
         if any(
-            normalized(i.get("title", "")) == normalized(exam["title"])
+            i.get("type") in {"Assignment", "Quiz"}
+            and normalized(i.get("title", "")) == normalized(exam["title"])
             for i in module.get("items", [])
         ):
             candidates.extend(
@@ -665,21 +810,155 @@ def exam_pack(bundle, work_id=None):
                 for i in module["items"]
                 if i.get("material_ref")
             )
-    from canvas_bridge.academic.independent_engine import bounded_excerpts
+    return candidates
 
-    excerpts = bounded_excerpts(docs)
+
+def extraction_progress(row, doc, record, ref):
+    from canvas_bridge.document_policy import PDF_BATCH_PAGES
+    from canvas_bridge.parser_worker import MAX_TEXT
+
+    record["total_extracted_characters"] = sum(len(p["text"]) for p in doc["parts"])
+    if record["state"] == "partially_reviewed" and not record["reason_code"]:
+        record["reason_code"] = "MATERIAL_EXTRACTION_PARTIAL"
+    if row.kind != "file":
+        return None
+    doc["part_pages"] = [p["page"] for p in row.locators]
+    if row.file_state.get("format") != "pdf":
+        return None
+    present = set(doc["part_pages"])
+    count = row.file_state["page_count"]
+    record.update(
+        page_count=count,
+        extracted_pages=sorted(present),
+        usable_pages=[
+            n for n, p in zip(doc["part_pages"], doc["parts"], strict=True) if p["text"].strip()
+        ],
+    )
+    first = next((n for n in range(1, count + 1) if n not in present), None)
+    record.pop("extraction_continuation", None)
+    if first is None or len(row.text) + 2 > MAX_TEXT:
+        return None
+    args = dict(
+        expected_hash=row.version_hash,
+        expected_parser=row.file_state["parser"],
+        page_start=first,
+        page_end=count,
+    )
+    record["extraction_continuation"] = dict(connection_id=ref, file_id=row.id, **args)
+    # Caller-facing cursor spans the remaining source so read_course_file can return
+    # another cursor. Internal turns stop before an already-extracted page.
+    return {
+        **args,
+        "page_end": min(
+            count,
+            first + PDF_BATCH_PAGES - 1,
+            min((n - 1 for n in present if n > first), default=count),
+        ),
+    }
+
+
+def assessment_excerpts(bundle):
+    """A fair bounded prefix per source, with a reader cursor at its first omission."""
+    records = {
+        r["material_id"]: r for r in bundle.get("material_discovery", {}).get("documents", [])
+    }
+    docs = [d for d in bundle["documents"] if any(p["text"] for p in d["parts"])]
+    remaining = 16_000
+    excerpts = []
+    for i, doc in enumerate(docs):
+        allowance = min(4000, remaining // (len(docs) - i))
+        delivered = 0
+        record = records.get(doc["id"])
+        for index, part in enumerate(doc["parts"]):
+            text = part["text"][:allowance] if index < 4 else ""
+            if text:
+                excerpts.append(
+                    {
+                        **citation(doc, part, text),
+                        "text": text,
+                        "truncated": len(text) < len(part["text"]),
+                    }
+                )
+                delivered += len(text)
+                remaining -= len(text)
+                allowance -= len(text)
+            if len(text) < len(part["text"]):
+                if record is not None:
+                    args = dict(
+                        connection_id=bundle["connection"].id,
+                        expected_hash=doc["version"],
+                        offset=len(text),
+                        length=8000,
+                    )
+                    if "part_pages" in doc:
+                        args.update(
+                            file_id=doc["id"],
+                            page_start=doc["part_pages"][index],
+                            page_end=doc["part_pages"][-1],
+                        )
+                    else:
+                        args.update(material_id=doc["id"])
+                    record["excerpt_continuation"] = args
+                break
+        if record is not None:
+            record.update(
+                excerpt_characters=delivered,
+                excerpt_truncated=delivered < record["total_extracted_characters"],
+            )
+    return excerpts
+
+
+def exam_pack(bundle, work_id=None):
+    exam, eligible = select_exam(bundle, work_id)
+    if exam is None:
+        return {
+            "status": "needs_input",
+            "assessment": None,
+            "candidates": [
+                {"work_id": i["id"], "title": i["title"], "date": i["effective_due"]}
+                for i in eligible
+            ],
+            "reason": "No reliably dated next assessment; choose an assessment. Undated or old records were not assumed upcoming.",
+        }
+    docs = bundle["documents"]
+    assigned, objectives = [], []
+    instructions = bundle["assignments"][exam["id"]]["instructions"]
+    for doc in [instructions, *related_documents(bundle, exam)]:
+        for part in doc["parts"]:
+            for line in part["text"].splitlines():
+                assessment_context = doc is instructions or normalized(exam["title"]) in normalized(
+                    line
+                )
+                if (
+                    len(assigned) < 10
+                    and assessment_context
+                    and re.search(
+                        r"\b(?:covers|coverage|includes|read|reading|required|study)\b", line, re.I
+                    )
+                ):
+                    assigned.append(citation(doc, part, line))
+                if len(objectives) < 10 and re.search(
+                    r"\b(?:objective|learn|explain|compare|describe|analyze)\b", line, re.I
+                ):
+                    objectives.append(citation(doc, part, line))
+    candidates = module_readings(bundle, exam)
+    excerpts = assessment_excerpts(bundle)
     return {
         "status": "ok",
         "assessment": {"work_id": exam["id"], "title": exam["title"], "source": exam["source"]},
+        "linked_materials": linked_reading_outcomes(bundle, bundle["assignments"][exam["id"]]),
         "explicit_coverage_passages": assigned[:10],
         "learning_objective_passages": objectives[:10],
         "candidate_readings": candidates[:20],
+        "candidate_readings_truncated": len(candidates) > 20,
         "material_excerpts": excerpts,
-        "repeated_concepts": repeated_concepts(docs),
+        "repeated_concepts": repeated_concepts(
+            [d for d in docs if d["source_type"] in {"canvas_file", "canvas_page"}]
+        ),
         "coverage_status": "explicit_passages_need_interpretation"
         if assigned
         else "not_established",
-        "next_step": "ChatGPT can build a cited guide and practice questions from these excerpts. Label inferred relevance; request additional chunks or candidate readings before claiming comprehensive preparation.",
+        "next_step": "Use material_discovery.continuation with prepare_for_assessment for the next group of deferred documents. Use extraction_continuation with read_course_file for missing PDF pages. Use excerpt_continuation with read_course_file (file_id) or fetch_course_material (material_id) for additional source text. Follow reader continuations. Keyword overlap is a study heuristic; assessment scope requires assessment-specific evidence.",
         "figure_interpretation": "unsupported",
         "generated_study_guide": None,
     }
@@ -697,16 +976,34 @@ async def academic_request(
     draft=None,
     include_grades=False,
     include_discussions=False,
+    registrar_lookup=None,
+    review_mode="standard",
 ):
+    bundle = None
     try:
-        async with asyncio.timeout(90):
+        total_seconds = 135 if action == "exam" and review_mode == "thorough" else 90
+        async with asyncio.timeout(total_seconds):
             bundle = await collect_course(
-                bridge, owner, ref, course_id, material_ids, action, work_id
+                bridge,
+                owner,
+                ref,
+                course_id,
+                material_ids,
+                action,
+                work_id,
+                **(
+                    {"review_mode": review_mode, "task_deadline": monotonic() + total_seconds - 10}
+                    if action == "exam"
+                    else {}
+                ),
             )
             integrity_decision = None
             if action == "exam":
                 from canvas_bridge.integrity.models import Activity, AssistanceRequest, Scope
 
+                selected_exam, _ = select_exam(bundle, work_id)
+                if selected_exam:
+                    work_id = selected_exam["id"]
                 integrity_decision, _ = await bridge.integrity.evaluate(
                     owner,
                     AssistanceRequest(
@@ -716,15 +1013,24 @@ async def academic_request(
                     bundle=bundle,
                 )
                 integrity_decision.require()
-            deadlines = deadline_findings(
-                bundle["documents"],
-                bundle["items"],
-                bundle["timezone"],
-                bundle["assignments_complete"],
-            )
-            bundle["material_discovery"] = discovery_outcome(
-                bundle["material_discovery"], deadlines["obligations"]
-            )
+                review = bundle["material_discovery"]
+                review["state"] = (
+                    "no_candidates"
+                    if not review["documents"]
+                    else "reviewed"
+                    if all(d["state"] == "reviewed" for d in review["documents"])
+                    else "partial"
+                )
+            else:
+                deadlines = deadline_findings(
+                    bundle["documents"],
+                    bundle["items"],
+                    bundle["timezone"],
+                    bundle["assignments_complete"],
+                )
+                bundle["material_discovery"] = discovery_outcome(
+                    bundle["material_discovery"], deadlines["obligations"]
+                )
             if action == "deadlines":
                 data = deadlines
             elif action == "instructions":
@@ -780,8 +1086,13 @@ async def academic_request(
                             "canvas_calculation",
                             "syllabus_calculation",
                             "reconciliation",
+                            "classification",
+                            "timeout_stage",
+                            "missing_information",
+                            "reason_code",
                         )
                     }
+                    grade["status"] = grade_result.status
                     outcome = (grade.get("reconciliation") or {}).get("outcome")
                     if outcome and outcome != "consistent":
                         findings.append(
@@ -817,13 +1128,18 @@ async def academic_request(
                 data = {
                     "findings": findings[:60],
                     "findings_truncated": len(findings) > 60,
+                    "obligation_groups": deadlines["obligation_groups"],
+                    "comparisons": deadlines["comparisons"],
                     "grade_audit": grade,
                     "discussion_audit": discussion_report,
                     "checks": {
-                        "deadlines": "bounded_sources_checked",
                         "requirements": "explicit_counts_formats_checked",
                         "submission_consistency": "list_and_detail_checked",
-                        "grades": "checked" if include_grades else "not_requested",
+                        "grades": "not_requested"
+                        if grade is None
+                        else "checked"
+                        if grade["status"] == "ok"
+                        else grade["status"],
                         "external_hidden_readings": "not_accessible",
                         "course_schedule_conflicts": "dated_obligations_only; no meeting timetable",
                         "qualitative_rubric_criteria": "requires_source_grounded_interpretation",
@@ -836,6 +1152,15 @@ async def academic_request(
                 raise DomainError("source_changed", "Course selection changed during comparison.")
             if action in {"deadlines", "audit"}:
                 from canvas_bridge.academic_evidence import course_deadline_graph
+                from canvas_bridge.registrar import final_gaps, lookup_handoff
+
+                handoff = lookup_handoff(
+                    final_gaps(bundle["items"], bundle["documents"], deadlines["findings"]),
+                    registrar_lookup,
+                    allowed_courses=[course_id],
+                )
+                if handoff:
+                    data["registrar_lookup"] = handoff
 
                 data["evidence_graph"] = course_deadline_graph(
                     bridge, owner, ref, bundle, deadlines
@@ -871,20 +1196,36 @@ async def academic_request(
                     for d in bundle["documents"]
                 ],
             )
+            summary = "Source-grounded academic evidence. Read coverage before drawing conclusions; no Canvas or calendar records were changed."
+            if action in {"deadlines", "audit"}:
+                coverage = data["evidence_graph"]["audit_coverage"]
+                if action == "audit":
+                    data["checks"]["deadlines"] = coverage["cross_source_comparison"]
+                if coverage["cross_source_comparison"] != "complete_at_available_precision":
+                    summary = "Cross-source deadline consistency is not established. Review matched passages, comparison precision and retrieval gaps."
             return attach(
                 Result(
                     status="needs_input" if data.get("status") == "needs_input" else "partial_data",
-                    summary="Source-grounded academic evidence. Read coverage before drawing conclusions; no Canvas or calendar records were changed.",
+                    summary=summary,
                     data=data,
                     sources=bundle["sources"],
                     meta=bridge.meta(coverage=bundle["coverage"], warnings=bundle["limitations"]),
                 )
             )
     except TimeoutError:
+        # A timed-out integrity evaluation cannot release source text. Retain counts only.
+        progress = {}
+        if action == "exam" and bundle:
+            discovery = bundle["material_discovery"]
+            progress = {
+                "candidate_count": discovery["candidate_count"],
+                "batches_attempted": discovery["batches_attempted"],
+            }
         return Result(
             status="partial_data",
             summary="Academic evidence request timed out; no complete audit is available.",
             data={
+                **progress,
                 "checks": "incomplete",
                 "findings": [],
                 "absence_of_findings_proves_no_issues": False,

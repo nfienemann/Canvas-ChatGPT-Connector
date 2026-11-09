@@ -220,7 +220,9 @@ def calendar_proposal(items, context, owner, ref, now, *, source_label="Canvas")
     }
 
 
-async def propose_sync(bridge, owner, ref, snapshot_id, context, study_request=None):
+async def propose_sync(
+    bridge, owner, ref, snapshot_id, context, study_request=None, registrar_lookup=None
+):
     await bridge.list_courses(owner, ref)
     conn, courses = bridge.selected(owner, ref)
     with bridge.store.transaction() as session:
@@ -235,7 +237,18 @@ async def propose_sync(bridge, owner, ref, snapshot_id, context, study_request=N
             "Refresh a complete workload snapshot before proposing calendar synchronization.",
         )
     items = bridge.scoped_snapshot_items(snapshot)
+    from canvas_bridge.registrar import calendar_handoff
+
     result = calendar_proposal(items, context, owner, ref, utcnow())
+    calendar_handoff(
+        result,
+        items,
+        context,
+        owner,
+        ref,
+        registrar_lookup,
+        allowed_courses=snapshot.course_ids,
+    )
     result["workload_scope"] = snapshot.workload_scope
     if study_request:
         if not context.availability_complete or result["status"] == "needs_input":

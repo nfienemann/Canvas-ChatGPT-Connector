@@ -1,5 +1,57 @@
 # AI data egress and content governance
 
+## Temporary permissive private mode
+
+`BRIDGE_EGRESS_MODE=permissive` skips recipient/workspace, classification-review,
+modality/hash-review and egress amount-policy requirements, and purpose-specific
+output minimization. Restart the service after changing this setting. Restore
+`strict` to re-enable these checks. Strict remains the default.
+
+Permissive mode is supported for synthetic fixtures and owner-only, read-only
+personal services bound to loopback. Ownership, ordinary authorization, privacy
+filtering, known restricted/third-party/confidential content, credential/link
+protection, transport validation and academic-integrity checks remain active.
+Bearer original downloads and external processors retain their separate denials.
+Responses carry `EGRESS_PERMISSIVE_MODE`; unknown classification stays unknown.
+This temporary mode does not establish recipient permission or release readiness.
+
+## Explicit private course-content permission
+
+An optional signed `private_course_listing.course_content` grant represents an
+owner's explicit permission for private course-content use. It names exact course
+references and text/structured/visual channels, and binds an encrypted permission
+evidence digest. Evidence may be an owner attestation of institutional/provider
+permission; that is not independently verified correspondence, a public release
+approval, or a fabricated per-source privacy review.
+
+This default-off grant uses the parent's exact owner/issuer/registered ChatGPT
+client binding. It applies only to a read-only personal deployment on loopback,
+and only `read_course_file`, `render_course_file_page`, `render_course_slide`,
+`get_file_extraction_status`, and `get_assignment_details`. It does not grant
+original downloads, other clients,
+hosted release, submissions, grades, or external processing. Source and byte
+identity must be present and consistent. The metadata-only extraction-status
+route requires source-version identity but does not require already extracted
+bytes: it must be able to report an uncached file without downloading it. This
+exception cannot authorize text, images, or original bytes. Canvas authorization
+and the independent
+provider/institution/sharing checks still run; selected-course access, revocation,
+expiry and privacy filtering are not bypassed. Known third-party, restricted,
+confidential or restrictive reviewed sources remain denied.
+
+Previously unclassified content admitted under this scope is reported as
+`OWNER_AUTHORIZED_PRIVATE_COURSE_CONTENT`, not public or instructor-owned. This
+describes the private authorization basis, not independently certified ownership
+or recipient retention/training/workspace terms. Changing/removing the signed
+grant affects the next request. Full egress governance, when configured, retains
+its own review requirements rather than inheriting this private exception.
+
+The offline `restore_reviewed_file_text_digest` helper can also recover an omitted
+text binding from the original encrypted review evidence. It requires exact
+source/version/byte-hash/rights-reference matches and changes no permission or
+channel. Changed extraction text still requires a matching review unless an
+explicit broader private course-content grant covers the transfer.
+
 Implemented locally on 2026-10-25 against synthetic fixtures. This is an
 enforcement mechanism, not evidence of institutional permission, content-owner
 rights, vendor authorization, or an approved ChatGPT deployment. The separate
@@ -133,9 +185,84 @@ The `canvas_bridge.data_egress` logger emits only `policy_version` (engine versi
 include source IDs, user IDs, workspace IDs, tokens, evidence, raw content or
 excerpts. The administrator's private revision and references are not exposed.
 
+Blocked `release` calls additionally emit a warning-level `data_egress_blocked`
+correlation event with the server-generated request ID, fixed reason code and
+decision. This event contains no source identifiers, versions or content. Earlier
+five-field decision records cannot be retroactively correlated to a request ID.
+Classification errors expose `processing_stage: source_classification`; the
+denied `content_decision` survives repeated error reconstruction separately from
+the safe error envelope's own allowed release decision.
+
 Tests include all ten requested content fixtures and real local MCP/HTTP tests for
 alternate text/search/metadata/image/attachment/download routes, signed recipient
 identity, source changes, modality and byte-hash review, policy changes before
 release, SDK errors, and continued synthetic/local operation. Read the
 [validation record](../evidence/sanitized-results/data-egress-governance-2026-10-25.md)
 for actual checks and remaining deployment gates.
+
+## Explicit private course-list consent — November 3, 2026
+
+An optional signed sharing-record `private_course_listing` grant permits only the
+minimized `list_courses` structured metadata response for one exact owner hash,
+issuer and registered MCP client. This operator-requested private exception does
+not assert verified plan, workspace, retention or training facts. It requires an
+owner-restricted personal profile, loopback binding, MCP read-only mode, existing
+provider/institution/sharing authorization, authenticated client mapping, source
+ownership, privacy filtering and minimization. Output is capped at 100,000 bytes.
+It is unavailable to hosted profiles and all other tools, modalities and source
+kinds. General egress governance remains necessary for documents, grades and
+other academic outputs. Revocation, expiry and invalid signed records deny access.
+
+
+The same signed private grant may explicitly select `minimized_study_metadata` to
+also permit only `get_workload` structured, minimized schedule output from owned
+course/deadline sources. The original `minimized_course_listing` scope does not
+inherit that permission. Empty windows retain their requested/coverage course
+provenance and require current assignment authorization. No file/page, grade,
+raw submission, assessment answer, other tool or modality inherits this grant.
+
+
+## Private version-bound text review
+
+The signed private grant can explicitly select `reviewed_private_text` and carry
+`private_text_reviews` on its sharing record. These use the existing ContentReview
+vocabulary and retain exact source/version binding, file-byte hash binding, explicit
+rights references and separate privacy-reviewed channels. Duplicate source/version
+reviews are invalid. Only reviewed text/structured `read_course_file`, `fetch_course_material`
+and structured `get_assignment_details` output is supported; no pixel, original-file, grade,
+peer, restricted assessment or confidential-research permission is inherited.
+The private owner/issuer/client, loopback, read-only, authorization and privacy
+checks continue to apply. This mode does not certify recipient training/retention
+or workspace terms. Missing reviews remain denied. A local operator must inspect
+actual text and provide a supporting rights reference before a review is signed;
+preparing a packet, parser success and model assertions never create that review.
+
+
+## Explicit private permission diagnostics
+
+`private_course_listing.allow_permission_diagnostics` is a separate signed,
+default-false permission for minimized `audit_permission_consistency` structured
+output. It is bound to the same exact personal owner/issuer/client, loopback and
+read-only profile. The transfer is reconstructed from a fixed diagnostic field
+vocabulary and an owned-connection diagnostic source. It returns permission
+states, opaque course references, reason codes and explicit upstream-check flags;
+course content, approval correspondence and credentials are excluded. This does
+not enable other audit tools, academic content, hosted release or upstream probes.
+The audit still reports stale/denied/unchecked states truthfully and does not
+refresh scope, change selection, repair permissions or mutate Canvas. Existing
+provider/institution/sharing decisions and privacy/output checks remain required.
+
+
+## Private material inventory and extraction identity
+
+`private_course_listing.allow_course_material_inventory` separately permits the
+minimized `list_course_files` metadata response, bound to the owned selected
+course and its files capability. Only opaque references, inspected filenames,
+format/size/access/extraction states are retained; bodies and download URLs are
+removed. This does not grant content or binary release.
+Private file/page text reviews additionally bind `extracted_text_sha256` to the
+exact sanitized cached text. Parser/OCR improvements cannot inherit a footer-only
+review merely because original file bytes and metadata are unchanged. Changed or
+missing extraction identity requires fresh source review. Images/originals remain
+separately gated. The private review helper records this digest only after the
+operator actually reviews the displayed text.

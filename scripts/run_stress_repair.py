@@ -24,6 +24,24 @@ def main():
         type=Path,
         help="Optional hash-bound observations from actual model pixel review; never generated from gold.",
     )
+    parser.add_argument(
+        "--office-root",
+        type=Path,
+        help="Trusted public LibreOffice runtime for isolated native tests.",
+    )
+    parser.add_argument(
+        "--parser-root", type=Path, help="Dedicated disposable parser work/cache root."
+    )
+    parser.add_argument(
+        "--slide-observations",
+        type=Path,
+        help="Hash-bound human/model observation of the original rendered slide.",
+    )
+    parser.add_argument(
+        "--acknowledgment-receipt",
+        type=Path,
+        help="Receipt from the separately completed genuine UI acknowledgment test.",
+    )
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -37,6 +55,7 @@ def main():
         "tests/stress_support.py",
         "tests/stress_repair_cases.py",
         "scripts/run_stress_repair.py",
+        "scripts/run_integrity_acknowledgment_demo.py",
     ):
         source_hashes[name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     commit = subprocess.run(  # noqa: S603 - resolved Git executable and fixed read-only arguments.
@@ -65,6 +84,14 @@ def main():
         ).hexdigest()
         if args.visual_observations
         else None,
+        "external_acceptance_receipts": {
+            name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for name, path in (
+                ("slide", args.slide_observations),
+                ("acknowledgment", args.acknowledgment_receipt),
+            )
+            if path
+        },
     }
     (output / "build.json").write_text(json.dumps(build, indent=2), encoding="utf-8")
     command = [sys.executable, "-m", "pytest", "tests/stress_repair_cases.py", "-q", "--tb=short"]
@@ -77,6 +104,16 @@ def main():
             **os.environ,
             "CANVAS_BRIDGE_STRESS_OUTPUT": str(output),
             "CANVAS_BRIDGE_STRESS_BUILD": build["source_fingerprint"],
+            **{
+                name: str(path.resolve())
+                for name, path in (
+                    ("CANVAS_BRIDGE_TEST_OFFICE_ROOT", args.office_root),
+                    ("CANVAS_BRIDGE_TEST_PARSER_ROOT", args.parser_root),
+                    ("CANVAS_BRIDGE_SLIDE_OBSERVATIONS", args.slide_observations),
+                    ("CANVAS_BRIDGE_ACK_RECEIPT", args.acknowledgment_receipt),
+                )
+                if path
+            },
             **(
                 {"CANVAS_BRIDGE_VISUAL_OBSERVATIONS": str(args.visual_observations.resolve())}
                 if args.visual_observations

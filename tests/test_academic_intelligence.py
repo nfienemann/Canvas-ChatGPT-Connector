@@ -9,6 +9,7 @@ from xml.etree.ElementTree import ParseError
 
 import httpx
 import pytest
+from jsonschema import validate
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
@@ -213,8 +214,8 @@ async def test_authorized_office_read_search_and_isolation(
     )
     bridge.settings.file_reading_enabled = True
 
-    async def parser(data, kind, settings):
-        return extract(data, kind)
+    async def parser(data, kind, settings, page_range=None):
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", parser)
     files = await list_files(bridge, owner, seeded, academic.id)
@@ -539,8 +540,8 @@ async def test_exam_reads_associated_pdf_without_inventing_coverage(
     }
     bridge.settings.file_reading_enabled = True
 
-    async def parser(data, kind, settings):
-        return extract(data, kind)
+    async def parser(data, kind, settings, page_range=None):
+        return extract(data, kind, page_range)
 
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", parser)
     result = await academic_request(bridge, owner, seeded, academic.id, "exam")
@@ -782,8 +783,20 @@ async def test_http_mcp_new_tools_acceptance_and_auth(
                     result = await session.call_tool(
                         name, {"connection_id": seeded, "course_id": academic.id}
                     )
+                    schema = next(t.outputSchema for t in tools if t.name == name)
+                    validate(result.structuredContent, schema)
+                    if name == "audit_course_consistency":
+                        audit = result.structuredContent["data"]
+                        assert (
+                            audit["checks"]["deadlines"]
+                            == audit["evidence_graph"]["audit_coverage"]["cross_source_comparison"]
+                        )
+                        assert audit["obligation_groups"][0]["occurrences"][0]["evidence"][
+                            "document_version"
+                        ]
                     assert not result.isError and result.structuredContent["evidence"]
                     denied = await session.call_tool(
                         name, {"connection_id": "foreign", "course_id": academic.id}
                     )
+                    validate(denied.structuredContent, schema)
                     assert denied.structuredContent["status"] == "permission_denied"

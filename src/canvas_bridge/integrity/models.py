@@ -232,6 +232,12 @@ class Decision(Model):
         from canvas_bridge.domain import DomainError
 
         if not self.allowed:
+            from canvas_bridge.failure_diagnostics import current
+
+            if attempt := current.get():
+                attempt.policy = (
+                    "deny" if self.state.value == "PROHIBITED_CONFIRMED" else "requires_review"
+                )
             raise DomainError(
                 "permission_denied",
                 "Academic permission for this assistance is not established. Review the integrity decision and permitted alternatives.",

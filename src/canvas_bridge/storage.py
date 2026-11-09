@@ -87,6 +87,9 @@ class Connection(Base):
     refresh_lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     timezone: Mapped[str] = mapped_column(Protected("connections.timezone"), default="UTC")
     last_success: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_course_list_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_course_list_outcome: Mapped[str | None] = mapped_column(String(16))
+    last_complete_course_list_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     entitlement_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -217,6 +220,10 @@ class Store:
             if ":memory:" in url:
                 options["poolclass"] = StaticPool
         self.engine = create_engine(url, **options)
+        if self.engine.dialect.name == "postgresql":
+            from canvas_bridge.maintenance import fence_connection
+
+            event.listen(self.engine, "connect", fence_connection)
         self.now = utcnow
         self.raw_file_lifetime = lambda: RAW_FILE_LIFETIME
         self.engine.dialect.bridge_clock = lambda: self.now()
@@ -283,6 +290,16 @@ class Store:
         if self.engine.dialect.name != "sqlite":
             raise RuntimeError("Use Alembic migrations for PostgreSQL.")
         Base.metadata.create_all(self.engine)
+        from canvas_bridge.usage.models import metadata as usage_metadata
+
+        usage_metadata.create_all(self.engine)
+        from canvas_bridge.library.models import Base as LibraryBase
+
+        LibraryBase.metadata.create_all(self.engine)
+        from canvas_bridge.library.models import install_sqlite_constraints
+
+        with self.engine.begin() as connection:
+            install_sqlite_constraints(connection)
 
     @contextmanager
     def transaction(self):
@@ -367,6 +384,9 @@ class Store:
         row.canvas_user = ""
         row.entitlement_at = None
         row.last_success = None
+        row.last_complete_course_list_at = None
+        row.last_course_list_attempt_at = None
+        row.last_course_list_outcome = None
         tombstone = session.get(Tombstone, row.id)
         if tombstone is None:
             session.add(
@@ -401,6 +421,8 @@ class Store:
         expected_epoch: int | None = None,
     ) -> dict:
         with self.transaction() as session:
+            if kind in {"progress", "plan", "plan_candidate"}:
+                self.principal(session, owner)
             if kind == "preferences" and key == "default":
                 from canvas_bridge.source_authorization import LocalPreferences
 
@@ -442,7 +464,7 @@ class Store:
                 course = self.owned(session, Course, owner, connection, work.course_id)
                 if not course.selected or not course.accessible:
                     raise DomainError("permission_denied", "Work is no longer selected.")
-            elif kind == "plan":
+            elif kind in {"plan", "plan_candidate"}:
                 snapshot = self.owned(
                     session, Snapshot, owner, connection, payload.get("snapshot_id", "")
                 )
@@ -486,7 +508,20 @@ class Store:
                 row.payload = payload
                 row.updated_at = utcnow()
             session.flush()
-            return {"record_id": row.id, "old_version": old_version, "version": row.version}
+            receipt = {"record_id": row.id, "old_version": old_version, "version": row.version}
+            if kind in {"progress", "plan", "plan_candidate"}:
+                from canvas_bridge.analytics.storage import capture_save
+
+                try:
+                    with session.begin_nested():
+                        references = capture_save(session, row)
+                    if references:
+                        receipt["measurement_refs"] = references[:50]
+                        receipt["measurement_ref_count"] = len(references)
+                except Exception:
+                    # The primary write already succeeded. Roll back only the additive capture.
+                    receipt["measurement_coverage"] = "observation_capture_unavailable"
+            return receipt
 
     def purge_history(self, days: int = 30) -> int:
         with self.transaction() as session:
@@ -579,7 +614,18 @@ class Store:
             delete(LocalRecord).where(
                 LocalRecord.owner == owner,
                 LocalRecord.connection_id == ref,
-                (LocalRecord.kind.in_({"plan", "semester_state"}))
+                (
+                    LocalRecord.kind.in_(
+                        {
+                            "plan",
+                            "plan_candidate",
+                            "semester_state",
+                            "analytics_report",
+                            "analytics_observation",
+                            "analytics_duration",
+                        }
+                    )
+                )
                 | ((LocalRecord.kind == "progress") & LocalRecord.key.in_(work_ids)),
             )
         )

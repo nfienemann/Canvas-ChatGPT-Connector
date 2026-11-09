@@ -295,3 +295,19 @@ async def test_T09_closed_and_locked_assignment_never_exposes_content(bridge, ow
     raw["description"] = "Restricted fixture content."
     with pytest.raises(DomainError):
         await bridge.assignment_details(owner, seeded, work["id"])
+
+
+@pytest.mark.parametrize(
+    "suffix,reason",
+    [
+        ("&page=3", "PAGINATION_LINK_INVALID"),
+        ("&per_page=", "PAGINATION_LINK_INVALID"),
+        ("&as_user_id=", "PAGINATION_SCOPE_CHANGED"),
+        ("&include%5B%5D=", "PAGINATION_SCOPE_CHANGED"),
+    ],
+)
+def test_continuation_rejects_ambiguous_or_changed_parameters(suffix, reason):
+    original = "https://school.invalid/api/v1/courses?per_page=100"
+    with pytest.raises(DomainError) as rejected:
+        validate_continuation(original + "&page=2" + suffix, original)
+    assert rejected.value.reason_code == reason

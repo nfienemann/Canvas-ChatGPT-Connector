@@ -1,0 +1,645 @@
+{
+  "corpus_hashes": {
+    "corpus.json": "9332215c6d5c7081ea018d08e870fedbb32ab344750e5c390c497da85c949104",
+    "gold.json": "0fc48628fc79996681f73641794e790da1a562b24febebd2899a4193f84e08cd"
+  },
+  "ranker": "bounded-lexical-1",
+  "runtime": "3.14.5",
+  "system": "Windows",
+  "architecture": "AMD64",
+  "concurrency": 1,
+  "categories": {
+    "acronym": {
+      "total": 6,
+      "literal": 0,
+      "conceptual": 6
+    },
+    "disambiguation": {
+      "total": 6,
+      "literal": 6,
+      "conceptual": 6
+    },
+    "exact": {
+      "total": 10,
+      "literal": 10,
+      "conceptual": 10
+    },
+    "paraphrase": {
+      "total": 12,
+      "literal": 0,
+      "conceptual": 12
+    },
+    "unanswerable": {
+      "total": 6,
+      "literal": 6,
+      "conceptual": 6
+    }
+  },
+  "answerable_top_five": 34,
+  "answerable_total": 34,
+  "gate_passed": true,
+  "warm_20_document_p95_seconds": 0.0007533999996667262,
+  "ranker_only_100_document_p95_seconds": 0.002779000000373344,
+  "ranker_only_100_document_median_seconds": 0.002578249999714899,
+  "limits": [
+    "Fictional, hand-authored small lexical corpus; no independent expert or student pilot review.",
+    "Five formats parsed in-process using the actual parser; isolation tested separately.",
+    "Warm ranker timings exclude authentication, egress, host latency and cold extraction.",
+    "No embeddings, remote inference, provider calls, or claimed learning gains."
+  ],
+  "cases": [
+    {
+      "id": "exact-01",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d01"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d01"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-02",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d02"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d02"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-03",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d03"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d03"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-04",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d04"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d04"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-05",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d05"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d05"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-06",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d06"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d06"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-07",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d07"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d07"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-08",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d08"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d08"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-09",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d09"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d09"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "exact-10",
+      "category": "exact",
+      "literal": {
+        "top_five": [
+          "d10"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d10"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-01",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d01",
+          "d02",
+          "d10"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-02",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d01",
+          "d02",
+          "d10"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-03",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d03",
+          "d12"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-04",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d04",
+          "d11"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-05",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d05"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-06",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d06"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-07",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d07"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-08",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d08"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-09",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d09"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-10",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d01",
+          "d02",
+          "d10"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-11",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d04",
+          "d11"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "paraphrase-12",
+      "category": "paraphrase",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d03",
+          "d12"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-01",
+      "category": "acronym",
+      "literal": {
+        "top_five": [
+          "d12"
+        ],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d12",
+          "d11"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-02",
+      "category": "acronym",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d13"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-03",
+      "category": "acronym",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d14"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-04",
+      "category": "acronym",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d15"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-05",
+      "category": "acronym",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d16"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "acronym-06",
+      "category": "acronym",
+      "literal": {
+        "top_five": [],
+        "passed": false
+      },
+      "conceptual": {
+        "top_five": [
+          "d17"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-01",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d03"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d03"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-02",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d18"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d18"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-03",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d19"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d19"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-04",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d20"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d20"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-05",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d17"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d17"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "disambiguation-06",
+      "category": "disambiguation",
+      "literal": {
+        "top_five": [
+          "d20"
+        ],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [
+          "d20"
+        ],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-01",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-02",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-03",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-04",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-05",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    },
+    {
+      "id": "unanswerable-06",
+      "category": "unanswerable",
+      "literal": {
+        "top_five": [],
+        "passed": true
+      },
+      "conceptual": {
+        "top_five": [],
+        "passed": true
+      }
+    }
+  ]
+}

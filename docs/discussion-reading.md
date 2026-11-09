@@ -11,11 +11,49 @@ privacy, OAuth, hosting, or deployment approval.
   announcements and requests no thread entries. “Archived” means Canvas's
   `locked` (closed for comments), not completed work. Dates absent from metadata
   remain unknown until a topic read.
+
+  For this tool, `data.coverage` describes the filtered, bounded list of accessible
+  topic metadata in the selected course. `pagination_exhausted` means the
+  paginator accepted the last page, even if the output limit omitted topics.
+  `complete` also requires that every eligible topic could be included. An empty
+  final page can establish an empty result. Interruptions and omissions appear
+  in `partial_reasons`. The `discussion_topics` row in `meta.coverage` reports
+  the same outcome. Its `pagination_complete` and `pages_consumed` correspond
+  to `pagination_exhausted` and `pages_fetched`. Each returned topic's source
+  evidence references that row. The list's `source_strategy` is now `topic_list`.
+  A topic's own `metadata_only` coverage describes
+  its individual record. Thread entries, participation and other course resources
+  are outside the list's scope.
+
+  Clients that previously relied on a zero cache age should use `meta.freshness`.
+  `live` means every consumed page came from an upstream read for this call.
+  `cached` means at least one page was reused, including shared or conditionally
+  revalidated responses. Production policy currently bypasses caching for this
+  endpoint. `not_refreshed` means no usable page was consumed, including when
+  a read failed. `unknown` means pages were consumed with unverified origin.
+  List coverage uses the oldest verified page time for `fetched_at` and the
+  greatest reuse age in whole seconds for `cache_age_seconds`. Both can be null
+  when timing is unestablished. Each topic with a verified receipt carries its
+  own page time. Freshness describes the consumed pages even on a partial result.
 - `read_discussion_topic(connection_id, course_id, topic_id,
   include_entries=false, entry_scope=self_only, limit=100)` retrieves a sanitized
   prompt, date evidence and safe course-file references. Optional entries contain
   only the authenticated student's contributions. Numeric topic IDs come from
   discovery; course IDs use the existing exact opaque identifier contract.
+
+  On topic reads, `data.topic.coverage` and the `discussion_prompt` row describe
+  one selected prompt. A restricted, missing or truncated prompt is partial.
+  Entry visibility can be restricted even when the prompt is complete.
+  `discussion_entries` is `not_refreshed` with zero pages when entries were
+  disabled. When requested, that row reports the outcome and pagination of
+  `data.participation.coverage`. Output limits apply separately to the entries
+  shown. Check `entries_truncated` and each `text_truncated`.
+  `meta.freshness` uses the list's receipt rules across the prompt and accepted
+  entry pages. Date enrichment has its own `deadline_sources` and
+  `deadline_warnings`. The source evidence for this composite response carries
+  both scoped rows. Each nested discussion coverage object also reports its own
+  `freshness`, which distinguishes mixed prompt and entry origins. Scan times and cache ages can now be null when no receipt
+  establishes them.
 - `get_my_discussion_participation(connection_id, course_id, topic_id,
   refresh=false)` performs a fresh bounded scan. `refresh=true` also makes a fresh
   request: this implementation intentionally has **no discussion-result cache**.

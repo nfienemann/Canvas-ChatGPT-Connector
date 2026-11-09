@@ -79,7 +79,7 @@ async def test_oct21_truncated_id_denied_exact_advertised_id_succeeds(bridge, ow
         (403, "RESOURCE_PERMISSION_DENIED", "denied", "consistent"),
         (404, "RESOURCE_UNAVAILABLE", "unknown", "indeterminate"),
         (401, "UNKNOWN_AUTHORIZATION_FAILURE", "unknown", "indeterminate"),
-        (429, "UPSTREAM_UNAVAILABLE", "unknown", "indeterminate"),
+        (429, "UPSTREAM_THROTTLED", "unknown", "indeterminate"),
         (503, "UPSTREAM_UNAVAILABLE", "unknown", "indeterminate"),
         (302, "UPSTREAM_UNAVAILABLE", "unknown", "indeterminate"),
     ],
@@ -131,7 +131,11 @@ async def test_unselected_course_uses_shared_deny_without_upstream_calls(bridge,
     assert len(bridge.synthetic.requests) == count
 
 
-async def test_cross_owner_and_cross_connection_are_non_disclosing(bridge, owner, seeded):
+async def test_cross_owner_and_cross_connection_are_non_disclosing(
+    bridge, owner, seeded, monkeypatch
+):
+    checked_at = utcnow()
+    monkeypatch.setattr("canvas_bridge.permission_audit.utcnow", lambda: checked_at)
     target = course(bridge, owner, seeded)
     other = await seed(bridge, "other-owner", "other-connection")
     other_target = course(bridge, "other-owner", other)
@@ -204,7 +208,7 @@ async def test_expired_upstream_challenge_does_not_refresh_or_write(
     assert result.status == "reconnect_required"
     assert result.data["upstream_requests"] == 1
     assert result.data["checks"][1]["result"] == "not_checked"
-    assert result.data["checks"][0]["reason_code"] == "UPSTREAM_AUTH_EXPIRED"
+    assert result.data["checks"][0]["reason_code"] == "UPSTREAM_CREDENTIAL_REJECTED"
     assert result.data["credential_state"] == "expired_or_rejected"
     assert stored_state(bridge) == before
 
@@ -323,6 +327,15 @@ async def test_concurrent_selection_change_discards_probe_conclusions(
     assert result.status == "partial_data" and result.data["scope_consistency"] == "mismatch"
     assert result.data["checks"][0]["reason_code"] == "STALE_SCOPE_SNAPSHOT"
     assert result.data["checks"][0]["upstream_permission"] == "unknown"
+    assert result.data["checks"][0]["upstream_http_status"] is None
+    (action,) = result.data["recovery_actions"]
+    assert action["tool_name"] == "audit_permission_consistency"
+    assert "same arguments" in action["instruction"] and "wait" in action["retry_condition"]
+    repeated = await audit_permissions(bridge, owner, seeded, target.id, ["files"], True)
+    assert repeated.data["recovery_actions"] == [action]
+    assert [(c["course_id"], c["resource"]) for c in repeated.data["checks"]] == [
+        (target.id, "files")
+    ]
 
 
 async def test_request_fence_rejects_selection_change_after_read(bridge, owner, seeded):
@@ -352,7 +365,6 @@ async def test_structured_logs_have_correlation_without_identifiers_or_content(
         request_authorization.reset(token)
     records = [json.loads(r.message.split("permission_decision ")[1]) for r in caplog.records]
     assert records and all(r["request_id"] == context.request_id for r in records)
-    assert {r["correlation_id"] for r in records} == {records[0]["correlation_id"]}
     assert any(r["upstream_http_status"] == 200 for r in records)
     for value in (owner, seeded, target.id, target.name, "fixture-provider-token"):
         assert value not in caplog.text
@@ -361,13 +373,9 @@ async def test_structured_logs_have_correlation_without_identifiers_or_content(
         == {
             "request_id",
             "tool_name",
-            "correlation_id",
-            "connection_reference",
-            "course_reference",
             "resource_type",
             "authorization_decision",
             "reason_code",
-            "scope_snapshot_version",
             "upstream_http_status",
             "timestamp",
         }
@@ -446,7 +454,7 @@ async def test_course_refresh_auth_failure_retains_upstream_reason(
     with pytest.raises(DomainError) as error:
         await list_files(bridge, owner, seeded, target.id)
     assert error.value.status == "reconnect_required"
-    assert error.value.reason_code == "UPSTREAM_AUTH_EXPIRED"
+    assert error.value.reason_code == "UPSTREAM_CREDENTIAL_REJECTED"
     assert error.value.upstream_http_status == 401
 
 
@@ -470,3 +478,49 @@ async def test_file_object_permission_remains_separate_from_course(
         await read_file(bridge, owner, seeded, file_id)
     assert error.value.status == "permission_denied"
     assert error.value.reason_code == reason
+
+
+async def test_connection_recovery_includes_resource_recommendation(bridge, owner, seeded):
+    target = course(bridge, owner, seeded)
+    bridge.select_courses(owner, seeded, [], "UTC")
+    with bridge.store.transaction() as db:
+        db.get(Connection, seeded).token_expires_at = utcnow() - timedelta(hours=1)
+    report = await audit_permissions(bridge, owner, seeded, target.id, ["files"])
+    assert report.status == "reconnect_required"
+    assert report.data["recommended_action"] == "reconnect_canvas_account"
+    assert report.data["recommended_actions"] == [
+        "reconnect_canvas_account",
+        "review_course_selection",
+    ]
+    assert [row["action_id"] for row in report.data["recovery_actions"]] == report.data[
+        "recommended_actions"
+    ]
+
+
+def test_all_reviewed_recovery_actions_survive_minimization_and_privacy():
+    from canvas_bridge.domain import Result
+    from canvas_bridge.egress_sources import minimize
+    from canvas_bridge.permission_audit import ACTIONS
+    from canvas_bridge.permission_recovery import DEFINITIONS, recovery_actions
+    from canvas_bridge.privacy.output import filter_output
+
+    ids = sorted(set(ACTIONS.values()) | {"repeat_permission_audit"})
+    assert set(ids) == set(DEFINITIONS)
+    for action_id in ids:
+        source = Result(
+            summary="Synthetic audit",
+            data={
+                "recommended_actions": [action_id],
+                "recovery_actions": [{"action_id": action_id, "instruction": "UNREVIEWED"}],
+            },
+        )
+        (reviewed,) = recovery_actions([action_id])
+        assert reviewed["instruction"] and reviewed["retry_condition"]
+        assert reviewed["kind"] in {"tool", "user", "operator", "wait"}
+        assert ("tool_name" in reviewed) == (reviewed["kind"] == "tool")
+        clean, minimized = minimize(source, "audit_permission_consistency", live=True)
+        assert minimized and clean.data["recovery_actions"] == [reviewed]
+        for payload in (clean.model_dump(), source.model_dump()):
+            public, *_ = filter_output(payload)
+            assert public["data"]["recovery_actions"] == [reviewed]
+            assert "UNREVIEWED" not in str(public)

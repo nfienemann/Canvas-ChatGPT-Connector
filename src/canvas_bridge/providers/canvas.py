@@ -206,7 +206,9 @@ class AuthorizedCanvasProvider(AcademicProvider):
                         uri=uri,
                     ),
                     observed_at=now,
-                    verified_at=source.retrieved_at if verified else None,
+                    verified_at=source.retrieved_at
+                    if verified and evidence["meta"].freshness in {"live", "cached"}
+                    else None,
                     basis="source_fact",
                     complete=verified,
                     derived_from=derived,

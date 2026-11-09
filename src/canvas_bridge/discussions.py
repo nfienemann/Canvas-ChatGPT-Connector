@@ -11,10 +11,11 @@ from urllib.parse import urlsplit
 
 from pydantic import Field
 
-from canvas_bridge.domain import DomainError, Model, Result, Source, utcnow
+from canvas_bridge.domain import Coverage, DomainError, Model, Result, Source, utcnow
 from canvas_bridge.evidence import fingerprint
 from canvas_bridge.normalize import canonical_id, fact_date, plain_text
 from canvas_bridge.policy import Endpoint, source_id
+from canvas_bridge.read_evidence import collection_scope, read_meta, read_observation
 
 State = Literal[
     "verified_present",
@@ -24,18 +25,25 @@ State = Literal[
     "identity_ambiguous",
     "unavailable",
 ]
+PROMPT_RESTRICTIONS = {
+    "group_access_uncertain",
+    "topic_visibility_unverified",
+    "announcement_excluded",
+    "not_yet_available",
+}
 NOTICE = "Observed activity is not a grade, rubric assessment, or instructor-accepted completion. A fresh request cannot eliminate Canvas visibility delays."
 
 
 class DiscussionCoverage(Model):
+    freshness: Literal["live", "cached", "not_refreshed", "unknown"] = "not_refreshed"
     complete: bool = False
     partial_reasons: list[str] = Field(default_factory=list)
     pages_fetched: int = 0
     entries_examined: int = 0
     pagination_exhausted: bool = False
     source_strategy: str = "metadata_only"
-    fetched_at: datetime = Field(default_factory=lambda: utcnow())
-    cache_age_seconds: int = 0
+    fetched_at: datetime | None = None
+    cache_age_seconds: int | None = None
     identity_verified: bool = False
     group_scope_verified: bool | None = None
 
@@ -64,7 +72,7 @@ class DiscussionTopic(Model):
     deadline_warnings: list[str] = Field(default_factory=list)
     visibility_restrictions: list[str] = Field(default_factory=list)
     attachments: list[dict] = Field(default_factory=list)
-    fetched_at: datetime = Field(default_factory=lambda: utcnow())
+    fetched_at: datetime | None = None
     coverage: DiscussionCoverage = Field(default_factory=DiscussionCoverage)
 
 
@@ -94,7 +102,7 @@ class Participation(Model):
     additional_replies_state: State
     entries: list[StudentEntry] = Field(default_factory=list)
     coverage: DiscussionCoverage
-    fetched_at: datetime
+    fetched_at: datetime | None
     confidence: str
     count_basis: str = "verified_non_deleted_entries; lower bounds when coverage is partial"
     remaining_replies_by_count: int | None = None
@@ -161,12 +169,7 @@ def normalize_topic(raw, course_id, canvas_course, origin, *, text_limit=16000, 
         restrictions.append("thread_visibility_unverified")
     if raw.get("anonymous_state") not in {None, "off"}:
         restrictions.append("anonymous_authorship")
-    prompt_allowed = not set(restrictions) & {
-        "group_access_uncertain",
-        "topic_visibility_unverified",
-        "announcement_excluded",
-        "not_yet_available",
-    }
+    prompt_allowed = not set(restrictions) & PROMPT_RESTRICTIONS
     message = raw.get("message") if prompt and prompt_allowed else ""
     text = plain_text(message, text_limit + 1) if isinstance(message, str) else ""
     topic = DiscussionTopic(
@@ -332,6 +335,9 @@ class ThreadScan:
             identity_verified=bool(client.privacy_identity.canvas_user),
             group_scope_verified=topic.coverage.group_scope_verified,
         )
+        self.receipts = []
+        self.reason_code = None
+        self.upstream_status = None
         self.requests = 0
         self.expected_count = (
             expected_count if type(expected_count) is int and expected_count >= 0 else None
@@ -406,7 +412,12 @@ class ThreadScan:
             return None, None
         self.requests += 1
         data, next_link = await self.client.discussion_page(
-            endpoint, cursor=cursor, course=self.course, topic=self.topic.topic_id, **extra
+            endpoint,
+            receipts=self.receipts,
+            cursor=cursor,
+            course=self.course,
+            topic=self.topic.topic_id,
+            **extra,
         )
         self.coverage.pages_fetched += 1
         self.reasons.update(data["reasons"])
@@ -479,6 +490,7 @@ class ThreadScan:
                         self.reasons.add("stale_thread_view")
                         self.conflicts.update(view_ids - self.fallback_ids)
         except TimeoutError:
+            self.reason_code = "UPSTREAM_REQUEST_TIMEOUT"
             self.reasons.add("request_timeout")
         except DomainError as exc:
             if exc.upstream_http_status is None and exc.status in {
@@ -487,6 +499,8 @@ class ThreadScan:
                 "source_changed",
             }:
                 raise
+            self.reason_code = exc.reason_code
+            self.upstream_status = exc.upstream_http_status
             self.reasons.add(reason_for(exc))
             if exc.upstream_http_status in {401, 403, 404}:
                 # Do not retain earlier content after permission loss.
@@ -541,7 +555,9 @@ class ThreadScan:
             and self.coverage.identity_verified
             and not self.reasons
         )
-        self.coverage.fetched_at = utcnow()
+        self.coverage.freshness, self.coverage.fetched_at, self.coverage.cache_age_seconds = (
+            read_observation(self.receipts, self.coverage.pages_fetched, utcnow())
+        )
         top = sum(e.kind == "top_level_post" for e in entries)
         replies = len(entries) - top
         unknown: State = "partial"
@@ -590,12 +606,15 @@ class ThreadScan:
         )
 
 
-def provenance(owner, ref, topic, data):
+def provenance(owner, ref, topic, data, *, retrieved_at=None):
     return Source(
         id=canonical_id(owner, ref, "discussion", topic.course_id + ":" + topic.topic_id),
         url=topic.canvas_url,
         title=topic.title,
-        retrieved_at=utcnow(),
+        retrieved_at=retrieved_at or utcnow(),
+        uncertainty=[]
+        if retrieved_at
+        else ["Retrieval time unverified; citation timestamp records assembly time."],
         source_type="discussion_topics",
         course_id=topic.course_id,
         content_hash=fingerprint(data),
@@ -624,6 +643,7 @@ async def discussion_request(
             "Peer thread disclosure requires separate authorization and a reviewed disclosure implementation.",
             reason_code="THIRD_PARTY_DISCLOSURE_NOT_AUTHORIZED",
         )
+    receipts = []
     tid = source_id(topic_id)
     decision = bridge.authorize(owner, ref, course_id, "discussions", Endpoint.DISCUSSION).require()
     course = decision.course
@@ -631,7 +651,9 @@ async def discussion_request(
     async with bridge.client(owner, ref, refresh_credentials=False, course_ref=course_id) as client:
         try:
             async with asyncio.timeout(max(0, deadline - asyncio.get_running_loop().time())):
-                raw = await client.one(Endpoint.DISCUSSION, course=course.source_id, topic=tid)
+                raw = await client.one(
+                    Endpoint.DISCUSSION, receipts=receipts, course=course.source_id, topic=tid
+                )
         except TimeoutError as exc:
             raise DomainError(
                 "retry_later",
@@ -651,12 +673,19 @@ async def discussion_request(
             client.institution.origin,
             text_limit=bridge.settings.discussion_text_limit,
         )
-        if not set(topic.visibility_restrictions) & {
-            "group_access_uncertain",
-            "topic_visibility_unverified",
-            "announcement_excluded",
-            "not_yet_available",
-        }:
+        topic.coverage.freshness, topic.fetched_at, topic.coverage.cache_age_seconds = (
+            read_observation(receipts, 1, utcnow())
+        )
+        topic.coverage.source_strategy = "prompt"
+        topic.coverage.fetched_at = topic.fetched_at
+        prompt_gaps = set(topic.visibility_restrictions) & PROMPT_RESTRICTIONS
+        if topic.prompt_truncated:
+            prompt_gaps.add("prompt_truncated")
+        if not prompt_gaps and not isinstance(raw.get("message"), str):
+            prompt_gaps.add("prompt_unavailable")
+        topic.coverage.partial_reasons = sorted(prompt_gaps)
+        topic.coverage.complete = not topic.coverage.partial_reasons
+        if not set(topic.visibility_restrictions) & PROMPT_RESTRICTIONS:
             try:
                 async with asyncio.timeout(
                     max(0, (deadline - asyncio.get_running_loop().time()) / 2)
@@ -664,25 +693,39 @@ async def discussion_request(
                     await hydrate_dates(client, topic, course.source_id)
             except TimeoutError:
                 topic.deadline_warnings.append("date_request_timeout")
-        participation = (
-            await ThreadScan(
+        scan = (
+            ThreadScan(
                 client,
                 topic,
                 course.source_id,
                 expected_count=raw.get("discussion_subentry_count"),
                 budget_seconds=max(0, deadline - asyncio.get_running_loop().time()),
-            ).run()
+            )
             if include_entries or participation_only
             else None
         )
+        participation = await scan.run() if scan else None
         client.authorize(Endpoint.DISCUSSION, {"course": course.source_id, "topic": tid})
     data = {
         "topic": topic.model_dump(mode="json"),
         "content_boundary": "untrusted_source_data",
         "disclosure_scope": "self_only",
-        "cache_policy": "no_discussion_cache; every call attempts a fresh authorized read",
+        "cache_policy": "authorized retrieval; see meta.freshness for prompt and entry reads",
     }
-    complete = not topic.visibility_restrictions
+    scopes = [
+        Coverage(
+            course_ref=course_id,
+            resource="discussion_prompt",
+            state="complete" if topic.coverage.complete else "partial",
+            pages_consumed=1,
+            pagination_complete=True,
+            warning=", ".join(topic.coverage.partial_reasons) or None,
+        )
+    ]
+    entry_scope = Coverage(
+        course_ref=course_id, resource="discussion_entries", state="not_refreshed"
+    )
+    complete = topic.coverage.complete
     if participation:
         data["participation"] = participation.model_dump(mode="json")
         returned = data["participation"]
@@ -695,13 +738,46 @@ async def discussion_request(
             text_budget -= len(entry["message_text"])
         returned["entries_truncated"] = len(returned["entries"]) > limit
         returned["entries"] = returned["entries"][:limit]
-        complete = participation.coverage.complete
+        cov = participation.coverage
+        complete = complete and cov.complete
+        if cov.complete:
+            state = "complete"
+        elif scan.upstream_status == 403:
+            state = "permission_denied"
+        elif scan.upstream_status == 404:
+            state = "unavailable"
+        elif cov.pages_fetched:
+            state = "partial"
+        else:
+            state = "unavailable" if scan.requests else "not_refreshed"
+        entry_scope = Coverage(
+            course_ref=course_id,
+            resource="discussion_entries",
+            state=state,
+            reason_code=scan.reason_code,
+            upstream_http_status=scan.upstream_status,
+            pages_consumed=cov.pages_fetched,
+            pagination_complete=cov.pagination_exhausted,
+            warning=", ".join(cov.partial_reasons) or None,
+        )
+        receipts.extend(scan.receipts)
+    scopes.append(entry_scope)
+    meta = read_meta(receipts, 1 + entry_scope.pages_consumed, scopes)
     return Result(
         status="ok" if complete else "partial_data",
         summary="Discussion evidence as of retrieval. Read coverage before inferring absence. "
         + NOTICE,
         data=data,
-        sources=[provenance(owner, ref, topic, data)],
+        meta=meta,
+        sources=[
+            provenance(
+                owner,
+                ref,
+                topic,
+                data,
+                retrieved_at=meta.retrieved_at if meta.freshness != "unknown" else None,
+            )
+        ],
     )
 
 
@@ -716,8 +792,15 @@ async def list_discussions(
     course = decision.course
     topics, reasons = [], set()
     async with bridge.client(owner, ref, refresh_credentials=False, course_ref=course_id) as client:
-        collection = await client.collection(Endpoint.DISCUSSIONS, course=course.source_id)
+        collection = await client.collection(
+            Endpoint.DISCUSSIONS, course=course.source_id, record_page_receipts=True
+        )
+        now = utcnow()
+        row_receipts = (
+            receipt for count, receipt in collection.page_receipts for _ in range(count)
+        )
         for raw in collection.items[: bridge.settings.discussion_max_entries]:
+            receipt = next(row_receipts, None)
             if (
                 raw.get("is_announcement") is True
                 or not include_archived
@@ -737,20 +820,37 @@ async def list_discussions(
                 and topic.replies_due_at is None
             ):
                 continue
+            topic.coverage.freshness, stamp, age = read_observation(
+                [receipt] if receipt else [], 1, now
+            )
+            topic.coverage.fetched_at = stamp
+            topic.coverage.cache_age_seconds = age
+            topic.fetched_at = stamp
             topics.append(topic)
         client.authorize(Endpoint.DISCUSSIONS, {"course": course.source_id})
     if len(topics) > limit or len(collection.items) > bridge.settings.discussion_max_entries:
         reasons.add("topic_limit")
-    if not collection.complete:
+    scope = collection_scope(course_id, "discussion_topics", collection, reasons=reasons)
+    if collection.failure:
+        reasons.add(scope.reason_code or collection.failure)
+    if not scope.pagination_complete:
         reasons.add("pagination_incomplete")
+    scope.warning = ", ".join(sorted(reasons)) or None
     topics = topics[:limit]
+    receipts = [receipt for _, receipt in collection.page_receipts]
+    freshness, fetched_at, cache_age = read_observation(receipts, collection.pages, now)
     coverage = DiscussionCoverage(
-        complete=collection.complete and not reasons,
+        complete=scope.state == "complete",
+        source_strategy="topic_list",
+        freshness=freshness,
+        fetched_at=fetched_at,
+        cache_age_seconds=cache_age,
         partial_reasons=sorted(reasons),
-        pages_fetched=collection.pages,
-        pagination_exhausted=collection.complete,
+        pages_fetched=scope.pages_consumed,
+        pagination_exhausted=scope.pagination_complete,
         identity_verified=True,
     )
+    meta = read_meta(receipts, collection.pages, [scope])
     data = {
         "course_id": course_id,
         "topics": [t.model_dump(mode="json") for t in topics],
@@ -763,5 +863,9 @@ async def list_discussions(
         status="ok" if coverage.complete else "partial_data",
         summary="Accessible discussion metadata; no thread entries were requested.",
         data=data,
-        sources=[provenance(owner, ref, t, t.model_dump(mode="json")) for t in topics],
+        meta=meta,
+        sources=[
+            provenance(owner, ref, t, row, retrieved_at=t.fetched_at)
+            for t, row in zip(topics, data["topics"], strict=True)
+        ],
     )

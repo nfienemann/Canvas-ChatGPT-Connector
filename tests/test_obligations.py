@@ -1,5 +1,6 @@
 """Synthetic regression coverage for canonical, read-only activity discovery."""
 
+import asyncio
 from copy import deepcopy
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs
@@ -449,7 +450,8 @@ async def test_T30_read_only_mcp_obligation_tool(
 ):
     course = bridge.selected(owner, seeded)[1][0]
     async with httpx.AsyncClient(
-        headers={"Authorization": f"Bearer {token_factory(scope='academic:read')}"}
+        headers={"Authorization": f"Bearer {token_factory(scope='academic:read')}"},
+        timeout=30,
     ) as http:
         async with streamable_http_client(running + "/mcp", http_client=http) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
@@ -473,6 +475,26 @@ async def test_T30_read_only_mcp_obligation_tool(
                 assert not response.isError
                 assert len(response.structuredContent["data"]["items"]) == 3
                 assert response.structuredContent["evidence"]
+                from canvas_bridge.failure_events import journal, lookup
+
+                bridge.synthetic.failures["/api/v1/calendar_events"] = 403
+                repeated = await session.call_tool(
+                    tool.name,
+                    {
+                        "connection_id": seeded,
+                        "course_id": course.id,
+                        "start": activities.isoformat(),
+                        "end": (activities + timedelta(days=7)).isoformat(),
+                        "timezone": "UTC",
+                    },
+                )
+                wire = repeated.structuredContent
+                assert wire["status"] == "partial_data"
+                events = list(lookup(journal(bridge.settings), wire["meta"]["request_id"]))
+                assert {e["branch"] for e in events if e.get("upstream_http_status") == 403} == {
+                    "calendar_events",
+                    "calendar_assignments",
+                }
 
 
 async def test_T46_missing_posting_time_has_specific_coverage_reason(
@@ -486,3 +508,93 @@ async def test_T46_missing_posting_time_has_specific_coverage_reason(
     assert "Discuss the controls" not in result.model_dump_json()
     coverage = next(c for c in result.meta.coverage if c.resource == "discussion_topics")
     assert "discussion_posting_time_unavailable=1" in coverage.warning
+
+
+@pytest.mark.parametrize("cap", [1, 2])
+async def test_obligations_bound_same_call_concurrency(bridge, owner, activities, monkeypatch, cap):
+    policy = bridge.usage.fixture_policy
+    limits = policy.limits.model_copy(update={"max_concurrency_per_token": cap})
+    bridge.usage.fixture_policy = policy.model_copy(update={"limits": limits})
+    seeded = await seed(bridge, owner)
+    original = CanvasClient.collection
+    peak = active = 0
+
+    async def slow(client, endpoint, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            await asyncio.sleep(0.005)
+            return await original(client, endpoint, **kwargs)
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(CanvasClient, "collection", slow)
+    result = await read(bridge, owner, seeded, activities)
+    assert active == 0 and peak == cap
+    assert len(result.meta.coverage) == 5
+    assert all(c.pagination_complete for c in result.meta.coverage)
+
+
+@pytest.mark.parametrize("completed_pages", [0, 1])
+async def test_obligation_deadline_retains_pages_and_journals_each_branch(
+    bridge, owner, seeded, activities, monkeypatch, completed_pages
+):
+    from uuid import uuid4
+
+    from canvas_bridge.failure_diagnostics import Attempt, current
+    from canvas_bridge.failure_events import journal, lookup
+
+    original = CanvasClient._get
+    original_collection = CanvasClient.collection
+
+    async def limit_assignment(client, endpoint, **kwargs):
+        if endpoint == Endpoint.ASSIGNMENTS:
+            kwargs["budget_seconds"] = 0.15
+        return await original_collection(client, endpoint, **kwargs)
+
+    monkeypatch.setattr(CanvasClient, "collection", limit_assignment)
+
+    async def get(client, url):
+        if "/assignments?" in url:
+            if completed_pages and "page=2" not in url:
+                return bridge.synthetic.data["assignments"]["11"], url + "&page=2"
+            await asyncio.Event().wait()
+        if "/discussion_topics?" in url or "/calendar_events?" in url:
+            raise DomainError(
+                "retry_later", "Synthetic contention", reason_code="LOCAL_REQUEST_BUSY"
+            )
+        return await original(client, url)
+
+    monkeypatch.setattr(CanvasClient, "_get", get)
+    quizzes = bridge.synthetic.data["quizzes"]["11"]
+    quizzes[:] = [dict(quizzes[0], id=i + 100, locked_for_user=i >= 3) for i in range(16)]
+    ident = uuid4().hex
+    token = current.set(Attempt(request_id=ident, operation="get_course_obligations"))
+    try:
+        result = await read(bridge, owner, seeded, activities)
+    finally:
+        current.reset(token)
+    coverage = {c.resource: c for c in result.meta.coverage}
+    assert coverage["assignments"].pages_consumed == completed_pages
+    assert coverage["assignments"].reason_code == "INVENTORY_BRANCH_TIMEOUT"
+    assert result.status == "partial_data"
+    assert result.data["omission_reasons"]["classic_quizzes"]["locked_for_user"] == 13
+    assert (
+        sum(
+            a["source_type"] == "classic_quizzes"
+            for item in result.data["items"]
+            for a in item["source_aliases"]
+        )
+        == 3
+    )
+    events = {e["branch"]: e for e in lookup(journal(bridge.settings), ident)}
+    assert set(events) == {
+        "assignments",
+        "discussion_topics",
+        "calendar_events",
+        "calendar_assignments",
+    }
+    assert events["assignments"]["pages_consumed"] == completed_pages
+    assert events["assignments"]["route_template"] == Endpoint.ASSIGNMENTS.value
+    assert events["calendar_events"]["code"] == "LOCAL_REQUEST_BUSY"

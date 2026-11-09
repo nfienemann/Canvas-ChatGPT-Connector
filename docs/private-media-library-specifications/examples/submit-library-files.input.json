@@ -1,0 +1,12 @@
+{
+  "intake_id": "example-host-intake-not-a-credential",
+  "files": [
+    {
+      "download_url": "https://files.example.invalid/fictional-note",
+      "file_id": "example-host-file-01",
+      "mime_type": "text/plain",
+      "file_name": "fictional-note.txt"
+    }
+  ],
+  "idempotency_key": "example-host-key-0001"
+}

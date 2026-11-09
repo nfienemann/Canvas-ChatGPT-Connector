@@ -1,0 +1,30 @@
+{
+  "schema_version": "library-intake-request-1",
+  "authorization_action_id": "example-action-not-a-credential",
+  "idempotency_key": "example-intake-key-0001",
+  "transfer_mode": "browser_bytes",
+  "files": [
+    {
+      "selection_id": "example-selection-01",
+      "file_name": "fictional-note.txt",
+      "declared_bytes": 142,
+      "maximum_bytes": 10000000,
+      "expected_sha256": "fdb60e5e47c4ccf3b45884a5d748bd17935dd442fe47dc1f261afc2b1491f5df"
+    }
+  ],
+  "collection_id": null,
+  "retention": {
+    "mode": "until_deleted"
+  },
+  "allow_processing": true,
+  "purpose": "study",
+  "recipient_grants": [
+    {
+      "recipient_profile_id": "example-reviewed-host",
+      "channels": [
+        "metadata",
+        "text"
+      ]
+    }
+  ]
+}

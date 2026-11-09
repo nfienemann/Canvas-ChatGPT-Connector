@@ -79,12 +79,26 @@ class IndependentSources:
                 downstream_processing={"inference"},
                 max_output_bytes=2_000_000,
             )
-        if not path or not path.is_file() or path.is_symlink() or path.stat().st_size > 16_000:
+        return self._read_profile(path, "chatgpt")
+
+    def external_profile(self):
+        policy = self._read_profile(
+            self.bridge.settings.independent_external_egress_file, "external_ai"
+        )
+        if policy and policy.client_id not in self.bridge.settings.mcp_chatgpt_client_ids:
+            return policy
+        return None
+
+    @staticmethod
+    def _read_profile(path, recipient):
+        if not path:
             return None
         try:
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 16_000:
+                return None
             profile = RecipientPolicy.model_validate_json(path.read_text(encoding="utf-8"))
             if (
-                profile.recipient != "chatgpt"
+                profile.recipient != recipient
                 or profile.training
                 or "training" in profile.downstream_processing
             ):
@@ -94,35 +108,47 @@ class IndependentSources:
             return None
 
     def require(self, owner, ident, *, kind="local_document"):
+        if ident.startswith("lib_") and kind == "local_document":
+            return self.bridge.library.adapter(owner, ident)
         with self.bridge.store.transaction() as session:
             row = session.scalar(
                 select(IndependentResource).where(
                     IndependentResource.id == ident, IndependentResource.owner == owner
                 )
             )
-            if (
-                not row
-                or row.kind != kind
-                or aware(row.expires_at) <= self.bridge.retention.clock()
-            ):
-                deny("RESOURCE_AUTHORIZATION_REVOKED")
-            p = row.provenance
-            if (
-                p.get("source_type") != kind
-                or p.get("schema_version") != "source-provenance-1"
-                or p.get("origin") != "authenticated_browser_upload"
-                or p.get("mechanism") != "bounded_browser_upload"
-                or p.get("owner") != owner
-                or p.get("content_identity") != row.version_hash
-                or p.get("institutional_connection") is not None
-                or p.get("parents")
-                or p.get("source_category", "independent_import") != "independent_import"
-                or p.get("privacy_classification") != str(CC.FIRST_PARTY_EDUCATIONAL_RECORD)
-            ):
-                deny()
-            if p.get("authorization") != "explicit_user_permission":
-                deny("SOURCE_IDENTITY_UNVERIFIED")
-            return row
+            return self.require_row(session, owner, row, kind=kind)
+
+    def require_row(self, session, owner, row, *, kind="local_document"):
+        if (
+            not row
+            or row.owner != owner
+            or row.kind != kind
+            or aware(row.expires_at) <= self.bridge.retention.clock()
+        ):
+            deny("RESOURCE_AUTHORIZATION_REVOKED")
+        if row.content.get("portable_origin"):
+            from canvas_bridge.usefulness.workspace_authority import verify_restored_source
+
+            verify_restored_source(self.bridge, session, row)
+        if row.content.get("packet"):
+            self.reject_institutional_copy(session, owner, row.version_hash)
+        p = row.provenance
+        if (
+            p.get("source_type") != kind
+            or p.get("schema_version") != "source-provenance-1"
+            or p.get("origin") != "authenticated_browser_upload"
+            or p.get("mechanism") != "bounded_browser_upload"
+            or p.get("owner") != owner
+            or p.get("content_identity") != row.version_hash
+            or p.get("institutional_connection") is not None
+            or p.get("parents")
+            or p.get("source_category", "independent_import") != "independent_import"
+            or p.get("privacy_classification") != str(CC.FIRST_PARTY_EDUCATIONAL_RECORD)
+        ):
+            deny()
+        if p.get("authorization") != "explicit_user_permission":
+            deny("SOURCE_IDENTITY_UNVERIFIED")
+        return row
 
     def reject_institutional_copy(self, session, owner, digest):
         # Known institutional bytes stay institutional regardless of a new filename.
@@ -156,6 +182,11 @@ class IndependentSources:
         share_visual=False,
         allow_academic_analysis=False,
         validate_session=lambda: None,
+        course="independent",
+        purpose="material",
+        replace_id=None,
+        expected_hash=None,
+        packet_member=None,
     ):
         if not own_material or not data or len(data) > LOCAL_IMPORT_BYTES:
             deny("SOURCE_IDENTITY_UNVERIFIED")
@@ -191,15 +222,77 @@ class IndependentSources:
                 "unsupported_feature",
                 f"The import exceeds the {local_import_limit(kind) // 1_000_000} MB limit for this format.",
             )
-        if (kind == "pdf" and not data.startswith(b"%PDF-")) or (
-            kind in {"docx", "pptx", "xlsx"} and not data.startswith(b"PK")
+        if (
+            (kind == "pdf" and not data.startswith(b"%PDF-"))
+            or (kind in {"docx", "pptx", "xlsx"} and not data.startswith(b"PK"))
+            or (
+                kind in {"txt", "md"}
+                and (data.startswith((b"%PDF-", b"PK", b"\x89PNG")) or b"\x00" in data)
+            )
         ):
             deny()
         digest, ident = hashlib.sha256(data).hexdigest(), opaque_id()
+        if not isinstance(course, str) or not 1 <= len(course) <= 100:
+            raise DomainError("needs_input", "Choose a course label of at most 100 characters.")
+        if purpose not in {
+            "material",
+            "syllabus",
+            "schedule",
+            "lecture",
+            "reading",
+            "instructions",
+            "own_feedback",
+        }:
+            raise DomainError("needs_input", "Choose a supported document purpose.")
+        if packet_member:
+            if packet_member.digest != digest:
+                deny()
+            replace_id = packet_member.target
+        if replace_id:
+            previous = self.require(owner, replace_id)
+            if (
+                not packet_member and previous.version_hash != expected_hash
+            ) or previous.content.get("course", "independent") != course:
+                raise DomainError(
+                    "source_changed", "Refresh the explicit replacement target and course."
+                )
+            if previous.content.get("portable_origin") and previous.version_hash != digest:
+                deny("PORT_ORIGINAL_VERSION_REQUIRED")
+            ident = replace_id
         with self.bridge.store.transaction() as session:
             principal = self.bridge.store.principal(session, owner)
             generation = principal.generation
             self.reject_institutional_copy(session, owner, digest)
+            if packet_member:
+                current = packet_member.check(
+                    session, owner, course, purpose, self.bridge.retention.clock()
+                )
+                if current and current.version_hash == digest:
+                    self.require_row(session, owner, current)
+                    current.content = current.content | {
+                        "packet": packet_member.metadata(current, self.bridge.retention.clock())
+                    }
+                    packet_member.publish(session, owner, current, self.bridge.retention.clock())
+                    return current.id
+                if current:
+                    expected_hash = current.version_hash
+            elif not replace_id:
+                for existing in session.scalars(
+                    select(IndependentResource).where(
+                        IndependentResource.owner == owner,
+                        IndependentResource.kind == "local_document",
+                        IndependentResource.version_hash == digest,
+                        IndependentResource.expires_at > self.bridge.retention.clock(),
+                    )
+                ):
+                    if (
+                        existing.content.get("course", "independent") == course
+                        and existing.content.get("purpose", "material") == purpose
+                        and existing.content.get("packet", {}).get("term", "unspecified")
+                        == "unspecified"
+                    ):
+                        # A retry never upgrades sharing, course membership or provenance.
+                        return self.require_row(session, owner, existing).id
             if (
                 len(
                     list(
@@ -212,6 +305,7 @@ class IndependentSources:
                     )
                 )
                 >= 20
+                and not replace_id
             ):
                 raise DomainError(
                     "retry_later", "Delete an older import before adding another document."
@@ -266,6 +360,99 @@ class IndependentSources:
             if self.bridge.store.principal(session, owner).generation != generation:
                 deny("RESOURCE_AUTHORIZATION_REVOKED")
             self.reject_institutional_copy(session, owner, digest)
+            if packet_member:
+                packet_member.check(session, owner, course, purpose, now)
+            if not replace_id:
+                current = list(
+                    session.scalars(
+                        select(IndependentResource).where(
+                            IndependentResource.owner == owner,
+                            IndependentResource.kind == "local_document",
+                        )
+                    )
+                )
+                for existing in current:
+                    if (
+                        not packet_member
+                        and existing.version_hash == digest
+                        and existing.content.get("purpose", "material") == purpose
+                        and existing.content.get("packet", {}).get("term", "unspecified")
+                        == "unspecified"
+                        and existing.content.get("course", "independent") == course
+                        and aware(existing.expires_at) > now
+                    ):
+                        return self.require_row(session, owner, existing).id
+                if len(current) >= 20:
+                    raise DomainError(
+                        "retry_later", "Delete an older import before adding another document."
+                    )
+            else:
+                existing = session.get(IndependentResource, replace_id)
+                if (
+                    not existing
+                    or existing.owner != owner
+                    or aware(existing.expires_at) <= now
+                    or existing.version_hash != expected_hash
+                ):
+                    raise DomainError(
+                        "source_changed", "The replacement target changed during parsing."
+                    )
+                # Retain bounded reviewed evidence, not another copy of the original bytes.
+                history = list(existing.content.get("version_history", []))
+                history.append(
+                    {
+                        "hash": existing.version_hash,
+                        "review": existing.content.get("review"),
+                        "parser_version": existing.content["parsed"].get("parser_version"),
+                        "coverage": existing.content["parsed"].get("coverage"),
+                    }
+                )
+                packet = existing.content.get("packet")
+                if packet_member:
+                    packet = packet_member.metadata(existing, now)
+                if packet:
+                    history[-1].update(
+                        original_bytes=existing.content["bytes"],
+                        privacy=existing.content["parsed"].get("privacy", {}),
+                        acquired_at=existing.provenance.get("acquired_at"),
+                        logical_path=existing.content.get("packet", {}).get(
+                            "current_path", existing.content["filename"]
+                        ),
+                    )
+                    if (
+                        len(history) > 10
+                        or sum(len(v.get("original_bytes", "")) for v in history) > 28_000_000
+                    ):
+                        raise DomainError(
+                            "needs_input", "This source reached its retained version limit."
+                        )
+                    from canvas_bridge.usefulness.packet import invalidate_version
+
+                    invalidate_version(self.bridge, session, owner, existing.id, expected_hash, now)
+                existing.content = {
+                    **({"packet": packet} if packet else {}),
+                    "bytes": base64.b64encode(data).decode(),
+                    "format": kind,
+                    "parsed": parsed,
+                    "filename": filename,
+                    "course": course,
+                    "purpose": purpose,
+                    "version_history": history[-10:],
+                }
+                existing.version_hash = digest
+                # Replacement can only narrow existing rights. Review new consent separately.
+                provenance["share_text"] &= bool(existing.provenance.get("share_text"))
+                provenance["share_visual"] &= bool(existing.provenance.get("share_visual"))
+                provenance["scope"] = list(
+                    set(provenance["scope"]) & set(existing.provenance.get("scope", []))
+                )
+                provenance["egress_policy"] = (
+                    existing.provenance.get("egress_policy") if provenance["share_text"] else None
+                )
+                existing.provenance = provenance
+                if packet_member:
+                    packet_member.publish(session, owner, existing, now)
+                return ident
             session.add(
                 IndependentResource(
                     id=ident,
@@ -274,15 +461,22 @@ class IndependentSources:
                     version_hash=digest,
                     provenance=provenance,
                     content={
+                        **({"packet": packet_member.metadata(None, now)} if packet_member else {}),
                         "bytes": base64.b64encode(data).decode(),
                         "format": kind,
                         "parsed": parsed,
+                        "filename": filename,
+                        "course": course,
+                        "purpose": purpose,
                     },
                     created_at=now,
                     expires_at=now
                     + timedelta(hours=self.bridge.settings.independent_retention_hours),
                 )
             )
+            if packet_member:
+                session.flush()
+                packet_member.publish(session, owner, session.get(IndependentResource, ident), now)
         return ident
 
     def list(self, owner):
@@ -298,23 +492,35 @@ class IndependentSources:
                     .limit(20)
                 )
             )
-        rows = [self.require(owner, ident) for ident in ids]
+        rows = []
+        for ident in ids:
+            try:
+                rows.append(self.require(owner, ident))
+            except DomainError:
+                continue
         return Result(
             summary="Independently imported documents; no institution was contacted.",
             data={
+                **({"unavailable_count": len(ids) - len(rows)} if len(ids) != len(rows) else {}),
                 "documents": [
                     {
                         "document_id": r.id,
                         "content_hash": r.version_hash,
                         "expires_at": aware(r.expires_at).isoformat(),
                         "format": r.content["format"],
+                        "course": r.content.get("course", "independent"),
+                        "filename": r.content.get("filename", "Imported document"),
                     }
                     for r in rows
-                ]
+                ],
             },
         )
 
     def evidence(self, row, locator=None):
+        if row.id.startswith("lib_"):
+            return self.bridge.library.evidence(row.owner, row.id[4:], locator)
+        from canvas_bridge.evidence import fingerprint
+
         return Source(
             id=row.id,
             resource_id=row.id,
@@ -325,13 +531,36 @@ class IndependentSources:
             classification="student_input",
             source_type="local_document",
             content_hash=row.version_hash,
+            semantic_hash=fingerprint(
+                [
+                    row.version_hash,
+                    row.content.get("course", "independent"),
+                    row.content.get("metadata_revision", 0),
+                    row.content.get("purpose"),
+                    row.content.get("review"),
+                    row.content["parsed"],
+                ]
+            ),
+            hash_basis="source_bytes_and_current_reviewed_representation",
             extraction_status=row.content["parsed"].get("coverage", "partial"),
             uncertainty=[
                 "Ownership and intended sharing are user attested; not institutional verification."
             ],
         )
 
-    def read(self, owner, ident, *, start=1, limit=3, query=None, status=False, study=False):
+    def read(
+        self,
+        owner,
+        ident,
+        *,
+        start=1,
+        limit=3,
+        query=None,
+        status=False,
+        study=False,
+        offset=0,
+        characters=18000,
+    ):
         row = self.require(owner, ident)
         parsed = row.content["parsed"]
         pages = parsed.get("pages", [])
@@ -354,9 +583,29 @@ class IndependentSources:
             result["parts"] = [
                 {
                     "part": i,
-                    "text": p.get("text", "")[:18000],
+                    "text": p.get("text", "")[offset : offset + characters],
                     "state": p.get("state", "unknown"),
-                    "text_truncated": len(p.get("text", "")) > 18000,
+                    "text_truncated": bool(offset) or len(p.get("text", "")) > offset + characters,
+                    **(
+                        {"start": offset, "end": min(offset + characters, len(p.get("text", "")))}
+                        if offset or characters != 18000
+                        else {}
+                    ),
+                    **(
+                        {
+                            "text_spans": [
+                                {
+                                    "start": max(offset, span["start"]) - offset,
+                                    "end": min(offset + characters, span["end"]) - offset,
+                                    "source_kind": span["source_kind"],
+                                }
+                                for span in p["text_spans"]
+                                if span["start"] < offset + characters and span["end"] > offset
+                            ]
+                        }
+                        if p.get("text_spans")
+                        else {}
+                    ),
                     "structure": bounded_table_structure(p.get("structure", {})),
                 }
                 for i, p in selected
@@ -376,43 +625,74 @@ class IndependentSources:
         )
 
     async def render(self, owner, ident, page=1):
+        if ident.startswith("lib_"):
+            item, version, _ = self.bridge.library.require(owner, version=ident[4:])
+            return await self.bridge.library.render(owner, item.id, version.id, page)
         row = self.require(owner, ident)
-        if row.content["format"] != "pdf":
+        kind = row.content["format"]
+        if kind not in {"pdf", "pptx"}:
             raise DomainError(
                 "unsupported_feature",
-                "Independent pixel delivery currently supports PDF pages. Other supported formats provide segmented text.",
+                "Independent pixel delivery supports PDF pages and configured PPTX slides. Other supported formats provide segmented text.",
             )
         if not row.provenance["share_visual"]:
             deny("EGRESS_REVIEW_REQUIRED")
         from canvas_bridge.visual_files import render_document, validate_rendering
 
         data = base64.b64decode(row.content["bytes"])
+        original = data
+        render_page = page
+        derivative = None
         with processing(owner, ident, namespace=self.bridge.processing_namespace):
-            raw = await render_document(data, self.bridge.settings, page, 0)
+            if kind == "pptx":
+                from canvas_bridge.presentation_pipeline import backend_identity, convert_document
+
+                backend_identity(self.bridge.settings)
+                derivative, data = await convert_document(data, self.bridge.settings, page)
+                # The converter validates original bytes, one-slide dependency
+                # closure, PDF geometry, and exact source-slide/page mapping.
+                render_page = derivative["slide_to_page"][0]["pdf_page"]
+            raw = await render_document(data, self.bridge.settings, render_page, 0)
         rendering = validate_rendering(
-            {"ok": True, "rendering": raw}, data, {"page": page, "rotation": 0}
+            {"ok": True, "rendering": raw}, data, {"page": render_page, "rotation": 0}
         )
-        self.require(owner, ident)
+        current = self.require(owner, ident)
+        if (
+            current.version_hash != row.version_hash
+            or hashlib.sha256(original).hexdigest() != row.version_hash
+        ):
+            raise DomainError("source_changed", "The document changed during rendering.")
+        if not current.provenance["share_visual"]:
+            deny("EGRESS_REVIEW_REQUIRED")
         result = Result(
-            summary="Rendered independent PDF page; interpretation remains the model's task.",
+            summary="Rendered independent document pixels; interpretation remains the model's task.",
             data={
                 "document_id": ident,
                 "content_hash": row.version_hash,
                 "page": page,
                 "visual_render_status": "rendered_not_interpreted",
                 "assistant_pixels_delivered": False,
+                **(
+                    {
+                        "source_slide": page,
+                        "derivative_content_hash": derivative["derivative_content_hash"],
+                        "slide_to_page": derivative["slide_to_page"],
+                        "source_slide_count": derivative["source_slide_count"],
+                    }
+                    if derivative
+                    else {}
+                ),
             },
-            sources=[self.evidence(row, f"PDF page {page}")],
+            sources=[self.evidence(row, f"{'Slide' if kind == 'pptx' else 'PDF page'} {page}")],
         )
         result.data["_visual_delivery_mode"] = "native"
         return result, rendering["png"]
 
     def sources(self, owner, arguments, result):
-        ids = (
-            {arguments["document_id"]}
-            if arguments.get("document_id")
-            else {r["document_id"] for r in result.data.get("documents", [])}
-        )
+        ids = {arguments["document_id"]} if arguments.get("document_id") else set()
+        ids |= set(arguments.get("document_ids") or ())
+        ids |= {s.id for s in result.sources if s.source_type == "local_document"}
+        ids |= {r["document_id"] for r in result.data.get("documents", [])}
         if not ids:
             return (
                 SourceContext(
@@ -425,6 +705,24 @@ class IndependentSources:
                 ),
             )
         rows = [self.require(owner, ident) for ident in ids]
+        expected = {s.id: s.content_hash for s in result.sources if s.content_hash}
+        expected.update(
+            {
+                d["document_id"]: d["content_hash"]
+                for d in result.data.get("documents", [])
+                if d.get("content_hash")
+            }
+        )
+        if any(r.id in expected and expected[r.id] != r.version_hash for r in rows):
+            raise DomainError(
+                "source_changed", "The document changed before output; read its current version."
+            )
+        semantic = {s.id: s.semantic_hash for s in result.sources if s.semantic_hash}
+        if any(r.id in semantic and semantic[r.id] != self.evidence(r).semantic_hash for r in rows):
+            raise DomainError(
+                "source_changed",
+                "The source representation or reviewed scope changed before output.",
+            )
         return tuple(
             SourceContext(
                 "__independent__",
@@ -440,29 +738,43 @@ class IndependentSources:
         )
 
     def permits(self, source, transfer):
+        if source.source_id.startswith("lib_"):
+            channel = (
+                "metadata"
+                if transfer.purpose == "metadata"
+                else "text"
+                if transfer.channel == "structured"
+                else transfer.channel
+            )
+            return (
+                self.bridge.library.permitted(
+                    transfer.principal,
+                    source.source_id[4:],
+                    channel,
+                    transfer=transfer,
+                    purpose=transfer.purpose,
+                )
+                and source.version
+                == self.bridge.library.require(transfer.principal, version=source.source_id[4:])[
+                    1
+                ].digest
+            )
         row = self.require(transfer.principal, source.source_id)
-        profile = self.profile()
+        recipient = transfer.recipient
+        external = recipient.recipient == "external_ai"
+        profile = self.external_profile() if external else self.profile()
+        bound = row.provenance.get("external_egress_policy" if external else "egress_policy")
         if (
             not profile
-            or not row.provenance.get("egress_policy")
-            or RecipientPolicy.model_validate(row.provenance["egress_policy"]) != profile
+            or not bound
+            or RecipientPolicy.model_validate(bound) != profile
+            or (external and transfer.channel not in {"metadata", "structured", "text"})
             or not row.provenance.get("share_text")
         ):
             return False
-        recipient = transfer.recipient
-        if self.bridge.settings.profile != "synthetic" and (
-            recipient.recipient,
-            recipient.issuer,
-            recipient.client_id,
-            recipient.environment,
-            recipient.workspace,
-        ) != (
-            profile.recipient,
-            profile.issuer,
-            profile.client_id,
-            profile.environment,
-            profile.workspace,
-        ):
+        if (
+            external or self.bridge.settings.profile != "synthetic"
+        ) and recipient != profile.identity():
             return False
         return (
             recipient.recipient == profile.recipient
@@ -569,7 +881,9 @@ class IndependentSources:
             if not row or row.kind != "local_document":
                 deny()
             from canvas_bridge.processes.purge import purge_sources
+            from canvas_bridge.usefulness.packet import fence_deletion
 
+            fence_deletion(session, row, self.bridge.retention.clock())
             purge_sources(session, owner, source_ids=(ident,))
             session.delete(row)
         from canvas_bridge.worker_storage import invalidate

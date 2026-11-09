@@ -86,6 +86,10 @@ async def test_T12_T21_T36_real_http_mcp_read_and_write_scope(running, token_fac
                     },
                 )
                 assert saved.structuredContent["status"] == "permission_denied"
+                auth = saved.structuredContent["data"]["diagnostic"]["authentication_diagnostic"]
+                assert auth["mcp_authentication"] == "passed"
+                assert auth["bridge_authorization"] == "failed"
+                assert auth["recovery_action"] == "review_client_permission"
                 for tool in catalog.tools:
                     if tool.name == "update_study_preferences":
                         assert tool.annotations.readOnlyHint is False

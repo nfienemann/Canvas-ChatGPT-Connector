@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-03",
+  "command": "python -m pytest -q --disable-warnings --maxfail=5 --junitxml=.local/private-library-local-completion-tests.xml",
+  "environment": "Windows; Python 3.14.5; shared dirty checkout; synthetic fixtures",
+  "results": {
+    "tests": 2218,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 31,
+    "passed": 2187
+  },
+  "seconds": 1278.31,
+  "skips": {
+    "disposable_postgresql_required": 11,
+    "linux_kernel_required": 13,
+    "trusted_native_converter_required": 5,
+    "operator_ocr_required": 2
+  },
+  "supplemental_checks": {
+    "abrupt_process_exit_tests": {
+      "passed": 2,
+      "seconds": 10.37
+    },
+    "final_seven_format_http": {
+      "passed": 7,
+      "seconds": 10.57
+    },
+    "final_second_owner_http_retry_route": {
+      "passed": 1,
+      "seconds": 2.83
+    },
+    "browser": "browser-completion-2026-11-03.json",
+    "final_shared_egress_integration": {
+      "passed": 13,
+      "skipped": 0,
+      "seconds": 61.56,
+      "command": "python -m pytest -q tests/test_egress_contract.py tests/test_private_library.py::test_real_mcp_serialized_metadata_text_and_legacy_adapter tests/test_private_library_boundaries.py::test_study_adapter_and_exact_image_preview --disable-warnings --maxfail=2 --junitxml=.local/private-library-final-egress-tests.xml"
+    }
+  },
+  "source_snapshot": "source-hashes-local-completion-2026-11-03.json",
+  "boundary": "Two new crash tests were added after full-suite collection; final UI edits received supplemental HTTP/browser checks. A later shared egress_sources.py edit requires separate targeted integration evidence; the full run is not attributed to that later revision.",
+  "final_source_snapshot": "source-hashes-local-completion-final-2026-11-03.json",
+  "final_snapshot_files_verified_unchanged": 49
+}

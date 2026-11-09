@@ -1,14 +1,16 @@
 """Fresh, bounded student-visible inventory. No attempts, replies or Calendar writes."""
 
 import asyncio
+import math
 import re
 from collections import Counter
 from datetime import time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from canvas_bridge.canvas import Collection
+from canvas_bridge.canvas import Collection, inventory_parallelism
 from canvas_bridge.domain import Coverage, DomainError, FactDate, Result, Source, utcnow
 from canvas_bridge.evidence import attach, fingerprint
+from canvas_bridge.failure_events import record_branch
 from canvas_bridge.normalize import (
     assignment_requirements,
     canonical_id,
@@ -373,32 +375,67 @@ async def collect_inventory(
     conn, courses = bridge.selected(owner, ref, [course_id])
     course, now = courses[0], utcnow()
     async with bridge.client(owner, ref) as client:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + bridge.settings.refresh_budget_seconds
+        width = inventory_parallelism(bridge)
+        collections = {}
 
-        async def read(kind, endpoint, calendar_kind):
+        async def read(kind, endpoint, calendar_kind, until):
+            remaining = until - loop.time()
+            if remaining <= 0:
+                return kind, Collection(
+                    failure="not_refreshed", reason_code="INVENTORY_NOT_ATTEMPTED"
+                )
+            kwargs = (
+                {"window": (start, end), "calendar_kind": calendar_kind} if calendar_kind else {}
+            )
             try:
-                async with asyncio.timeout(bridge.settings.refresh_budget_seconds):
-                    kwargs = (
-                        {"window": (start, end), "calendar_kind": calendar_kind}
-                        if calendar_kind
-                        else {}
-                    )
-                    return kind, await client.collection(
-                        endpoint, course=course.source_id, **kwargs
-                    )
+                result = await client.collection(
+                    endpoint, course=course.source_id, budget_seconds=remaining, **kwargs
+                )
             except TimeoutError:
-                return kind, Collection(failure="request_budget")
+                result = Collection(
+                    failure="request_budget", reason_code="INVENTORY_BRANCH_TIMEOUT"
+                )
+            return kind, result
 
-        collections = dict(await asyncio.gather(*(read(*resource) for resource in RESOURCES)))
+        for offset in range(0, len(RESOURCES), width):
+            waves_left = math.ceil((len(RESOURCES) - offset) / width)
+            wave_start = loop.time()
+            until = wave_start + (deadline - wave_start) / waves_left
+            outcomes = await asyncio.gather(
+                *(read(*branch, until) for branch in RESOURCES[offset : offset + width]),
+                return_exceptions=True,
+            )
+            for outcome in outcomes:
+                if isinstance(outcome, BaseException):
+                    raise outcome
+                kind, result = outcome
+                collections[kind] = result
+            if any(
+                c.failure in {"source_changed", "reconnect_required"} for c in collections.values()
+            ) or (collections["assignments"].failure == "permission_denied"):
+                break
+
+        # Writing the private journal must not consume time reserved for other branches.
+        for kind, result in collections.items():
+            if result.reason_code:
+                record_branch(
+                    bridge.egress, result.failure_fields(), branch=kind, pages=result.pages
+                )
         if any(c.failure == "reconnect_required" for c in collections.values()):
             raise DomainError(
                 "reconnect_required", "Canvas needs to be reconnected; no inventory returned."
             )
-        if collections["assignments"].failure == "permission_denied":
+        if any(c.failure == "source_changed" for c in collections.values()):
+            raise DomainError("source_changed", "Course access changed during inventory.")
+        assignments = collections["assignments"]
+        if assignments.failure == "permission_denied":
             raise DomainError(
                 "permission_denied",
                 "The course assignment scope could not be verified.",
-                reason_code=collections["assignments"].reason_code,
-                upstream_http_status=collections["assignments"].upstream_http_status,
+                reason_code=assignments.reason_code,
+                upstream_http_status=assignments.upstream_http_status,
             )
         work_items = {}
         items, sources, omitted = build_inventory(
@@ -424,9 +461,12 @@ async def collect_inventory(
             if c.complete and len(c.items) <= MAX_RECORDS and not omitted[kind]
             else "permission_denied"
             if c.failure == "permission_denied"
+            else "not_refreshed"
+            if c.failure == "not_refreshed"
             else "partial",
             pagination_complete=c.complete,
             pages_consumed=c.pages,
+            **c.failure_fields(),
             warning=c.failure
             or (
                 "Omitted records: "

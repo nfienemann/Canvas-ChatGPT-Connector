@@ -472,3 +472,38 @@ async def test_retention_deadline_cannot_be_extended(bridge, owner, seeded, orig
     item.mono_start -= 2
     with pytest.raises(DomainError):
         bridge.original_files.lookup(item.id, owner, seeded)
+
+
+async def test_interrupted_original_after_first_chunk_records_partial_only_locally(
+    bridge, owner, seeded, original
+):
+    from canvas_bridge import failure_events
+    from canvas_bridge.file_delivery import OriginalResponse
+
+    _, file, _ = original
+    prepared = await bridge.original_files.prepare(owner, seeded, file)
+    manager = bridge.original_files
+    item = manager.records[prepared.data["delivery_id"]]
+    slot = manager.slot(owner)
+    await slot.__aenter__()
+    item.active += 1
+
+    async def body():
+        yield b"fixture-first-chunk"
+        raise RuntimeError("SYNTHETIC-PRIVATE-STREAM-ERROR")
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    response = OriginalResponse(body(), {}, manager, item, slot)
+    with pytest.raises(RuntimeError, match="Bridge stream interrupted"):
+        await response({"type": "http", "asgi": {"spec_version": "2.4"}}, None, send)
+    assert len(sent) == 2
+    ident = dict(sent[0]["headers"])[b"x-bridge-request-id"].decode()
+    (event,) = failure_events.lookup(failure_events.journal(bridge.settings), ident)
+    assert event["content_delivery"] == "partial"
+    assert event["requested_operation_outcome"] == "partial"
+    assert event["sanitized_error_release"] == "not_evaluated"
+    assert "SYNTHETIC-PRIVATE" not in str(event) and not manager.active

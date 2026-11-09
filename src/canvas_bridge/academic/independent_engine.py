@@ -1,6 +1,13 @@
 """Pure reasoning. No Bridge, credentials, storage, provider or network calls."""
 
 from canvas_bridge.academic.grade_engine import GradePolicy, calculate, digest
+from canvas_bridge.academic.study_steps import (
+    calendar_items,
+    reported_plan_conflicts,
+    review_step_evidence,
+    source_steps,
+    step_parents,
+)
 from canvas_bridge.academic_rules import (
     citation,
     deadline_findings,
@@ -9,10 +16,12 @@ from canvas_bridge.academic_rules import (
 )
 from canvas_bridge.calendar_sync import calendar_proposal
 from canvas_bridge.domain import DomainError, WorkItem
-from canvas_bridge.planning import PlanRequest, propose
+from canvas_bridge.registrar import calendar_handoff, final_gaps, lookup_handoff
 
 
 def work_items(dataset, source):
+    parents = step_parents(dataset)
+    records = {row.key: row for row in dataset.work}
     return [
         WorkItem(
             id=w.key,
@@ -21,7 +30,12 @@ def work_items(dataset, source):
             course_id=source.id,
             source_id=w.key,
             title=w.title,
-            effective_due=w.due,
+            kind=w.activity_kind,
+            effective_due=records[parents[w.key]].due if parents.get(w.key) in records else w.due,
+            available_from=w.opens,
+            closes_at=w.closes,
+            revision_state="requested" if w.revision_requested else "unknown",
+            independent_personal_work=True,
             personal_progress=w.progress,
             effort_remaining=w.effort,
             prerequisites=w.prerequisites,
@@ -112,6 +126,10 @@ def grade_result(grades, source, request):
 def analyze(request, dataset, source, documents, *, owner, now):
     items = work_items(dataset, source) if dataset and source else []
     capability = request.capability
+    if capability == "analytics":
+        from canvas_bridge.analytics.independent import independent_review
+
+        return independent_review(dataset, source, request.analytics, owner, now)
     if capability == "planning":
         if not items:
             raise DomainError(
@@ -119,7 +137,24 @@ def analyze(request, dataset, source, documents, *, owner, now):
                 "Supply independent work items before planning.",
                 reason_code="INDEPENDENT_WORK_MISSING",
             )
-        data = propose(items, request.plan or PlanRequest(), now)
+        from canvas_bridge.usefulness.engine import obligations
+
+        inventory = obligations(dataset, source, now=now, plan=request.plan)
+        data = inventory.pop("plan")
+        conflicts = reported_plan_conflicts(dataset, documents)
+        if conflicts:
+            data["requirement_review"] = {"conflicts": conflicts}
+        step_review = review_step_evidence(dataset, documents)
+        if step_review:
+            data["study_step_review"] = step_review
+        if conflicts or any(step["status"] == "source_review_required" for step in step_review):
+            data["information_status"] = "uncertain"
+            if data["feasibility"] == "feasible":
+                data["feasibility"] = "provisional"
+        data["work_accounting"] = {
+            r["work_id"]: {k: v for k, v in r.items() if k != "work_id"}
+            for r in inventory["accounting"]
+        }
         return data, not dataset.complete or data["information_status"] != "sufficient"
     if capability == "grades":
         data = grade_result(dataset.grades, source, request)
@@ -131,20 +166,41 @@ def analyze(request, dataset, source, documents, *, owner, now):
                 "Read the existing authorized calendar and supply current event coverage; missing calendar information is unknown.",
                 reason_code="INDEPENDENT_CALENDAR_MISSING",
             )
+        items, inherited = calendar_items(items, step_parents(dataset))
         data = calendar_proposal(
             items, request.calendar, owner, "", now, source_label="Independent"
         )
-        return data, not dataset.complete or data["status"] != "proposal_only" or bool(
-            data["ambiguous_matches"]
+        if inherited:
+            data["inferred_deadline_parents"] = inherited
+            data["limitations"].append(
+                "These parents have only step-level planning cutoffs. Confirm each date "
+                "against its assignment before using a reminder. Inconsistent cutoffs are omitted."
+            )
+        calendar_handoff(
+            data,
+            items,
+            request.calendar,
+            owner,
+            "",
+            request.registrar_lookup,
+            allowed_courses=[source.id],
         )
+        return data, bool(inherited) or not dataset.complete or data[
+            "status"
+        ] != "proposal_only" or bool(data["ambiguous_matches"])
     if capability == "assessment":
         return assessment_evidence(documents, request.assessment_description), True
     data = {}
     if capability in {"requirements", "consistency"}:
-        drafts = [p["text"] for d in documents if d["role"] == "draft" for p in d["parts"]]
+        drafts = [d for d in documents if d["role"] == "draft"]
         data["requirement_review"] = instruction_findings(
-            [d for d in documents if d["role"] != "draft"], "\n".join(drafts) if drafts else None
+            [d for d in documents if d["role"] != "draft"],
+            "\n".join(p["text"] for d in drafts for p in d["parts"]) if drafts else None,
+            draft_complete=len(drafts) == 1 and drafts[0]["complete"],
         )
+        candidates = source_steps(documents)
+        if candidates["steps"]:
+            data["source_work_steps"] = candidates
     if capability in {"deadlines", "consistency"}:
         data["deadline_review"] = deadline_findings(
             documents,
@@ -153,5 +209,17 @@ def analyze(request, dataset, source, documents, *, owner, now):
             bool(dataset and dataset.complete),
             source_label="Independent",
         )
+        handoff = lookup_handoff(
+            final_gaps(
+                [i.model_dump(mode="json") for i in items],
+                documents,
+                data["deadline_review"]["findings"],
+            ),
+            request.registrar_lookup,
+            allowed_courses={d.get("course_id") or d["id"] for d in documents}
+            | ({source.id} if source else set()),
+        )
+        if handoff:
+            data["registrar_lookup"] = handoff
     # Narrow extraction cannot certify absence of all natural-language conflicts.
     return data, True

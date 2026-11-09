@@ -13,14 +13,20 @@ from pathlib import Path
 
 from defusedxml import ElementTree as ET
 from pypdf import PdfReader
+from pypdf.generic import NullObject
 
 if __package__:
-    from canvas_bridge.document_policy import PPTX_SOURCE_BYTES, PresentationLimit, source_limit
+    from canvas_bridge.document_policy import (
+        PDF_BATCH_PAGES,
+        PPTX_SOURCE_BYTES,
+        PresentationLimit,
+        source_limit,
+    )
     from canvas_bridge.presentation_worker import extract_presentation
     from canvas_bridge.scientific_structure import enrich, ooxml_structure
     from canvas_bridge.spreadsheet_worker import extract_workbook
 else:
-    from document_policy import PPTX_SOURCE_BYTES, PresentationLimit, source_limit
+    from document_policy import PDF_BATCH_PAGES, PPTX_SOURCE_BYTES, PresentationLimit, source_limit
     from presentation_worker import extract_presentation
     from scientific_structure import enrich, ooxml_structure
     from spreadsheet_worker import extract_workbook
@@ -28,7 +34,7 @@ else:
 MAX_BYTES = 10_000_000
 MAX_TEXT = 250_000
 MAX_PAGES = 200
-PARSER = "canvas-bridge-documents-v11-scientific-structure"
+PARSER = "canvas-bridge-documents-v14-grayscale-ocr"
 SUPPORTED_FORMATS = ("pdf", "docx", "pptx", "txt", "md", "xlsx")
 
 
@@ -147,7 +153,69 @@ def office(data: bytes, kind: str):
         raise ValueError("unsupported_format")
 
 
-def _extract(data: bytes, kind: str) -> dict:
+def sparse_image_text(page, text):
+    """Find bounded raster resources without decoding image streams or rendering."""
+    if len(text.strip()) >= 300:
+        return False
+    pending = [(page.get("/Resources", {}), 0)]
+    seen = set()
+    inspected = 0
+    while pending and inspected < 64:
+        resources, depth = pending.pop()
+        try:
+            resources = resources.get_object()
+            objects = resources.get("/XObject", {}).get_object()
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+        for reference in list(objects.values())[: 64 - inspected]:
+            inspected += 1
+            try:
+                obj = reference.get_object()
+                if id(obj) in seen:
+                    continue
+                seen.add(id(obj))
+                if (
+                    obj.get("/Subtype") == "/Image"
+                    and int(obj.get("/Width", 0)) * int(obj.get("/Height", 0)) >= 10_000
+                ):
+                    return True
+                if obj.get("/Subtype") == "/Form" and depth < 4:
+                    pending.append((obj.get("/Resources", {}), depth + 1))
+            except (AttributeError, KeyError, TypeError, ValueError):
+                continue
+    return False
+
+
+def pdf_privacy_metadata(reader):
+    metadata = {
+        key: str((reader.metadata or {}).get(source, ""))[:1000]
+        for key, source in (("title", "/Title"), ("author", "/Author"), ("subject", "/Subject"))
+    }
+    # Annotation authors are encountered locally, never fetched as people.
+    # Their notes/links are not academic text and are not returned.
+    aliases = {metadata["author"]} if 3 <= len(metadata["author"]) <= 200 else set()
+    for page in reader.pages:
+        annotations = page.get("/Annots", [])
+        if hasattr(annotations, "get_object"):
+            annotations = annotations.get_object()
+        if isinstance(annotations, NullObject):
+            annotations = []
+        if not isinstance(annotations, list):
+            raise ValueError("office_resource_limit")
+        if len(annotations) > 500:
+            raise ValueError("office_resource_limit")
+        for reference in annotations:
+            annotation = reference.get_object()
+            author = annotation.get("/T")
+            if isinstance(author, str) and 3 <= len(author) <= 200:
+                aliases.add(author)
+                if len(aliases) > 256:
+                    raise ValueError("office_resource_limit")
+    metadata["privacy_aliases"] = sorted(aliases - {metadata["author"]})
+    return metadata
+
+
+def _extract(data: bytes, kind: str, page_range=None, checkpoint=None) -> dict:
     if len(data) > source_limit(kind):
         raise ValueError("file_too_large")
     if kind == "pptx":
@@ -173,24 +241,27 @@ def _extract(data: bytes, kind: str) -> dict:
             warnings.append(
                 "PDF interactive actions are ignored. Scripts, links and attachments are never executed or opened."
             )
-        metadata = {
-            key: str((reader.metadata or {}).get(source, ""))[:1000]
-            for key, source in (("title", "/Title"), ("author", "/Author"), ("subject", "/Subject"))
-        }
-        # Annotation authors are encountered locally, never fetched as people.
-        # Their notes/links are not academic text and are not returned.
-        metadata["privacy_aliases"] = []
-        for number, page in enumerate(reader.pages, 1):
-            annotations = page.get("/Annots", [])
-            if len(annotations) > 500:
-                raise ValueError("office_resource_limit")
-            for reference in annotations:
-                annotation = reference.get_object()
-                author = annotation.get("/T")
-                if isinstance(author, str) and 3 <= len(author) <= 200:
-                    metadata["privacy_aliases"].append(author)
-                    if len(metadata["privacy_aliases"]) > 256:
-                        raise ValueError("office_resource_limit")
+        metadata = pdf_privacy_metadata(reader)
+        first, last = page_range or (1, page_count)
+        if page_range and not (1 <= first <= last <= MAX_PAGES and last - first < PDF_BATCH_PAGES):
+            raise ValueError("invalid_pdf_range")
+        if first > 1 or last < page_count:
+            coverage = "partial"
+        digest = hashlib.sha256(data).hexdigest()
+        for number in range(first, min(last, page_count) + 1):
+            if checkpoint and pages:
+                raw = dict(
+                    format=kind,
+                    content_hash=digest,
+                    parser=PARSER,
+                    metadata=metadata,
+                    pages=[dict(p) for p in pages],
+                    page_count=page_count,
+                    coverage="partial",
+                    warnings=list(warnings),
+                )
+                checkpoint(finish(raw, data, kind))
+            page = reader.pages[number - 1]
             separator = 2 if pages else 0
             if total + separator > MAX_TEXT:
                 coverage = "partial"
@@ -216,8 +287,20 @@ def _extract(data: bytes, kind: str) -> dict:
                 warnings.append(
                     f"Page {number}: text limit reached; remaining content was not extracted."
                 )
+            scan_hint = sparse_image_text(page, text)
+            if scan_hint:
+                coverage = "partial"
+                warnings.append(
+                    f"Page {number}: sparse text layer with raster content; OCR or visual reading is required."
+                )
             pages.append(
-                {"page": number, "text": text, "state": state, "extraction_method": "embedded_text"}
+                {
+                    "page": number,
+                    "text": text,
+                    "state": state,
+                    "extraction_method": "embedded_text",
+                    "sparse_image_text": scan_hint,
+                }
             )
             total += len(text) + separator
             if total >= MAX_TEXT:
@@ -308,12 +391,16 @@ def _extract(data: bytes, kind: str) -> dict:
     }
 
 
-def extract(data: bytes, kind: str) -> dict:
+def extract(data: bytes, kind: str, page_range=None, checkpoint=None) -> dict:
+    return finish(_extract(data, kind, page_range, checkpoint), data, kind)
+
+
+def finish(raw, data, kind):
     try:
         from canvas_bridge.privacy_text import document_privacy, inspect_office_parts
     except ModuleNotFoundError:
         from privacy_text import document_privacy, inspect_office_parts
-    raw = enrich(_extract(data, kind))
+    raw = enrich(raw)
     status, aliases = (
         inspect_office_parts(data) if kind in {"docx", "pptx", "xlsx"} else ("not_applicable", ())
     )
@@ -339,7 +426,29 @@ def main():
         request = json.loads((root / "request.json").read_text(encoding="utf-8"))
         with (root / "input.bin").open("rb") as stream:
             data = stream.read((PPTX_SOURCE_BYTES if request["kind"] == "pptx" else MAX_BYTES) + 1)
-        result = {"ok": True, "extraction": extract(data, request["kind"])}
+        written = 0
+        output = root / "result.json"
+
+        def record(parsed, complete=False):
+            # Append complete lines to the single sandbox-writable output. A killed
+            # writer can leave a torn last line without destroying earlier pages.
+            nonlocal written
+            delta = {**parsed, "pages": parsed["pages"][written:]}
+            encoded = json.dumps({"extraction": delta, "complete": complete}).encode() + b"\n"
+            with output.open("ab") as stream:
+                if stream.tell() + len(encoded) > 2_000_000:
+                    raise ValueError("output_limit")
+                stream.write(encoded)
+            written = len(parsed["pages"])
+
+        window = request.get("page_range")
+        if window:
+            output.write_bytes(b'{"stage":"text_extraction"}\n')
+        parsed = extract(data, request["kind"], window, record if window else None)
+        if window:
+            record(parsed, complete=True)
+            return
+        result = {"ok": True, "extraction": parsed}
     except Exception as exc:
         # Never return parser exception text: it may contain private document data.
         known = {
@@ -369,6 +478,22 @@ def main():
             else "corrupt_or_unreadable"
         )
         result = {"ok": False, "reason": reason}
+        if reason == "corrupt_or_unreadable":
+            # Fixed categories only: parser exception messages can contain source text.
+            category = type(exc).__name__
+            if category in {
+                "PdfReadError",
+                "PdfStreamError",
+                "EmptyFileError",
+                "ValueError",
+                "TypeError",
+                "KeyError",
+                "AttributeError",
+                "RecursionError",
+                "OverflowError",
+                "UnicodeError",
+            }:
+                result["details"] = {"parser_error_type": category}
         if isinstance(exc, PresentationLimit):
             result["details"] = exc.details
     encoded = json.dumps(result, ensure_ascii=True)

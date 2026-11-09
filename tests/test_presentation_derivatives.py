@@ -93,7 +93,10 @@ async def test_changed_version_invalidates_derivative_and_wrong_slide_is_typed(
     assert len(bridge.presentation_derivatives.records) == 1
     with pytest.raises(DomainError) as absent:
         await render_slide(bridge, owner, seeded, presentation, 18)
-    assert absent.value.reason_code == "INVALID_SLIDE"
+    assert absent.value.status == "needs_input"
+    assert absent.value.reason_code == "DOCUMENT_RANGE_OUT_OF_BOUNDS"
+    assert absent.value.data["page_start"] == absent.value.data["page_end"] == 18
+    assert absent.value.data["page_count"] == 17
 
 
 async def test_post_render_permission_denial_and_version_change_never_return_cached_pixels(

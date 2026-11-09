@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+from datetime import datetime
 
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,10 +13,12 @@ from canvas_bridge.domain import DomainError, Result, opaque_id, utcnow
 from canvas_bridge.egress_models import ContentClassification as CC
 from canvas_bridge.egress_models import SourceContext
 from canvas_bridge.integrity.surfaces import before_tool
+from canvas_bridge.planning import PinTimingConflict
 from canvas_bridge.storage import aware
 
 TOOL = "run_independent_academic_workflow"
 PURPOSES = {
+    "analytics": "schedule",
     "grades": "grade_planning",
     "planning": "schedule",
     "calendar": "schedule",
@@ -28,7 +31,14 @@ PURPOSES = {
 
 def require_use(bridge, row, capability):
     purposes = {PURPOSES[capability]} | ({"study"} if capability == "consistency" else set())
-    profile = bridge.independent.profile()
+    from canvas_bridge.authorization import request_authorization
+
+    context = request_authorization.get()
+    profile = (
+        bridge.independent.external_profile()
+        if context and context.recipient == "external_ai"
+        else bridge.independent.profile()
+    )
     if not purposes <= set(row.provenance.get("scope", [])):
         raise DomainError(
             "permission_denied",
@@ -133,6 +143,13 @@ async def run(bridge, owner, request):
             "Independent local storage is unavailable; retry local access. Reconnecting an LMS will not repair this.",
             reason_code="LOCAL_STORAGE_UNAVAILABLE",
         ) from exc
+    except PinTimingConflict as exc:
+        raise DomainError(
+            "needs_input",
+            "The supplied pin conflicts with the source timing. Review its original time and "
+            "choose a slot within the revised deadline before replanning.",
+            reason_code="PIN_CONFLICTS_WITH_SOURCE_TIMING",
+        ) from exc
     except ValueError as exc:
         raise DomainError(
             "needs_input",
@@ -147,6 +164,7 @@ async def _run(bridge, owner, request):
     accepted = []
     selections = ([request.dataset] if request.dataset else []) + request.documents
     for position, selected in enumerate(selections, 1):
+        authorized = False
         try:
             row = require(bridge, owner, selected, check_version=False)
             require_use(bridge, row, request.capability)
@@ -160,9 +178,17 @@ async def _run(bridge, owner, request):
                 tool_name="get_local_document_status",
             )
             require(bridge, owner, selected)
-            evidence = bridge.independent.read(
-                owner, row.id, start=selected.start_part, limit=selected.limit, study=True
-            )
+            authorized = True
+            try:
+                evidence = bridge.independent.read(
+                    owner, row.id, start=selected.start_part, limit=selected.limit, study=True
+                )
+            except SQLAlchemyError as exc:
+                raise DomainError(
+                    "retry_later",
+                    "Retry the selected local evidence when storage is available.",
+                    reason_code="LOCAL_STORAGE_UNAVAILABLE",
+                ) from exc
             # Every source is checked before reasoning as well as before release.
             evidence = bridge.egress.release(evidence, owner, {"request": request}, tool_name=TOOL)
         except DomainError as exc:
@@ -171,6 +197,25 @@ async def _run(bridge, owner, request):
                 "reconnect_required",
             }:
                 raise
+            if (
+                authorized
+                and exc.status == "retry_later"
+                and exc.reason_code == "LOCAL_STORAGE_UNAVAILABLE"
+            ):
+                if selected is request.dataset:
+                    raise DomainError(
+                        "retry_later",
+                        "Retry the selected local evidence when storage is available.",
+                        reason_code="LOCAL_STORAGE_UNAVAILABLE",
+                    ) from exc
+                excluded.append(
+                    {
+                        "selection": position,
+                        "reason_code": "LOCAL_STORAGE_UNAVAILABLE",
+                        "retry_condition": "Retry when local storage is available.",
+                    }
+                )
+                continue
             if selected is request.dataset:
                 raise DomainError(
                     "permission_denied",
@@ -185,13 +230,36 @@ async def _run(bridge, owner, request):
         lineage.append(provenance(row))
         sources.extend(evidence.sources)
         if selected is request.dataset:
+            reviewed = row.content.get("reviewed_dataset")
+            if reviewed and row.content.get("review", {}).get("source_hash") == row.version_hash:
+                dataset = IndependentAcademicInput.model_validate(reviewed)
+                dataset_source = bridge.independent.evidence(
+                    row, "Authenticated reviewed academic records"
+                )
+                if request.capability == "analytics":
+                    review_time = row.content["review"].get("observed_at")
+                    # Legacy reviews lack an observation time. They can first be attested now.
+                    dataset_source.retrieved_at = (
+                        datetime.fromisoformat(review_time) if review_time else utcnow()
+                    )
+                sources.extend(
+                    dataset_source.model_copy(
+                        update={"resource_id": w.key, "locator": "Reviewed work " + w.key}
+                    )
+                    for w in dataset.work
+                )
+                continue
             if row.content.get("format") not in {"txt", "md"}:
                 raise DomainError(
                     "unsupported_feature",
                     "Structured academic records require a permitted TXT or Markdown import.",
                     reason_code="INDEPENDENT_SCHEMA_UNSUPPORTED",
                 )
-            raw = base64.b64decode(row.content["bytes"], validate=True)
+            raw = (
+                bridge.library.bytes(owner, row.id[4:])
+                if row.id.startswith("lib_")
+                else base64.b64decode(row.content["bytes"], validate=True)
+            )
             if len(raw) > 80_000 or hashlib.sha256(raw).hexdigest() != row.version_hash:
                 raise DomainError(
                     "source_changed",
@@ -213,6 +281,8 @@ async def _run(bridge, owner, request):
                     else "INDEPENDENT_INPUT_INVALID",
                 ) from exc
             dataset_source = bridge.independent.evidence(row, "Independent academic records")
+            if request.capability == "analytics" and row.provenance.get("acquired_at"):
+                dataset_source.retrieved_at = datetime.fromisoformat(row.provenance["acquired_at"])
             # Child references are backed by this validated document, not by LMS
             # identifiers. This also preserves exact timing/override maps through
             # the existing owner-source privacy projection.
@@ -242,6 +312,7 @@ async def _run(bridge, owner, request):
                 "source_type": "local_document",
                 "role": selected.role,
                 "version": row.version_hash,
+                "source_version": row.version_hash,
                 "retrieved_at": evidence.sources[0].retrieved_at.isoformat(),
                 "complete": complete,
                 "parts": parts,
@@ -253,6 +324,10 @@ async def _run(bridge, owner, request):
                 "role": selected.role,
                 "start_part": selected.start_part,
                 "parts_read": len(parts),
+                "extraction_coverage": evidence.data["coverage"],
+                "text_truncated": any(
+                    p["text_truncated"] or len(p["text"]) > 4000 for p in evidence.data["parts"]
+                ),
                 "part_count": evidence.data["part_count"],
                 "next_part": evidence.data.get("next_part"),
                 "complete": complete,
@@ -260,6 +335,12 @@ async def _run(bridge, owner, request):
             }
         )
     if not sources or (request.capability in {"assessment", "requirements"} and not documents):
+        if any(slot["reason_code"] == "LOCAL_STORAGE_UNAVAILABLE" for slot in excluded):
+            raise DomainError(
+                "retry_later",
+                "Retry the selected local evidence when storage is available.",
+                reason_code="LOCAL_STORAGE_UNAVAILABLE",
+            )
         if excluded:
             raise DomainError(
                 "permission_denied",
@@ -284,7 +365,9 @@ async def _run(bridge, owner, request):
             "institutional_network_attempted": False,
             "policy_decision": "owned_source_and_current_recipient_checked",
             "included_source_classes": ["independent_import"],
-            "excluded_source_classes": ["unknown_or_disallowed"] if excluded else [],
+            "excluded_source_classes": ["unknown_or_disallowed"]
+            if any(slot["reason_code"] == "INDEPENDENT_SOURCE_UNAVAILABLE" for slot in excluded)
+            else [],
             "correlation_id": opaque_id(),
         },
         source_versions=[
@@ -301,6 +384,20 @@ async def _run(bridge, owner, request):
         data=data,
         sources=sources,
     )
+    if request.capability == "analytics":
+        result.summary = "Independent student-reported observations. " + data["interpretation"][-1]
+    if request.capability == "planning":
+        totals = data["effort_summary"]
+        result.summary = (
+            f"Of {totals['known_remaining_minutes']} estimated work minutes remaining, "
+            f"{totals['allocated_work_minutes']} are scheduled and "
+            f"{totals['total_known_unallocated_minutes']} are unscheduled "
+            f"({totals['capacity_blocked_minutes']} limited by capacity, "
+            f"{totals['dependency_blocked_minutes']} blocked by prerequisites, "
+            f"{totals['other_unallocated_minutes']} for other constraints)."
+        )
+        if totals["unknown_effort_work_ids"]:
+            result.summary += f" Another {len(totals['unknown_effort_work_ids'])} work item(s) have unknown duration."
     if len(result.model_dump_json().encode()) > 120_000:
         raise DomainError(
             "needs_input",

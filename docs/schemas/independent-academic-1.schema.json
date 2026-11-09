@@ -1,5 +1,95 @@
 {
   "$defs": {
+    "DeclaredRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "work_key": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "title": "Work Key",
+          "type": "string"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "recorded_at": {
+          "format": "date-time",
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "effective_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effective At"
+        },
+        "due": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FactDate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "enum": [
+                "student_marked_done",
+                "not_started",
+                "in_progress",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Progress"
+        },
+        "timeliness": {
+          "anyOf": [
+            {
+              "enum": [
+                "on_time",
+                "late",
+                "missing",
+                "unknown",
+                "not_applicable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timeliness"
+        }
+      },
+      "required": [
+        "work_key",
+        "version",
+        "recorded_at"
+      ],
+      "title": "DeclaredRevision",
+      "type": "object"
+    },
     "Effort": {
       "additionalProperties": false,
       "properties": {
@@ -14,6 +104,20 @@
           "minimum": 1,
           "title": "Maximum Minutes",
           "type": "integer"
+        },
+        "point_estimate_minutes": {
+          "anyOf": [
+            {
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Point Estimate Minutes"
         },
         "origin": {
           "enum": [
@@ -414,6 +518,132 @@
           "maxItems": 30,
           "title": "Prerequisites",
           "type": "array"
+        },
+        "activity_kind": {
+          "default": "assignment",
+          "enum": [
+            "assignment",
+            "lab",
+            "peer_review",
+            "initial_post",
+            "reply",
+            "revision",
+            "in_class",
+            "preparation",
+            "study_step",
+            "module",
+            "personal",
+            "reading",
+            "quiz"
+          ],
+          "title": "Activity Kind",
+          "type": "string"
+        },
+        "requirement": {
+          "default": "required",
+          "enum": [
+            "required",
+            "student_chosen",
+            "optional",
+            "unresolved"
+          ],
+          "title": "Requirement",
+          "type": "string"
+        },
+        "requirement_basis": {
+          "default": "Student supplied record; not instructor verified.",
+          "maxLength": 500,
+          "title": "Requirement Basis",
+          "type": "string"
+        },
+        "responsibility": {
+          "default": "self",
+          "enum": [
+            "self",
+            "group_unassigned",
+            "unknown"
+          ],
+          "title": "Responsibility",
+          "type": "string"
+        },
+        "parent_key": {
+          "anyOf": [
+            {
+              "maxLength": 60,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Key"
+        },
+        "aliases": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Aliases",
+          "type": "array"
+        },
+        "completion_rule": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completion Rule"
+        },
+        "reported_status": {
+          "default": "unknown",
+          "enum": [
+            "submitted",
+            "graded",
+            "excused",
+            "unknown"
+          ],
+          "title": "Reported Status",
+          "type": "string"
+        },
+        "revision_requested": {
+          "default": false,
+          "title": "Revision Requested",
+          "type": "boolean"
+        },
+        "opens": {
+          "$ref": "#/$defs/FactDate"
+        },
+        "closes": {
+          "$ref": "#/$defs/FactDate"
+        },
+        "evidence": {
+          "items": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "maxItems": 20,
+          "title": "Evidence",
+          "type": "array"
         }
       },
       "required": [
@@ -421,6 +651,74 @@
         "title"
       ],
       "title": "IndependentWork",
+      "type": "object"
+    },
+    "RequirementGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "maxLength": 60,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "title": "Key",
+          "type": "string"
+        },
+        "members": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "minItems": 2,
+          "title": "Members",
+          "type": "array"
+        },
+        "minimum": {
+          "maximum": 30,
+          "minimum": 1,
+          "title": "Minimum",
+          "type": "integer"
+        },
+        "selected": {
+          "items": {
+            "maxLength": 60,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Selected",
+          "type": "array"
+        },
+        "basis": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "grading_rule": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grading Rule"
+        }
+      },
+      "required": [
+        "key",
+        "members",
+        "minimum",
+        "basis"
+      ],
+      "title": "RequirementGroup",
       "type": "object"
     }
   },
@@ -437,6 +735,14 @@
       },
       "maxItems": 50,
       "title": "Work",
+      "type": "array"
+    },
+    "declarations": {
+      "items": {
+        "$ref": "#/$defs/DeclaredRevision"
+      },
+      "maxItems": 500,
+      "title": "Declarations",
       "type": "array"
     },
     "grades": {
@@ -467,6 +773,14 @@
       "default": false,
       "title": "Complete",
       "type": "boolean"
+    },
+    "requirement_groups": {
+      "items": {
+        "$ref": "#/$defs/RequirementGroup"
+      },
+      "maxItems": 20,
+      "title": "Requirement Groups",
+      "type": "array"
     }
   },
   "required": [

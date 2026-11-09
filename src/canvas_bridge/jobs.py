@@ -78,6 +78,11 @@ async def work_once(bridge) -> bool:
     if job is None:
         return False
     success = False
+    from canvas_bridge.authorization import RequestAuthorization, request_authorization
+
+    usage_task = request_authorization.set(
+        RequestAuthorization("governed_scheduled_refresh", request_id=job.id)
+    )
     try:
         if job.kind == "refresh":
             task = asyncio.create_task(bridge.refresh(job.owner, job.connection_id))
@@ -105,6 +110,8 @@ async def work_once(bridge) -> bool:
             success = snapshot.complete
     except DomainError:
         pass
+    finally:
+        request_authorization.reset(usage_task)
     with bridge.store.transaction() as session:
         current = session.get(Job, job.id)
         # A disconnect can remove the job while the request is in flight.
@@ -124,6 +131,7 @@ async def work_once(bridge) -> bool:
 
 async def worker(bridge):
     while True:
+        await bridge.library.process_once()
         await work_once(bridge)
         await bridge.retention.sweep()
         await asyncio.sleep(5)

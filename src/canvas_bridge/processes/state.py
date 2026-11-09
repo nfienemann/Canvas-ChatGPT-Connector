@@ -58,6 +58,14 @@ def affected_records(state, before, after):
             for k in before.data.keys() | after.data.keys()
             if before.data.get(k) != after.data.get(k)
         }
+        if (
+            changes == {"pending_change"}
+            and before.data.get("payload_type") == "assignment_readiness"
+            and before.depends_on == after.depends_on
+        ):
+            # Staging adds independently authorized comparison inputs. Only a published
+            # change to the saved assessment should invalidate its downstream records.
+            return ()
         same_sources = {s.key for s in before.sources} == {s.key for s in after.sources}
         if changes <= {"title"} and same_sources and before.depends_on == after.depends_on:
             return ()
@@ -215,6 +223,23 @@ class ProcessRepository:
                 expires_at=self.clock() + timedelta(days=30),
             )
             session.add(row)
+        if row.content:
+            removed = row.content.get("records", {}).keys() - state.records.keys()
+            for ident in removed:
+                key = fingerprint(["portable-record-deletion", owner, ident])
+                fence = session.get(IndependentResource, key)
+                if fence is None:
+                    fence = IndependentResource(
+                        id=key,
+                        owner=owner,
+                        kind="local_deletion_fence",
+                        content={},
+                        version_hash=key,
+                        provenance={"retention_class": "deletion_fence"},
+                    )
+                    session.add(fence)
+                fence.created_at = self.clock()
+                fence.expires_at = self.clock() + timedelta(days=91)
         # Updates do not extend original retention or resurrect expired sources.
         row.content, row.version_hash = payload, fingerprint(payload)
         row.provenance = {
@@ -243,7 +268,13 @@ class ProcessRepository:
                 or not source.observed_at <= self.clock() < source.expires_at
             ):
                 failure("PROCESS_SOURCE_STALE")
-            self.authorize(session, owner, source, purpose)
+            authorized = self.authorize(session, owner, source, purpose)
+            if record.data.get("payload_type") in {"assignment_readiness", "effort_plan"} and (
+                source.origin != "local_document"
+                or not authorized.provenance.get("share_text")
+                or "grade_planning" not in authorized.provenance.get("scope", ())
+            ):
+                failure("READINESS_SOURCE_UNAVAILABLE")
 
     def read(self, owner, record_id):
         with self.store.transaction() as session:
@@ -259,6 +290,8 @@ class ProcessRepository:
             self.store.principal(session, owner)
             _, state = self._load(session, owner)
             before = state.records.get(record_id)
+            if before and after and before.data.get("payload_type") == "effort_plan":
+                failure("PLAN_SCOPED_RECOVERY_REQUIRED")
             if before and reason != "delete":
                 self._require(session, owner, before, allow_stale=True, historical=True)
             if after:
@@ -322,7 +355,15 @@ class ProcessRepository:
             revision = next((r for r in state.revisions if r.id == revision_id), None)
             if not revision or not revision.before:
                 failure("PROCESS_ROLLBACK_UNAVAILABLE")
+            if (
+                revision.after
+                and revision.after.data.get("change_report", {}).get("applied_revision")
+                == revision.after.revision
+            ):
+                failure("CHANGE_SCOPED_RECOVERY_REQUIRED")
             old = revision.before
+            if old.data.get("payload_type") == "effort_plan":
+                failure("PLAN_SCOPED_RECOVERY_REQUIRED")
             current = state.records.get(old.id)
             if not current:
                 failure("PROCESS_ROLLBACK_UNAVAILABLE")
@@ -435,6 +476,130 @@ class ProcessRepository:
                 "authority": "portable_evidence_only",
                 "external_transfer": False,
             }
+
+    def observe_historical(self, owner, record_id, expected_revision, key, intent, change_id):
+        """Keep a content-free arrival receipt without selecting an obsolete version."""
+        key = fingerprint(["assignment-readiness", owner, key])
+        with self.store.transaction() as session:
+            self.store.principal(session, owner)
+            row, state = self._load(session, owner)
+            current = state.records.get(record_id)
+            if not current or current.revision < expected_revision:
+                failure("PROCESS_REVISION_MISMATCH")
+            prior = state.receipts.get(key)
+            if prior:
+                if prior["request_hash"] != intent:
+                    failure("PROCESS_IDEMPOTENCY_CONFLICT")
+                return prior
+            receipt = dict(
+                record_id=record_id,
+                revision=current.revision,
+                base_revision=expected_revision,
+                request_hash=intent,
+                change_id=change_id,
+                processing_state="superseded",
+                observed_at=self.clock().isoformat(),
+                external_writes=False,
+            )
+            receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
+            self._save(session, owner, row, state.model_copy(update={"receipts": receipts}))
+            return receipt
+
+    def observation_attempts(self, owner, record_id):
+        with self.store.transaction() as session:
+            _, state = self._load(session, owner)
+            return [
+                dict(attempt_id=k, **v)
+                for k, v in state.receipts.items()
+                if v.get("record_id") == record_id
+                and (v.get("effect_id") or v.get("processing_state") == "superseded")
+            ][-50:]
+
+    def save_readiness(
+        self,
+        owner,
+        record_id,
+        expected_revision,
+        replay_key,
+        intent,
+        build,
+        *,
+        effect_id=None,
+        replaced_tags=(),
+        payload_type="assignment_readiness",
+        required_bases=(),
+    ):
+        """Commit one reviewed assignment update under the same principal lock as ordinary saves."""
+        key = fingerprint(["assignment-readiness", owner, replay_key])
+        with self.store.transaction() as session:
+            self.store.principal(session, owner)
+            row, state = self._load(session, owner)
+            prior = state.receipts.get(key)
+            if prior:
+                if prior["request_hash"] != intent:
+                    failure("PROCESS_IDEMPOTENCY_CONFLICT")
+                return prior
+            for required_id, revision in required_bases:
+                dependency = state.records.get(required_id)
+                if not dependency or dependency.revision != revision or dependency.state != "valid":
+                    failure("PROCESS_REVISION_MISMATCH")
+                self._require(session, owner, dependency, "write")
+            if effect_id:
+                confirmed = next(
+                    (v for v in state.receipts.values() if v.get("effect_id") == effect_id), None
+                )
+                if confirmed:
+                    receipt = confirmed | {"request_hash": intent}
+                    receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
+                    self._save(session, owner, row, state.model_copy(update={"receipts": receipts}))
+                    return receipt
+            before = state.records.get(record_id)
+            if expected_revision != (before.revision if before else 0):
+                failure(
+                    "PROCESS_REVISION_MISMATCH",
+                    "Retrieve the last confirmed record and retry with its revision.",
+                )
+            if before and (
+                before.state != "valid" or before.data.get("payload_type") != payload_type
+            ):
+                failure("PROCESS_RECORD_NOT_VALID")
+
+            def require_writable(record):
+                # Replaced historical tags remain attached to the stored before-image.
+                # Only the commit check substitutes the independently verified current
+                # version of the very same source. Ordinary reads still check every tag.
+                check = (
+                    record.model_copy(
+                        update={
+                            "sources": tuple(replaced_tags.get(t.key, t) for t in record.sources)
+                        }
+                    )
+                    if replaced_tags
+                    else record
+                )
+                self._require(session, owner, check, "write")
+
+            if effect_id and before:
+                require_writable(before)
+            now = self.clock()
+            after = build(before, now)
+            require_writable(after)
+            change = preview(
+                state, owner, record_id, after, "correction" if before else "create", now=now
+            )
+            updated = apply(state, change, now=now)
+            receipt = dict(
+                request_hash=intent,
+                revision_id=change.id,
+                record_id=record_id,
+                revision=after.revision,
+                external_writes=False,
+            )
+            if effect_id:
+                receipt["effect_id"] = effect_id
+            receipts = dict(list((state.receipts | {key: receipt}).items())[-500:])
+            self._save(session, owner, row, updated.model_copy(update={"receipts": receipts}))
+            return receipt
 
 
 def read_portable_export(payload, *, owner):

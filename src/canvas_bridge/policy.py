@@ -174,6 +174,9 @@ class Endpoint(StrEnum):
     CALENDAR_EVENTS = "/api/v1/calendar_events"
     FILE = "/api/v1/courses/{course}/files/{file}"
     FILES = "/api/v1/courses/{course}/files"
+    FOLDERS = "/api/v1/courses/{course}/folders"
+    FOLDER = "/api/v1/courses/{course}/folders/{folder}"
+    FOLDER_FILES = "/api/v1/folders/{folder}/files"
 
 
 def source_id(value: str | int) -> str:
@@ -213,19 +216,45 @@ def validate_https(url: str, allowed_origins: set[str]) -> None:
 
 
 def validate_continuation(url: str, original: str) -> None:
-    base, nxt = urlsplit(original), urlsplit(url)
-    validate_https(url, {f"https://{base.hostname}"})
+    invalid = DomainError(
+        "partial_data",
+        "Canvas returned an invalid pagination link.",
+        reason_code="PAGINATION_LINK_INVALID",
+    )
+    outside_scope = DomainError(
+        "permission_denied",
+        "Pagination changed the authorized request scope.",
+        reason_code="PAGINATION_SCOPE_CHANGED",
+    )
+    try:
+        base, nxt = urlsplit(original), urlsplit(url)
+        validate_https(url, {f"https://{base.hostname}"})
+        base_pairs = parse_qsl(base.query, keep_blank_values=True, strict_parsing=True)
+        next_pairs = parse_qsl(nxt.query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as exc:
+        raise invalid from exc
+    except DomainError as exc:
+        raise outside_scope from exc
     if base.path != nxt.path or "%" in nxt.path:
-        raise DomainError("permission_denied", "Unsafe pagination route.")
+        raise outside_scope
 
     def immutable(pairs):
         return sorted((k, v) for k, v in pairs if k not in {"page", "per_page"})
 
-    base_pairs, next_pairs = parse_qsl(base.query), parse_qsl(nxt.query)
     if immutable(base_pairs) != immutable(next_pairs):
-        raise DomainError("permission_denied", "Pagination changed the authorized query.")
+        raise outside_scope
+    seen = set()
     for key, value in next_pairs:
-        if key in {"page", "per_page"} and not re.fullmatch(r"[0-9]{1,7}", value):
-            raise DomainError("permission_denied", "Invalid pagination value.")
-        if key == "per_page" and not 1 <= int(value) <= 100:
-            raise DomainError("permission_denied", "Pagination exceeds the request budget.")
+        if key not in {"page", "per_page"}:
+            continue
+        if key in seen:
+            raise invalid
+        seen.add(key)
+        if key == "page" and not re.fullmatch(
+            r"[0-9]{1,7}" if value.isdecimal() else r"[A-Za-z0-9._~:=-]{1,512}", value
+        ):
+            raise invalid
+        if key == "per_page" and not (
+            re.fullmatch(r"[0-9]{1,7}", value) and 1 <= int(value) <= 100
+        ):
+            raise invalid

@@ -2,6 +2,9 @@
   "schema_version": "fictional-fixtures-1",
   "origin": "generated-fictional-only",
   "files": {
+    "tests/fixtures/registrar/inconsistent-year-grid.pdf": "55b970c0b483d2a79f05a147d486402c10a5c990541c26a8f5a2da0dc9d78196",
+    "tests/fixtures/registrar/multi-section.pdf": "4e686ff30bf205269858ca30d70876895a6235a0f14722f68854d88de5e6653f",
+    "tests/fixtures/registrar/original-notice.eml": "655f8660e98e370dc60b5961bea7012574dc1514b752ea4a6aba2220a475f614",
     "tests/fixtures/synthetic_visual_slides.pptx": "1cf93b984cc812057ca68d9828dd138ec59eeed891fdb16cd4fcd1d811f7a838",
     "governance/demo/academic.json": "1f1b131c05a518829bfe330636bcba288613fd6f0e258fa4c79aba03670ca54f",
     "tests/fixtures/independent-intelligence/README.md": "43d1eca2bab12ec72ed0f18290aeec4dff86f7ee54b995e00614a4ca35276ea6",

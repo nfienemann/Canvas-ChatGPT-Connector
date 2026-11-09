@@ -10,7 +10,7 @@ from contextvars import ContextVar
 
 from mcp import types
 
-from canvas_bridge.domain import DomainError, Result
+from canvas_bridge.domain import DomainError, Result, utcnow
 from canvas_bridge.privacy.output import filter_output, metadata
 from canvas_bridge.privacy_text import inspect_text
 
@@ -18,9 +18,13 @@ receipts: ContextVar[set | None] = ContextVar("privacy_serialization_receipts", 
 
 
 def digest(response):
+    return payload_digest(response.model_dump(mode="json", by_alias=True, exclude_none=True))
+
+
+def payload_digest(payload):
     return hashlib.sha256(
         json.dumps(
-            response.model_dump(mode="json", by_alias=True, exclude_none=True),
+            payload,
             sort_keys=True,
             separators=(",", ":"),
         ).encode()
@@ -75,10 +79,21 @@ def finalize(returned, *, binary=False):
     payload = response.structuredContent
     if not payload or not payload.get("meta", {}).get("privacy"):
         deny()
-    cleaned, changed, third_party, hidden = filter_output(payload)
+    from canvas_bridge.failure_diagnostics import current, public_fields
+
+    attempt = current.get()
+    diagnostic = payload.get("data", {}).get("diagnostic")
+    if diagnostic is not None and not (
+        attempt and attempt.diagnostic and diagnostic == public_fields(attempt.diagnostic)
+    ):
+        deny()
+    cleaned, changed, third_party, hidden = filter_output(payload, reviewed_diagnostic=diagnostic)
+    if diagnostic is not None and cleaned["data"].get("diagnostic") != diagnostic:
+        deny()
     if third_party or hidden:
         deny()
     result = Result.model_validate(cleaned)
+    result.meta.response_generated_at = utcnow()
     result.meta.privacy = metadata(
         changed or bool(payload["meta"]["privacy"].get("filtered")),
         content=result.model_dump_json(),
@@ -104,7 +119,10 @@ def finalize(returned, *, binary=False):
         _meta=response.meta,
         isError=response.isError,
     )
-    current = receipts.get()
-    if current is not None:
-        current.add(digest(final))
+    inspection_receipts = receipts.get()
+    if inspection_receipts is not None:
+        inspection_receipts.add(digest(final))
+        if diagnostic is not None and attempt:
+            # Retain only the inspected, reconstructed error for SDK reprojection.
+            attempt.inspected_error = result.model_copy(deep=True)
     return final

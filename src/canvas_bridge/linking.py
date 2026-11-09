@@ -12,7 +12,7 @@ from sqlalchemy import delete, select
 
 from canvas_bridge.canvas import CanvasClient
 from canvas_bridge.domain import DomainError, Result, opaque_id, utcnow
-from canvas_bridge.network import GuardedHTTP, infrastructure_http, public_client
+from canvas_bridge.network import GuardedHTTP, public_client
 from canvas_bridge.oauth_security import (
     binding,
     callback_url,
@@ -122,7 +122,19 @@ async def exchange(
 
     check("POST", endpoint)
     client_id, client_secret = credentials(institution)
-    client = GuardedHTTP(http or public_client(), check)
+    from canvas_bridge.usage.transport import binding as usage_binding
+
+    client = GuardedHTTP(
+        http or public_client(),
+        check,
+        usage=usage_binding(
+            bridge,
+            "oauth",
+            institution.id,
+            data.get("refresh_token", client_id),
+            operation="canvas.oauth_exchange",
+        ),
+    )
     try:
         async with client.stream(
             "POST",
@@ -141,19 +153,29 @@ async def exchange(
                     raise DomainError("reconnect_required", "Invalid authorization response.")
             import json
 
+            if response.status_code == 429 or response.status_code >= 500:
+                raise DomainError(
+                    "retry_later",
+                    "Canvas authorization service unavailable.",
+                    reason_code="CANVAS_OAUTH_UNAVAILABLE",
+                )
             result = json.loads(raw)
             if response.status_code != 200:
                 invalid = isinstance(result, dict) and result.get("error") == "invalid_grant"
                 raise DomainError(
                     "reconnect_required",
                     "Canvas authorization was not completed.",
-                    reason_code="OAUTH_GRANT_REJECTED" if invalid else "UPSTREAM_AUTH_UNVERIFIED",
+                    reason_code="OAUTH_GRANT_REJECTED"
+                    if invalid
+                    else "CANVAS_OAUTH_EXCHANGE_FAILED",
                 )
             check("POST", endpoint)
             return {**token_response(result, institution), "upstream_origin": origin}
     except (httpx.HTTPError, ValueError) as exc:
         raise DomainError(
-            "reconnect_required", "Canvas authorization is temporarily unavailable."
+            "retry_later",
+            "Canvas authorization is temporarily unavailable.",
+            reason_code="CANVAS_OAUTH_EXCHANGE_FAILED",
         ) from exc
     finally:
         if http is None:
@@ -229,6 +251,7 @@ async def finish_link(
         )
     http = bridge.synthetic.client() if bridge.synthetic else None
     client = CanvasClient(institution, token["access_token"], bridge.settings, http)
+    client.bind_usage(bridge, owner)
     client.authorize = link_profile_authorizer(bridge, owner, institution_id, generation)
     try:
         profile = await client.one(Endpoint.PROFILE)
@@ -339,6 +362,7 @@ async def refresh_credential(bridge, owner: str, ref: str) -> str:
 
         http = bridge.synthetic.client() if bridge.synthetic else None
         client = CanvasClient(institution, renewed["access_token"], bridge.settings, http)
+        client.bind_usage(bridge, owner, scope=str(epoch))
         client.authorize = check_profile
         try:
             profile = await client.one(Endpoint.PROFILE)
@@ -413,7 +437,23 @@ async def revoke_token(bridge, institution_id: str, secret: dict) -> str:
         async with public_client() as client:
             endpoint = institution.origin + "/login/oauth2/token"
             # Revocation is credential cleanup, never data retrieval or a fallback.
-            guarded = infrastructure_http(client, method="DELETE", url=endpoint)
+            from canvas_bridge.usage.transport import binding as usage_binding
+
+            def check_cleanup(method, url):
+                if method != "DELETE" or url != endpoint:
+                    raise DomainError("permission_denied", "Unexpected credential cleanup route.")
+
+            guarded = GuardedHTTP(
+                client,
+                check_cleanup,
+                usage=usage_binding(
+                    bridge,
+                    "credential-cleanup",
+                    institution_id,
+                    secret["access_token"],
+                    operation="canvas.oauth_revoke",
+                ),
+            )
             async with guarded.stream(
                 "DELETE",
                 institution.origin + "/login/oauth2/token",
@@ -539,6 +579,8 @@ async def delete_account(bridge, owner: str, expected_generation: int | None = N
         )
         principal.generation += 1
         principal.tokens_valid_after = utcnow()
+        if bridge.settings.library_enabled or bridge.settings.library_root:
+            bridge.library.delete_account_in_session(session, owner)
         for row in connections:
             outcome = bridge.store.disconnect_in_session(session, row)
             for name, count in outcome["deleted_rows"].items():
@@ -559,8 +601,11 @@ async def delete_account(bridge, owner: str, expected_generation: int | None = N
 
             invalidate(owner, independent.id, namespace=bridge.processing_namespace)
             session.delete(independent)
+    from canvas_bridge.usage.transport import pseudonym
     from canvas_bridge.worker_storage import pending
 
+    bridge.usage.forget_owner(pseudonym(bridge.vault.key, "owner", owner))
+    bridge.upstream_cache.clear()
     temporary = sum(
         pending(owner, row.id, namespace=bridge.processing_namespace) for row in connections
     ) + bridge.original_files.pending_cleanup(owner)
@@ -588,7 +633,7 @@ async def delete_account(bridge, owner: str, expected_generation: int | None = N
             "connection_count": len(connections),
             "local_deletion_receipt": receipt,
             "remote_revocations": outcomes,
-            "retained": "Minimal principal-generation and deletion fences needed to prevent restoration.",
+            "retained": "Minimal principal-generation and deletion fences, plus financial totals and de-identified usage attempts; owner accounting links are removed.",
             "independent_copies": "ChatGPT conversations, institution records and downloaded copies are controlled separately.",
         },
     )

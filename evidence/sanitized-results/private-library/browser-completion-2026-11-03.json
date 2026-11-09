@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-03",
+  "environment": {
+    "browser": "Cloak Chromium 146 via Webcmd 0.8.4",
+    "server": "disposable loopback synthetic fixture",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "LMS_connections": 0
+  },
+  "checks": {
+    "visible_synthetic_login": true,
+    "keyboard_submit": true,
+    "one_aborted_chunk_request": true,
+    "failure_status_focus": "status",
+    "retry_same_intake_receipt": true,
+    "published_once_after_retry": true,
+    "cancel_two_unfinished_files": true,
+    "prior_published_original_preserved": true,
+    "title_filter_empty_and_clear": true,
+    "metadata_save_focus": "status",
+    "tag_and_collection_filter": true,
+    "exact_original_download": true,
+    "no_horizontal_overflow": true,
+    "per_file_purpose_enabled_after_upload": true,
+    "storage_counter_after_upload_bytes": 33,
+    "storage_counter_after_delete_bytes": 0,
+    "deletion_access_disabled": true,
+    "deletion_active_store": "purged",
+    "deletion_status_focus": "status",
+    "final_mobile_screenshot_visually_reviewed": true
+  },
+  "original": {
+    "bytes": 44,
+    "sha256": "bcc15151ca4c2dc3168d97a89abdb4152c1b99db829a1c92d13a26b255658866"
+  },
+  "screenshot": "library-completion-mobile.png",
+  "limitations": [
+    "Synthetic loopback only; no ChatGPT or Claude host acceptance.",
+    "Human screen reader not tested.",
+    "Some multi-action Webcmd runs timed out; states were inspected before continuing and download was retried separately."
+  ]
+}

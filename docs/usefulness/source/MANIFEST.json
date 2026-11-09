@@ -1,0 +1,105 @@
+{
+  "package": "CanvasBridge usefulness-first specifications",
+  "package_version": "1.0",
+  "prepared_on": "2026-10-28",
+  "status": "Specifications only; product tests not executed",
+  "specification_count": 6,
+  "named_acceptance_cases": 47,
+  "files": [
+    {
+      "path": "README.md",
+      "utf8_bytes": 10829,
+      "sha256": "f4eecbcfff6f992b2ba030017d690da7e02873a6b4d0ceeb87d2e028f3c6f8ce",
+      "acceptance_case_ids": []
+    },
+    {
+      "path": "01_Simpler_Document_Imports.md",
+      "utf8_bytes": 7398,
+      "sha256": "363eacfe5af44377636bbf6ec9cd2504e74370ebf4f7f47122d1bc805dadf627",
+      "acceptance_case_ids": [
+        "U01-A1",
+        "U01-A2",
+        "U01-A3",
+        "U01-A4",
+        "U01-A5",
+        "U01-A6",
+        "U01-A7"
+      ]
+    },
+    {
+      "path": "02_Complete_Obligation_Coverage.md",
+      "utf8_bytes": 7389,
+      "sha256": "9c4cc78c0766718fb9381cadad320884f299ee40231da877e73f22c15f9a5149",
+      "acceptance_case_ids": [
+        "U02-A1",
+        "U02-A2",
+        "U02-A3",
+        "U02-A4",
+        "U02-A5",
+        "U02-A6",
+        "U02-A7",
+        "U02-A8"
+      ]
+    },
+    {
+      "path": "03_Feedback_To_Improvement.md",
+      "utf8_bytes": 7250,
+      "sha256": "2ef2bb60dcd2bb7cecbca46e914b898ce5ba61210f50ef089c5a0ed6f506ab19",
+      "acceptance_case_ids": [
+        "U03-A1",
+        "U03-A2",
+        "U03-A3",
+        "U03-A4",
+        "U03-A5",
+        "U03-A6",
+        "U03-A7",
+        "U03-A8"
+      ]
+    },
+    {
+      "path": "04_Smarter_Document_Search.md",
+      "utf8_bytes": 7214,
+      "sha256": "5051b33fec2bb0b1659bd4247f94563124c6a8edd5e96b33245e99e618fb7b72",
+      "acceptance_case_ids": [
+        "U04-A1",
+        "U04-A2",
+        "U04-A3",
+        "U04-A4",
+        "U04-A5",
+        "U04-A6",
+        "U04-A7",
+        "U04-A8"
+      ]
+    },
+    {
+      "path": "05_Study_Continuity.md",
+      "utf8_bytes": 7141,
+      "sha256": "a1c37c27351603c20fc263b1a851b39fbcdd118dd303267dc769a16a15f6b3f0",
+      "acceptance_case_ids": [
+        "U05-A1",
+        "U05-A2",
+        "U05-A3",
+        "U05-A4",
+        "U05-A5",
+        "U05-A6",
+        "U05-A7",
+        "U05-A8"
+      ]
+    },
+    {
+      "path": "06_Consequential_Change_Digests.md",
+      "utf8_bytes": 7296,
+      "sha256": "79829189d7cb65e41f03f817b6f499f5ed056e54cbcdc42ce08523ff80a8204d",
+      "acceptance_case_ids": [
+        "U06-A1",
+        "U06-A2",
+        "U06-A3",
+        "U06-A4",
+        "U06-A5",
+        "U06-A6",
+        "U06-A7",
+        "U06-A8"
+      ]
+    }
+  ]
+}

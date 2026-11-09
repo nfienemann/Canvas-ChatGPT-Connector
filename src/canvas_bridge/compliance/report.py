@@ -140,6 +140,8 @@ def generate(root, category="synthetic_demo", *, results=None, checks=None, toda
     from canvas_bridge.source_authorization import registered_inventory
 
     tool_inventory = registered_inventory()
+    from canvas_bridge.usage.evidence import section as usage_governance
+
     for control in registry.controls:
         expected = {
             name
@@ -254,6 +256,7 @@ def generate(root, category="synthetic_demo", *, results=None, checks=None, toda
         },
         "controls": controls,
         "mcp_capability_inventory": tool_inventory,
+        "api_usage_governance": usage_governance(root, source, tests),
         "operational_regressions": regressions,
         "tests": tests,
         "dependency_and_security_checks": outcomes,

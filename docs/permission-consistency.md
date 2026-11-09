@@ -123,7 +123,36 @@ in another connection can be identified without returning that connection's ID
 or course data. Foreign users' IDs are not searched and remain indistinguishable
 from nonexistent IDs.
 
+## Reading refresh times
+
+On connection status, display `last_complete_assignment_refresh_at` as “Last complete assignment refresh for the requested courses”. Its compatibility alias is `last_successful_refresh`. A complete one-course inventory qualifies. The timestamp stays at the previous success after a partial inventory.
+
+Membership evidence is shared by the connection. `last_course_list_attempt_at` records the latest finished membership retrieval and `last_course_list_outcome` reports complete, partial, failed, or unknown. `last_complete_course_list_at` preserves the last complete upstream observation. Only the current `membership_evidence_at` participates in the lease. A course-list response reports `membership_evidence_renewed` for that operation. An exception can instead return a governed error; check connection status for retained history. A request blocked before upstream retrieval begins does not establish a listing attempt.
+
+Use `membership_lease_state` and `membership_lease_expires_at` together. The deadline is inclusive. Missing evidence yields null times; expired evidence keeps its original time; future evidence reports `invalid_clock` and cannot authorize a read. Credential status and endpoint access are reported separately. The audit's `scope_evaluated_at` and `current_scope_evaluated_at` timestamp its initial and final scope observations. If scope changes during a probe, each check retains the time and version of its original local observation while its upstream conclusion is discarded. Top-level membership fields describe the final scope observation. The digest may stay identical across lease renewal.
+
+For example, if the last complete assignment refresh was yesterday and a complete course listing finishes today, status shows yesterday for assignments and today for membership. Workload pages use `meta.workload_snapshot_created_at` for the stored snapshot and `meta.response_generated_at` for the response. Cursor pages report cached freshness. `meta.retrieved_at` retains its existing cache semantics.
+
+Existing databases gain three nullable history columns at Alembic revision `d40ad4c70618`. The migration copies a non-future membership evidence timestamp for an active connection into the last complete listing time. Attempt time and outcome remain unknown until an observed retrieval. Deletion clears all three fields. Apply the [database upgrade procedure](database-upgrade.md) before starting the updated personal service.
+
+Wire times are UTC with an explicit offset. Display them in the requested IANA timezone (including its offset across daylight-saving transitions), and display null as “Unknown”. Fields omitted by policy carry no timing information.
+
 ## Reason codes and next action
+
+Each check's `recommended_action` and the summary fields contain action IDs.
+Look up each ID in `recovery_actions`, which lists the instruction and retry
+condition once per action. Only entries of kind `tool` have a callable
+`tool_name`. The other kinds identify a user step, an operator step, or a
+wait condition. A clean report has an empty list. When reconnection is required,
+it appears first, alongside any resource-specific next steps.
+
+The former `reconcile_scope_snapshots` ID has two replacements. For an expired
+lease, `refresh_course_list_then_retry` directs the caller to `list_courses`
+with the same connection ID. Follow the listing's guidance if it is incomplete
+or fails. After a complete successful listing, rerun the original audit once.
+For a change during an audit, `repeat_permission_audit` directs the caller to
+run `audit_permission_consistency` once with the original arguments. If scope
+changes again, wait until selection and connection settings are stable.
 
 | Reason | Meaning / action |
 |---|---|
@@ -132,10 +161,11 @@ from nonexistent IDs.
 | `CONNECTION_OWNERSHIP_MISMATCH` | Requested connection is unavailable to this identity; no existence claim. |
 | `COURSE_NOT_SELECTED` | Review course selection through the authorized settings workflow. |
 | `SELECTED_SCOPE_MISMATCH` | Selected record is absent from current local access evidence. Inspect scope mapping; do not grant access. |
-| `STALE_SCOPE_SNAPSHOT` | Lease expired or scope changed during the request. Reconcile snapshots through an explicitly authorized metadata/settings workflow. |
+| `STALE_SCOPE_SNAPSHOT` | Lease expired or scope changed during the request. Follow the recovery action for the specific cause above. |
 | `MISSING_RESOURCE_CAPABILITY` | Connector endpoint capability is unavailable; review the approved capability configuration. |
 | `RESOURCE_PERMISSION_DENIED` | Canvas returned 403 for that resource. Review resource permissions; no scope expansion. |
-| `UPSTREAM_AUTH_EXPIRED` | Local expiry or upstream invalid-token rejection. Reconnect through the authorized account workflow. |
+| `UPSTREAM_AUTH_EXPIRED` | The stored credential reached its recorded expiry. Review the authorized Canvas setup. |
+| `UPSTREAM_CREDENTIAL_REJECTED` | Canvas explicitly rejected the credential. Review the configured secure Canvas setup or contact its operator. |
 | `UPSTREAM_AUTH_UNVERIFIED` | Credential is unavailable. Reconnect; never paste a token into chat. |
 | `CONNECTION_INACTIVE` | Disabled/deleted connection. Use the authorized reconnect workflow. |
 | `RESOURCE_UNAVAILABLE` | 404 cannot establish deletion versus visibility loss. Refresh authorized metadata if requested. |
@@ -149,8 +179,8 @@ from nonexistent IDs.
 
 Compare `correlation_id` and `scope_snapshot_version` from connection status and
 the audit. Different request IDs are expected. Structured `permission_decision`
-logs contain request ID, tool, hashed connection/course references, resource,
-decision, reason, scope version, optional HTTP status and UTC timestamp. They
+logs contain request ID, tool, resource type,
+decision, reviewed reason, optional HTTP status and UTC timestamp. They
 contain no raw owner/course/connection IDs, credentials, filenames, document
 text, grades or academic records. Retain redacted logs under the project's
 existing retention policy.

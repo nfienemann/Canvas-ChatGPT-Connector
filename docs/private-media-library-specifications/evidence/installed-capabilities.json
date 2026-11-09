@@ -1,0 +1,29 @@
+{
+  "assessment_date": "2026-10-29",
+  "timezone": "America/New_York",
+  "evidence_type": "installed tool catalogue and one connection-status response",
+  "exposed_library_related_tools": [
+    "get_local_document_status",
+    "get_local_study_preferences",
+    "list_local_documents",
+    "prepare_local_study_materials",
+    "read_local_document",
+    "render_local_document_page",
+    "run_independent_academic_workflow",
+    "search_local_documents"
+  ],
+  "exposed_upload_import_tools": [],
+  "status_observation": {
+    "response_status": "ok",
+    "freshness": "cached",
+    "institutional_connection": "disconnected",
+    "authentication": "revoked",
+    "live_integration": "disabled"
+  },
+  "limits": [
+    "Catalogue presence is not successful workflow acceptance.",
+    "The installed render description mentions PDF; working-tree code also supports configured PPTX.",
+    "No document list, private contents, upload, original download or model pixel observation was tested.",
+    "Identifiers and raw private status response are intentionally excluded."
+  ]
+}

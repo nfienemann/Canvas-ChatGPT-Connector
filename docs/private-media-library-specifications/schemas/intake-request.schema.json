@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://canvas-bridge.example.invalid/specs/intake-request.schema.json",
+  "title": "Authenticated user-action intake request",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "library-intake-request-1"
+    },
+    "authorization_action_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "idempotency_key": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128
+    },
+    "transfer_mode": {
+      "enum": [
+        "browser_bytes",
+        "host_file_params"
+      ]
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "selection_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "declared_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "maximum_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 524288000
+          },
+          "expected_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "host_file_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "selection_id",
+          "file_name",
+          "declared_bytes",
+          "maximum_bytes"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "collection_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 128
+    },
+    "retention": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "until_deleted"
+            }
+          },
+          "required": [
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "expires_at"
+            },
+            "expires_at": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "mode",
+            "expires_at"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "allow_processing": {
+      "type": "boolean"
+    },
+    "purpose": {
+      "enum": [
+        "document_reading",
+        "study",
+        "grade_planning",
+        "schedule"
+      ]
+    },
+    "recipient_grants": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "properties": {
+          "recipient_profile_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "channels": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "metadata",
+                "text",
+                "visual",
+                "original",
+                "audio"
+              ]
+            }
+          }
+        },
+        "required": [
+          "recipient_profile_id",
+          "channels"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "authorization_action_id",
+    "idempotency_key",
+    "transfer_mode",
+    "files",
+    "collection_id",
+    "retention",
+    "allow_processing",
+    "purpose",
+    "recipient_grants"
+  ],
+  "additionalProperties": false
+}

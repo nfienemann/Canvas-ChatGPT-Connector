@@ -317,14 +317,18 @@ def test_docx_actual_worker_structural_failures_and_cleanup():
 @pytest.mark.contract
 @pytest.mark.skipif(os.name != "nt", reason="Real DOCX worker through HTTP MCP on Windows")
 async def test_docx_mcp_transport_uses_actual_worker(
-    running, token_factory, seeded, word_file, bridge, monkeypatch
+    running, token_factory, seeded, word_file, bridge, monkeypatch, tmp_path
 ):
     monkeypatch.setattr("canvas_bridge.course_files.extract_document", extract_document)
-    bridge.settings.parser_root = Path(os.environ["LOCALAPPDATA"]) / "CanvasBridge/parser"
+    bridge.settings.parser_root = tmp_path / "parser"
     bridge.settings.ocr_root = bridge.settings.parser_root / "missing-optional-ocr"
     course, ref = word_file
     async with httpx.AsyncClient(
-        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")}
+        headers={"Authorization": "Bearer " + token_factory(scope="academic:read")},
+        # Cold runtime setup plus bounded OS extraction exceeds HTTPX's default
+        # five-second read budget. Test the complete worker response, including
+        # its own timeout errors, without sharing a developer's runtime cache.
+        timeout=httpx.Timeout(120, connect=5),
     ) as http:
         async with streamable_http_client(running + "/mcp", http_client=http) as streams:
             async with ClientSession(streams[0], streams[1]) as session:
@@ -349,6 +353,21 @@ async def test_docx_mcp_transport_uses_actual_worker(
                     "read_course_file", {**args, "offset": 1, "expected_hash": "0" * 64}
                 )
                 assert mismatch.structuredContent["status"] == "source_changed"
+                assert mismatch.structuredContent["data"]["diagnostic"]["code"] == "SOURCE_CHANGED"
+                incompatible = dict(
+                    first.structuredContent["data"]["continuation"],
+                    expected_parser="old_fixture_parser",
+                )
+                restarted = await session.call_tool(
+                    "read_course_file", {"connection_id": seeded, **incompatible}
+                )
+                assert (
+                    restarted.structuredContent["data"]["diagnostic"]["code"]
+                    == "DOCUMENT_PARSER_VERSION_CHANGED"
+                )
+                units = first.structuredContent["data"]["unit_coverage"]
+                assert units["unit_kind"] == "section"
+                assert units["attempted_units"] == len(units["unit_outcomes"])
                 data = first.structuredContent["data"]
                 reconstructed = data["text"]
                 while data["continuation"]:

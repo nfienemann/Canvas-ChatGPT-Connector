@@ -174,7 +174,9 @@ async def execute(ctx, spec, budget, unavailable_courses, started=None):
                     else:
                         async with asyncio.timeout(
                             min(
-                                spec.limits.step_seconds,
+                                spec.limits.workload_step_seconds
+                                if step.operation == "workload"
+                                else spec.limits.step_seconds,
                                 max(0.001, spec.limits.total_seconds - (monotonic() - started)),
                             )
                         ):
@@ -349,6 +351,9 @@ async def execute(ctx, spec, budget, unavailable_courses, started=None):
             "Whole sections were omitted by the output budget; this is an incomplete result."
         ]
     ctx.check()
+    from canvas_bridge.analytics.capture import capture_workflow
+
+    capture_workflow(ctx, result)
     return result
 
 

@@ -1,0 +1,42 @@
+{
+  "generated_at": "2026-11-03T07:37:25.776372+00:00",
+  "environment": {
+    "os": "Windows",
+    "python": "3.14.5",
+    "database": "disposable SQLite file",
+    "storage": "encrypted local directory",
+    "concurrency": 1
+  },
+  "items_per_owner": 1000,
+  "initial_original_bytes": 75890,
+  "corpus": "Short fictional TXT; preseeded real-parser representations, no OCR/native conversion.",
+  "scope": "Service calls including database/encryption/current authorization; excludes HTTP/network and safety-worker startup. No hosted or real-client claim.",
+  "results": {
+    "list": {
+      "samples": 20,
+      "median_seconds": 0.228998,
+      "p95_seconds": 0.278288,
+      "target_seconds": 2,
+      "met_target": true
+    },
+    "search": {
+      "samples": 20,
+      "median_seconds": 0.769214,
+      "p95_seconds": 1.053561,
+      "target_seconds": 3,
+      "met_target": true
+    },
+    "finalize_after_validation": {
+      "samples": 20,
+      "median_seconds": 0.061506,
+      "p95_seconds": 0.102739,
+      "target_seconds": 2,
+      "met_target": true
+    }
+  },
+  "isolation": {
+    "upstream_requests": 0,
+    "quota_drift_accounts": 0,
+    "originals_failed": 0
+  }
+}

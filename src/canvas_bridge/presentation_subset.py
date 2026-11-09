@@ -155,6 +155,12 @@ def single_slide(data, number, output, *, media_replacements=None):
         pending.extend(target for _, target in roots.values())
         visit()
 
+        # The native converter never opens embedded packages. A selected slide
+        # that needs one remains unsupported; unrelated validated workbooks are
+        # absent from this dependency closure and never copied to native input.
+        if any("/embeddings/" in name.lower() for name in kept):
+            raise ValueError("active_or_external_content")
+
         def prune_presentation(node):
             if node.localName in {"custShowLst", "sectionLst"}:
                 return True

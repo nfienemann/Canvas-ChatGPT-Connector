@@ -11,8 +11,11 @@ import zipfile
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from canvas_bridge.desktop import (
     AlreadyRunning,
@@ -366,12 +369,13 @@ def test_desktop_migration_upgrades_previous_schema_and_refuses_active_or_other_
             migrate_profile(runtime.settings, acknowledged=True)
     finally:
         runtime.stop()
-    with contextlib.closing(sqlite3.connect(runtime.folder / "bridge.db")) as db:
-        # Construct the previous synthetic schema, never downgrade user data.
-        db.execute("DROP TABLE independent_resources")
-        db.execute("DROP TABLE deployment_state")
-        db.execute("UPDATE alembic_version SET version_num='c7d9130b42ae'")
-        db.commit()
+    # Build the historical schema from its revisions. Relabeling a current
+    # fixture would leave later columns behind and exercise a corrupt upgrade.
+    previous = tmp_path / "previous.db"
+    config = Config("alembic.ini")
+    config.attributes["database_url"] = "sqlite:///" + previous.as_posix()
+    command.upgrade(config, "c7d9130b42ae")
+    previous.replace(runtime.folder / "bridge.db")
     result = migrate_profile(runtime.settings, acknowledged=True)
     assert result["migration"] == "verified" and result["retained_backup"] is False
     from canvas_bridge.deployment import preflight
@@ -380,6 +384,22 @@ def test_desktop_migration_upgrades_previous_schema_and_refuses_active_or_other_
     other = runtime.settings.model_copy(update={"database_url": "sqlite:///different.db"})
     with pytest.raises(SetupError, match="belong"):
         migrate_profile(other, acknowledged=True)
+
+
+def test_failed_staged_migration_releases_database_and_preserves_original(tmp_path):
+    runtime = DemoRuntime(tmp_path / "demo", preferred_port=0)
+    runtime.start()
+    runtime.stop()
+    database = runtime.folder / "bridge.db"
+    with contextlib.closing(sqlite3.connect(database)) as db:
+        # Deliberately inconsistent fixture: the pending revision's columns exist.
+        db.execute("UPDATE alembic_version SET version_num='b39f81ca26de'")
+        db.commit()
+    original = database.read_bytes()
+    with pytest.raises(OperationalError, match="duplicate column"):
+        migrate_profile(runtime.settings, acknowledged=True)
+    assert database.read_bytes() == original
+    assert not list(tmp_path.glob("bridge-upgrade-*"))
 
 
 def test_deleted_demo_connection_is_not_recreated_on_restart(tmp_path):

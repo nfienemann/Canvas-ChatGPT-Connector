@@ -22,16 +22,16 @@ if __package__:
     from canvas_bridge.emf_worker import prepare_emf
     from canvas_bridge.presentation_subset import single_slide
     from canvas_bridge.presentation_worker import Package, local
-    from canvas_bridge.visual_worker import render
+    from canvas_bridge.visual_worker import PageOutOfRange, render
 else:
     from document_policy import PPTX_SOURCE_BYTES, PresentationLimit
     from emf_worker import prepare_emf
     from presentation_subset import single_slide
     from presentation_worker import Package, local
-    from visual_worker import render
+    from visual_worker import PageOutOfRange, render
 
 RENDERER = "canvas-bridge-pptx-libreoffice-v1"
-CONVERTER = "canvas-bridge-pptx-pdf-v6-bounded-emf"
+CONVERTER = "canvas-bridge-pptx-pdf-v7-excluded-workbooks"
 MAX_PDF = 10_000_000
 
 
@@ -130,6 +130,42 @@ def validate_svg(root):
                 raise ValueError("active_or_external_content")
 
 
+def validate_excluded_workbook(raw):
+    """Validate inert XML only. Never evaluate cells or pass this ZIP to Office."""
+    if len(raw) > 8_000_000:
+        raise ValueError("active_or_external_content")
+    try:
+        with Package(raw) as book:
+            entries = book.archive.infolist()
+            if len(entries) > 1000 or sum(e.file_size for e in entries) > 20_000_000:
+                raise ValueError()
+            if not {"[Content_Types].xml", "xl/workbook.xml"} <= book.names:
+                raise ValueError()
+            for name in sorted(book.names):
+                lower = name.lower()
+                if not lower.endswith((".xml", ".rels")) or any(
+                    part in lower
+                    for part in ("/embeddings/", "/externallinks/", "/macrosheets/", "/activex/")
+                ):
+                    raise ValueError()
+                root = book.xml(name)
+                if any(
+                    local(e) == "Relationship" and e.get("TargetMode", "Internal") != "Internal"
+                    for e in root.iter()
+                ):
+                    raise ValueError()
+                if name.endswith(".rels"):
+                    part = posixpath.join(
+                        posixpath.dirname(posixpath.dirname(name)),
+                        posixpath.basename(name).removesuffix(".rels"),
+                    )
+                    book.relations(part)
+            if local(book.xml("xl/workbook.xml")) != "workbook":
+                raise ValueError()
+    except Exception as exc:
+        raise ValueError("active_or_external_content") from exc
+
+
 def convert(work, data, page, rotation, office_root, *, derivative=False):
     if type(page) is not int or not 1 <= page <= 200 or rotation not in {0, 90, 180, 270}:
         raise ValueError("invalid_page_or_rotation")
@@ -140,10 +176,12 @@ def convert(work, data, page, rotation, office_root, *, derivative=False):
         paths = package.slide_paths()
         count = len(paths)
         if page > count:
-            raise ValueError("page_limit_or_range")
+            raise PageOutOfRange(count)
         for name in sorted(package.names):
             if "/embeddings/" in name.lower():
-                raise ValueError("active_or_external_content")
+                if not name.lower().endswith(".xlsx"):
+                    raise ValueError("active_or_external_content")
+                validate_excluded_workbook(package.read(name, limit=8_000_000))
             if name.lower().startswith("ppt/media/") and not name.endswith("/"):
                 if name.lower().endswith(".emf"):
                     try:
@@ -199,6 +237,10 @@ def convert(work, data, page, rotation, office_root, *, derivative=False):
     )
     source = work / "input.pptx"
     subset = single_slide(data, page, source, media_replacements=replacements)
+    # Defense in depth: even a valid workbook must never reach native Office.
+    with Package(source.read_bytes()) as selected:
+        if any("/embeddings/" in name.lower() for name in selected.names):
+            raise ValueError("active_or_external_content")
     del replacements
     mapping = [{"source_slide": page, "pdf_page": 1, "hidden": subset["hidden"]}]
     options = {
@@ -317,6 +359,8 @@ def main():
             else "unreadable_or_rendering_limit"
         )
         result = {"ok": False, "reason": reason}
+        if isinstance(exc, PageOutOfRange):
+            result.update(reason="document_range_out_of_bounds", page_count=exc.count)
         if isinstance(exc, UnsupportedMedia):
             result["media_format"] = exc.media_format
     encoded = json.dumps(result).encode()

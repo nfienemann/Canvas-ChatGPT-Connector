@@ -1,9 +1,10 @@
 """Canvas-specific grade evidence acquisition. All requests use Bridge's gateway."""
 
-from canvas_bridge.domain import DomainError, Source, utcnow
+from canvas_bridge.domain import Coverage, DomainError, Source
 from canvas_bridge.grading_engine import GradeAssessment, GradeGroup, GradePolicy, digest, number
 from canvas_bridge.normalize import canonical_id, fact_date, normalize_assignment, plain_text
 from canvas_bridge.policy import Endpoint, source_id
+from canvas_bridge.read_evidence import collection_scope, read_meta
 
 MAX_ASSESSMENTS = 60
 MAX_DOCUMENTS = 3
@@ -106,19 +107,46 @@ async def collect(bridge, owner, ref, course_ref):
     )
     course = courses[0]
     limitations, blockers = [], []
+    receipts = []
+    config_scope = Coverage(
+        course_ref=course_ref, resource="grade_configuration", state="unavailable"
+    )
     async with bridge.client(owner, ref, course_ref=course_ref) as client:
         origin = client.institution.origin
         try:
-            config = await client.one(Endpoint.COURSE, course=course.source_id)
+            config = await client.one(Endpoint.COURSE, course=course.source_id, receipts=receipts)
             if str(config.get("id")) != course.source_id:
                 raise DomainError("partial_data", "Course configuration identity mismatch.")
+            config_scope.state = "complete"
+            config_scope.pages_consumed = 1
+            config_scope.pagination_complete = True
         except DomainError as exc:
+            config_scope.state = (
+                "permission_denied" if exc.status == "permission_denied" else "unavailable"
+            )
+            receipts.clear()
+            config_scope.reason_code = exc.reason_code
+            config_scope.upstream_http_status = exc.upstream_http_status
             config = {}
             blockers.append("Course grading configuration unavailable: " + exc.status)
-        groups = await client.collection(Endpoint.ASSIGNMENT_GROUPS, course=course.source_id)
-        assignments = await client.collection(Endpoint.ASSIGNMENTS, course=course.source_id)
-        enrollments = await client.collection(Endpoint.ENROLLMENTS)
-        complete = entitlement.status == "ok" and assignments.complete and groups.complete
+        groups = await client.collection(
+            Endpoint.ASSIGNMENT_GROUPS, record_page_receipts=True, course=course.source_id
+        )
+        assignments = await client.collection(
+            Endpoint.ASSIGNMENTS, record_page_receipts=True, course=course.source_id
+        )
+        enrollments = await client.collection(Endpoint.ENROLLMENTS, record_page_receipts=True)
+        collections = [
+            ("grade_assignments", assignments),
+            ("grade_groups", groups),
+            ("own_grade_enrollments", enrollments),
+        ]
+        scopes = [collection_scope(course_ref, name, rows) for name, rows in collections]
+        responses = config_scope.pages_consumed + sum(rows.pages for _, rows in collections)
+        for _, rows in collections:
+            receipts.extend(receipt for _, receipt in rows.page_receipts)
+        complete = entitlement.status == "ok" and all(s.state == "complete" for s in scopes[:2])
+        scopes.append(config_scope)
         if not complete:
             blockers.append("Course, assignment, or grading-group collection is incomplete.")
         policy = GradePolicy(
@@ -163,6 +191,10 @@ async def collect(bridge, owner, ref, course_ref):
             complete = False
         records = []
         inconsistencies = []
+        detail_scope = Coverage(
+            course_ref=course_ref, resource="grade_assignment_details", state="not_refreshed"
+        )
+        detail_failures = set()
         for raw in assignments.items[:MAX_ASSESSMENTS]:
             try:
                 row = assessment(raw, owner, ref, conn, course, origin)
@@ -170,9 +202,12 @@ async def collect(bridge, owner, ref, course_ref):
                     try:
                         detail = await client.one(
                             Endpoint.ASSIGNMENT,
+                            receipts=receipts,
                             course=course.source_id,
                             assignment=source_id(raw["id"]),
                         )
+                        detail_scope.pages_consumed += 1
+                        responses += 1
                         other = assessment(detail, owner, ref, conn, course, origin)
                         ignore = {"title", "source_version", "source_url"}
                         if row.model_dump(exclude=ignore) != other.model_dump(exclude=ignore):
@@ -184,6 +219,7 @@ async def collect(bridge, owner, ref, course_ref):
                     except DomainError as exc:
                         if exc.status == "reconnect_required":
                             raise
+                        detail_failures.add(exc.status)
                         row.score, row.score_state = None, "unavailable"
                         limitations.append(
                             "An assignment detail could not be verified: " + exc.status
@@ -194,6 +230,17 @@ async def collect(bridge, owner, ref, course_ref):
                 blockers.append(
                     "An assessment has invalid or incomplete evidence: " + type(exc).__name__
                 )
+        if detail_failures:
+            detail_scope.warning = ", ".join(sorted(detail_failures))
+            if detail_scope.pages_consumed:
+                detail_scope.state = "partial"
+            elif detail_failures == {"permission_denied"}:
+                detail_scope.state = "permission_denied"
+            else:
+                detail_scope.state = "unavailable"
+        elif detail_scope.pages_consumed:
+            detail_scope.state = "complete"
+        scopes.append(detail_scope)
         own = [
             e
             for e in enrollments.items
@@ -255,15 +302,26 @@ async def collect(bridge, owner, ref, course_ref):
     current, _ = bridge.selected(owner, ref, [course_ref])
     if current.epoch != conn.epoch:
         raise DomainError("source_changed", "Connection scope changed during grade retrieval.")
+    meta = read_meta(receipts, responses, scopes)
+    # The gradebook citation is the adapter's composite source for normalized
+    # course, category and assessment facts, including the own-enrollment summary.
     sources = [
         Source(
             id=course.id,
             url=f"{origin}/courses/{course.source_id}/grades",
             title=f"{course.name}: own visible grades",
-            retrieved_at=utcnow(),
+            course_id=course_ref,
+            source_type="canvas_grade_inputs",
+            retrieved_at=meta.retrieved_at,
+            uncertainty=[]
+            if meta.freshness in {"live", "cached"}
+            else [
+                "Grade input retrieval time unverified; citation timestamp records assembly time."
+            ],
         )
     ]
     return {
+        "meta": meta,
         "course": course,
         "connection": conn,
         "config": config,
@@ -302,6 +360,8 @@ async def collect(bridge, owner, ref, course_ref):
             "period_scope": "whole_course_enrollment_API",
             "summary_detail_conflicts": inconsistencies,
             "limitations": list(dict.fromkeys(limitations)),
-            "retrieved_at": utcnow().isoformat(),
+            "retrieved_at": meta.retrieved_at.isoformat()
+            if meta.freshness in {"live", "cached"}
+            else None,
         },
     }

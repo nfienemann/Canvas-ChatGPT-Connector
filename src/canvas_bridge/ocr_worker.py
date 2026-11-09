@@ -4,9 +4,12 @@ import ctypes as C
 import os
 from pathlib import Path
 
+OCR_ROOT = Path(__file__).parent / "ocr"
+GRAYSCALE_RETRY_BELOW = 75
+
 
 def recognize(bitmap):
-    root = Path(__file__).parent / "ocr"
+    root = OCR_ROOT
     if not (root / "tessdata/eng.traineddata").is_file():
         raise RuntimeError("OCR model unavailable")
     handle = os.add_dll_directory(str(root)) if os.name == "nt" else None
@@ -57,16 +60,6 @@ def recognize(bitmap):
             normalized = ImageChops.difference(gray, background).point(
                 lambda x: 0 if x > 30 else 255
             )
-            raw = normalized.tobytes()
-            buffer = C.create_string_buffer(raw)
-            lib.TessBaseAPISetImage(
-                api,
-                C.cast(buffer, C.c_void_p),
-                bitmap.width,
-                bitmap.height,
-                1,
-                bitmap.width,
-            )
             # Detect long horizontal rules, then OCR each band independently.
             # This avoids losing text inside colored/merged table cells. It does
             # not assign semantic columns or infer a date from another row.
@@ -85,24 +78,23 @@ def recognize(bitmap):
                     *[(a[1] + 2, b[0] - 1) for a, b in zip(rules, rules[1:], strict=False)],
                     (rules[-1][1] + 2, bitmap.height),
                 ]
-            fragments = []
-            confidence = []
-            for top, bottom in bands:
-                if bottom - top < 8:
-                    continue
-                band_bytes = normalized.crop((0, top, bitmap.width, bottom)).tobytes()
+
+            def read_band(picture, top, *, optional=False):
+                band_bytes = picture.tobytes()
                 band_buffer = C.create_string_buffer(band_bytes)
                 lib.TessBaseAPISetImage(
                     api,
                     C.cast(band_buffer, C.c_void_p),
-                    bitmap.width,
-                    bottom - top,
+                    picture.width,
+                    picture.height,
                     1,
-                    bitmap.width,
+                    picture.width,
                 )
                 lib.TessBaseAPISetPageSegMode(api, 11)
                 pointer = lib.TessBaseAPIGetTsvText(api, 0)
                 if not pointer:
+                    if optional:
+                        return "", 0
                     raise RuntimeError("OCR recognition failed")
                 try:
                     tsv_band = C.string_at(pointer).decode("utf-8")
@@ -112,10 +104,24 @@ def recognize(bitmap):
                         if len(fields) == 12 and fields[0] == "5":
                             fields[7] = str(int(fields[7]) + top)
                             lines.append("\t".join(fields))
-                    fragments.append("\n".join(lines))
-                    confidence.append(lib.TessBaseAPIMeanTextConf(api))
+                    return "\n".join(lines), lib.TessBaseAPIMeanTextConf(api)
                 finally:
                     lib.TessDeleteText(pointer)
+
+            fragments = []
+            confidence = []
+            for top, bottom in bands:
+                if bottom - top < 8:
+                    continue
+                fragment, score = read_band(normalized.crop((0, top, bitmap.width, bottom)), top)
+                # Local background subtraction can hollow out broad title strokes.
+                # Preserve geometry and table bands. Retry at most one full-page pass.
+                if len(bands) == 1 and score < GRAYSCALE_RETRY_BELOW:
+                    alternate, alternate_score = read_band(gray, 0, optional=True)
+                    if alternate and alternate_score >= max(80, score + 10):
+                        fragment, score = alternate, alternate_score
+                fragments.append(fragment)
+                confidence.append(score)
             tsv = "\n".join(fragments)
             if len(tsv) > 1_000_000:
                 raise ValueError("OCR output limit")
